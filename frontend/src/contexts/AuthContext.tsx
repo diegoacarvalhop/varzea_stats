@@ -135,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string, expectedPeladaId?: number | null) => {
     const res: LoginResult = await loginRequest({ email, password });
     const isAdminGlobal = res.roles.includes('ADMIN_GERAL');
+    if (expectedPeladaId == null && !isAdminGlobal) {
+      throw new Error('SELECT_PELADA_REQUIRED');
+    }
     if (expectedPeladaId != null && !isAdminGlobal && res.peladaId !== expectedPeladaId) {
       throw new Error('SELECTED_PELADA_MISMATCH');
     }

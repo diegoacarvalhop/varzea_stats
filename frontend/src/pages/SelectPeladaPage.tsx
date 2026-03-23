@@ -140,6 +140,12 @@ export function SelectPeladaPage() {
       <p className={s.lead}>
         Selecione a pelada desejada para continuar para o login. A lista é exibida em ordem alfabética.
       </p>
+      {!isAuthenticated && (
+        <p className={s.lead} style={{ marginTop: '-0.75rem' }}>
+          Se você é <strong>administrador geral</strong> e ainda não existem peladas,{' '}
+          <Link to="/login">entre aqui</Link> para criar a primeira.
+        </p>
+      )}
 
       {isAuthenticated && isAdminGlobal && (
         <div className={s.card} style={{ marginBottom: '1.25rem' }}>

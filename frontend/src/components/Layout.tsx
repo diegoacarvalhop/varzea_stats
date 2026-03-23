@@ -50,7 +50,7 @@ export function Layout() {
   }, [logoUrl]);
 
   const guestNoPelada = !isAuthenticated && !getPeladaId();
-  const guestOnNonPublicRoute = !isAuthenticated && location.pathname !== '/pelada';
+  const guestOnNonPublicRoute = !isAuthenticated && location.pathname !== '/pelada' && location.pathname !== '/login';
   const adminNoPelada = isAuthenticated && isAdminGeral(roles) && !getPeladaId();
   /** Admin geral pode gerir usuários globais sem escolher pelada no contexto local. */
   const adminGeralOnUsersRoute =

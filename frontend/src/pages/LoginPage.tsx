@@ -54,11 +54,6 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (selectedPeladaId == null) {
-      appToast.warning('Selecione uma pelada antes de entrar.');
-      navigate('/pelada', { replace: true });
-      return;
-    }
     setLoading(true);
     try {
       const res = await login(email, password, selectedPeladaId);
@@ -75,6 +70,11 @@ export function LoginPage() {
       }
       navigate(from, { replace: true });
     } catch (err) {
+      if (err instanceof Error && err.message === 'SELECT_PELADA_REQUIRED') {
+        appToast.error('Selecione uma pelada antes de entrar.');
+        navigate('/pelada', { replace: true });
+        return;
+      }
       if (err instanceof Error && err.message === 'SELECTED_PELADA_MISMATCH') {
         appToast.error('Esta conta não pertence à pelada selecionada.');
         return;
