@@ -63,9 +63,9 @@ export function Layout() {
     return <Navigate to="/pelada" replace />;
   }
 
-  const showPeladaBar = Boolean(resolvedPeladaLabel);
+  const showPeladaBar = Boolean(resolvedPeladaLabel) && isAuthenticated;
   const canSwitchPelada = isAdminGeral(roles) || !isAuthenticated;
-  const hideGlobalHeader = !isAuthenticated;
+  const showNav = isAuthenticated;
 
   return (
     <div className={styles.shell}>
@@ -80,7 +80,7 @@ export function Layout() {
         </>
       )}
       <div className={styles.shellContent}>
-        {!hideGlobalHeader && <header className={styles.header}>
+        <header className={styles.header}>
           <Link to="/" className={styles.brand}>
             {logoUrl && !headerLogoBroken ? (
               <img
@@ -98,30 +98,32 @@ export function Layout() {
             )}
             <span className={styles.brandText}>VARzea</span>
           </Link>
-          <nav className={styles.nav}>
-            <NavLink to="/" end className={({ isActive }) => navClass(isActive)}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/matches" className={({ isActive }) => navClass(isActive)}>
-              Partidas
-            </NavLink>
-            <NavLink to="/stats" className={({ isActive }) => navClass(isActive)}>
-              Estatísticas
-            </NavLink>
-            <NavLink to="/ranking" className={({ isActive }) => navClass(isActive)}>
-              Ranking
-            </NavLink>
-            {hasAnyRole(roles, MEDIA_ROLES) && (
-              <NavLink to="/media" className={({ isActive }) => navClass(isActive)}>
-                Mídia
+          {showNav && (
+            <nav className={styles.nav}>
+              <NavLink to="/" end className={({ isActive }) => navClass(isActive)}>
+                Dashboard
               </NavLink>
-            )}
-            {isAnyAdmin(roles) && (
-              <NavLink to="/admin/users" className={({ isActive }) => navClass(isActive)}>
-                Usuários
+              <NavLink to="/matches" className={({ isActive }) => navClass(isActive)}>
+                Partidas
               </NavLink>
-            )}
-          </nav>
+              <NavLink to="/stats" className={({ isActive }) => navClass(isActive)}>
+                Estatísticas
+              </NavLink>
+              <NavLink to="/ranking" className={({ isActive }) => navClass(isActive)}>
+                Ranking
+              </NavLink>
+              {hasAnyRole(roles, MEDIA_ROLES) && (
+                <NavLink to="/media" className={({ isActive }) => navClass(isActive)}>
+                  Mídia
+                </NavLink>
+              )}
+              {isAnyAdmin(roles) && (
+                <NavLink to="/admin/users" className={({ isActive }) => navClass(isActive)}>
+                  Usuários
+                </NavLink>
+              )}
+            </nav>
+          )}
           <span className={styles.spacer} />
           <div className={styles.user}>
             {isAuthenticated ? (
@@ -143,13 +145,11 @@ export function Layout() {
                 </button>
               </>
             ) : (
-              <Link to="/login" className={styles.btnLogin}>
-                Entrar
-              </Link>
+              <span className={styles.guestHint}>Selecione uma pelada para continuar</span>
             )}
           </div>
-        </header>}
-        {!hideGlobalHeader && showPeladaBar && (
+        </header>
+        {showPeladaBar && (
           <div className={styles.peladaBar}>
             <span>
               Pelada: <strong>{resolvedPeladaLabel}</strong>

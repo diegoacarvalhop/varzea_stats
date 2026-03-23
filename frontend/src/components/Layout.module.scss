@@ -175,6 +175,12 @@
   max-width: min(320px, 42vw);
 }
 
+.guestHint {
+  font-size: 0.88rem;
+  color: $text-muted;
+  letter-spacing: 0.02em;
+}
+
 .btnLogout {
   @include btn-base;
   padding: 0.45rem 1rem;
