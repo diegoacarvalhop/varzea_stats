@@ -37,6 +37,13 @@ export function LoginPage() {
     };
   }, []);
 
+  const selectedPeladaId = (() => {
+    const raw = getPeladaId();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  })();
+
   if (isAuthenticated) {
     const storedRoles = parseStoredRoles(localStorage.getItem('varzea_user'));
     if (isAdminGeral(storedRoles) && !getPeladaId()) {
@@ -47,9 +54,14 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (selectedPeladaId == null) {
+      appToast.warning('Selecione uma pelada antes de entrar.');
+      navigate('/pelada', { replace: true });
+      return;
+    }
     setLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(email, password, selectedPeladaId);
       appToast.success('Login realizado.');
       if (res.mustChangePassword) {
         navigate('/alterar-senha', { replace: true });
@@ -58,11 +70,15 @@ export function LoginPage() {
       const raw = localStorage.getItem('varzea_user');
       const roles = parseStoredRoles(raw);
       if (isAdminGeral(roles)) {
-        navigate('/pelada', { replace: true });
+        navigate(getPeladaId() ? '/' : '/pelada', { replace: true });
         return;
       }
       navigate(from, { replace: true });
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message === 'SELECTED_PELADA_MISMATCH') {
+        appToast.error('Esta conta não pertence à pelada selecionada.');
+        return;
+      }
       appToast.error('Falha no login. Verifique e-mail e senha.');
     } finally {
       setLoading(false);
@@ -110,10 +126,7 @@ export function LoginPage() {
             {loading ? 'Entrando…' : 'Acessar painel'}
           </button>
           <p className={styles.subtitle} style={{ marginTop: '1rem', marginBottom: 0, textAlign: 'center' }}>
-            <Link to="/esqueci-senha">Esqueci minha senha</Link>
-          </p>
-          <p className={styles.subtitle} style={{ marginTop: '0.5rem', textAlign: 'center' }}>
-            <Link to="/cadastro">Realizar cadastro</Link>
+            <Link to="/pelada">Voltar para peladas</Link>
           </p>
         </form>
       </div>

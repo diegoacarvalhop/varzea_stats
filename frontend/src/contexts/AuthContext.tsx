@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearPeladaContext } from '@/lib/peladaContext';
+import { setPeladaContext } from '@/lib/peladaContext';
 import type { LoginResult, Role } from '@/services/authService';
 import { changePassword as changePasswordRequest, login as loginRequest } from '@/services/authService';
 
@@ -27,7 +27,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (email: string, password: string, expectedPeladaId?: number | null) => Promise<LoginResult>;
   changePassword: (senhaAtual: string, novaSenha: string) => Promise<LoginResult>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -103,7 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => loadStored());
 
   const applyLoginResult = useCallback((res: LoginResult) => {
-    clearPeladaContext();
+    if (res.peladaId != null && res.peladaName) {
+      setPeladaContext(res.peladaId, res.peladaName, Boolean(res.peladaHasLogo));
+    }
     const mustChange = Boolean(res.mustChangePassword);
     localStorage.setItem(TOKEN_KEY, res.token);
     localStorage.setItem(
@@ -130,8 +132,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, expectedPeladaId?: number | null) => {
     const res: LoginResult = await loginRequest({ email, password });
+    const isAdminGlobal = res.roles.includes('ADMIN_GERAL');
+    if (expectedPeladaId != null && !isAdminGlobal && res.peladaId !== expectedPeladaId) {
+      throw new Error('SELECTED_PELADA_MISMATCH');
+    }
     applyLoginResult(res);
     return res;
   }, [applyLoginResult]);

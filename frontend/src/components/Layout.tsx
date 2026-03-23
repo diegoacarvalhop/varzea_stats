@@ -50,12 +50,13 @@ export function Layout() {
   }, [logoUrl]);
 
   const guestNoPelada = !isAuthenticated && !getPeladaId();
+  const guestOnNonPublicRoute = !isAuthenticated && location.pathname !== '/pelada';
   const adminNoPelada = isAuthenticated && isAdminGeral(roles) && !getPeladaId();
   /** Admin geral pode gerir usuários globais sem escolher pelada no contexto local. */
   const adminGeralOnUsersRoute =
     isAuthenticated && isAdminGeral(roles) && location.pathname.startsWith('/admin/users');
   const mustPickPelada =
-    (guestNoPelada || adminNoPelada) &&
+    (guestNoPelada || guestOnNonPublicRoute || adminNoPelada) &&
     location.pathname !== '/pelada' &&
     !adminGeralOnUsersRoute;
   if (mustPickPelada) {
@@ -64,6 +65,7 @@ export function Layout() {
 
   const showPeladaBar = Boolean(resolvedPeladaLabel);
   const canSwitchPelada = isAdminGeral(roles) || !isAuthenticated;
+  const hideGlobalHeader = !isAuthenticated;
 
   return (
     <div className={styles.shell}>
@@ -78,7 +80,7 @@ export function Layout() {
         </>
       )}
       <div className={styles.shellContent}>
-        <header className={styles.header}>
+        {!hideGlobalHeader && <header className={styles.header}>
           <Link to="/" className={styles.brand}>
             {logoUrl && !headerLogoBroken ? (
               <img
@@ -146,8 +148,8 @@ export function Layout() {
               </Link>
             )}
           </div>
-        </header>
-        {showPeladaBar && (
+        </header>}
+        {!hideGlobalHeader && showPeladaBar && (
           <div className={styles.peladaBar}>
             <span>
               Pelada: <strong>{resolvedPeladaLabel}</strong>

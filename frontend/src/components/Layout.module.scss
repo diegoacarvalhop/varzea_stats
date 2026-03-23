@@ -65,7 +65,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1.25rem;
-  padding: 0.65rem 1.25rem;
+  padding: calc(0.65rem + var(--safe-top-effective)) calc(1.25rem + var(--safe-right)) 0.65rem
+    calc(1.25rem + var(--safe-left));
   background: rgba(5, 10, 12, 0.78);
   backdrop-filter: blur($header-blur);
   -webkit-backdrop-filter: blur($header-blur);
@@ -209,7 +210,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
-  padding: 0.45rem 1.25rem;
+  padding: 0.45rem calc(1.25rem + var(--safe-right)) 0.45rem calc(1.25rem + var(--safe-left));
   background: rgba(0, 230, 118, 0.08);
   border-bottom: 1px solid rgba(105, 240, 174, 0.2);
   font-size: 0.88rem;
@@ -235,5 +236,101 @@
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 1.75rem 1.25rem 3rem;
+  padding: 1.75rem calc(1.25rem + var(--safe-right)) calc(3rem + var(--safe-bottom-effective))
+    calc(1.25rem + var(--safe-left));
+}
+
+@media (max-width: 1024px) {
+  .header {
+    gap: 0.45rem 0.85rem;
+    padding: calc(0.6rem + var(--safe-top-effective)) calc(0.85rem + var(--safe-right)) 0.6rem
+      calc(0.85rem + var(--safe-left));
+  }
+
+  .navLink {
+    padding: 0.4rem 0.72rem;
+    font-size: 0.88rem;
+  }
+
+  .userName {
+    max-width: 42vw;
+  }
+
+  .main {
+    padding: 1.25rem calc(0.85rem + var(--safe-right)) calc(2.4rem + var(--safe-bottom)) calc(0.85rem + var(--safe-left));
+  }
+}
+
+@media (max-width: 768px) {
+  .brandText {
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+  }
+
+  .header {
+    gap: 0.45rem 0.6rem;
+  }
+
+  .nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.15rem;
+    scrollbar-width: thin;
+  }
+
+  .spacer {
+    display: none;
+  }
+
+  .user {
+    margin-left: auto;
+  }
+
+  .userName {
+    max-width: 56vw;
+    font-size: 0.84rem;
+  }
+
+  .userRoles {
+    max-width: 66vw;
+  }
+
+  .btnLogout,
+  .btnLogin {
+    padding: 0.42rem 0.72rem;
+    font-size: 0.74rem;
+  }
+
+  .peladaBar {
+    padding: 0.42rem calc(0.85rem + var(--safe-right)) 0.42rem calc(0.85rem + var(--safe-left));
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: calc(0.55rem + var(--safe-top-effective)) calc(0.6rem + var(--safe-right)) 0.55rem
+      calc(0.6rem + var(--safe-left));
+  }
+
+  .brand {
+    gap: 0.4rem;
+  }
+
+  .brandLogoImg,
+  .logoMark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .main {
+    padding: 1rem calc(0.55rem + var(--safe-right)) calc(2rem + var(--safe-bottom)) calc(0.55rem + var(--safe-left));
+  }
+
+  .peladaBar {
+    padding: 0.4rem calc(0.6rem + var(--safe-right)) 0.4rem calc(0.6rem + var(--safe-left));
+  }
 }

@@ -7,7 +7,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: calc(1.5rem + var(--safe-top-effective)) calc(1.5rem + var(--safe-right))
+    calc(1.5rem + var(--safe-bottom-effective)) calc(1.5rem + var(--safe-left));
   position: relative;
   overflow: hidden;
 }
@@ -188,5 +189,55 @@
   &:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+  }
+}
+
+@media (max-width: 768px) {
+  .root {
+    padding: calc(1rem + var(--safe-top-effective)) calc(0.8rem + var(--safe-right))
+      calc(1rem + var(--safe-bottom-effective)) calc(0.8rem + var(--safe-left));
+    align-items: flex-start;
+  }
+
+  .card {
+    max-width: 100%;
+    padding: 1.35rem 1.1rem 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .title {
+    font-size: 1.35rem;
+  }
+
+  .subtitle {
+    font-size: 0.92rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .submit,
+  .submitSecondary {
+    padding: 0.78rem 1.1rem;
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .card {
+    padding: 1.1rem 0.9rem 1.25rem;
+    border-radius: $radius-md;
+  }
+
+  .badge {
+    font-size: 0.6rem;
+    letter-spacing: 0.14em;
+  }
+
+  .label {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .input {
+    padding: 0.68rem 0.8rem;
   }
 }

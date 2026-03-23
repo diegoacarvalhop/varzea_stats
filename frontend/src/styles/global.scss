@@ -7,6 +7,21 @@
   box-sizing: border-box;
 }
 
+:root {
+  --safe-top-raw: env(safe-area-inset-top, 0px);
+  --safe-right-raw: env(safe-area-inset-right, 0px);
+  --safe-bottom-raw: env(safe-area-inset-bottom, 0px);
+  --safe-left-raw: env(safe-area-inset-left, 0px);
+  --safe-top: var(--safe-top-raw);
+  --safe-right: var(--safe-right-raw);
+  --safe-bottom: var(--safe-bottom-raw);
+  --safe-left: var(--safe-left-raw);
+  --android-top-buffer: 0px;
+  --android-bottom-buffer: 0px;
+  --safe-top-effective: max(var(--safe-top), var(--android-top-buffer));
+  --safe-bottom-effective: max(var(--safe-bottom), var(--android-bottom-buffer));
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -16,7 +31,7 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: $font-body;
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 500;
   line-height: 1.5;
   color: $text-primary;
@@ -28,6 +43,18 @@ body {
     linear-gradient(180deg, $bg-deep 0%, $bg-void 55%, #030506 100%);
   @include pitch-stripes;
   background-attachment: fixed;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --android-top-buffer: 8px;
+    --android-bottom-buffer: 16px;
+  }
+
+  body {
+    font-size: 0.95rem;
+    background-attachment: scroll;
+  }
 }
 
 #root {

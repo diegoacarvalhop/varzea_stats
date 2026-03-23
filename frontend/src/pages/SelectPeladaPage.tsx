@@ -59,6 +59,9 @@ export function SelectPeladaPage() {
   const [newName, setNewName] = useState('');
   const [newLogo, setNewLogo] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,9 +85,30 @@ export function SelectPeladaPage() {
     [peladas],
   );
 
+  const filteredPeladas = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase('pt-BR');
+    if (!q) return sortedPeladas;
+    return sortedPeladas.filter((p) => p.name.toLocaleLowerCase('pt-BR').includes(q));
+  }, [search, sortedPeladas]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPeladas.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const pageStart = (page - 1) * pageSize;
+  const pagedPeladas = filteredPeladas.slice(pageStart, pageStart + pageSize);
+
   function choose(p: Pelada) {
     setPeladaContext(p.id, p.name, Boolean(p.hasLogo));
-    navigate('/', { replace: true });
+    navigate(isAuthenticated ? '/' : '/login', { replace: true });
   }
 
   async function onCreate(e: FormEvent) {
@@ -112,22 +136,12 @@ export function SelectPeladaPage() {
 
   return (
     <div className={s.page}>
-      <h1>Escolher pelada</h1>
+      <h1>Peladas disponíveis</h1>
       <p className={s.lead}>
-        {isAdminGlobal ? (
-          <>
-            Como <strong>administrador geral</strong>, escolha qual pelada deseja administrar agora. Você pode voltar
-            aqui a qualquer momento pelo menu. Cadastre uma pelada nova se precisar.
-          </>
-        ) : (
-          <>
-            Para acompanhar partidas, estatísticas e ranking, selecione a <strong>pelada</strong> (grupo) correspondente.
-            Com login de jogador/scout/mídia, sua pelada é definida pelo administrador.
-          </>
-        )}
+        Selecione a pelada desejada para continuar para o login. A lista é exibida em ordem alfabética.
       </p>
 
-      {isAdminGlobal && (
+      {isAuthenticated && isAdminGlobal && (
         <div className={s.card} style={{ marginBottom: '1.25rem' }}>
           <h2 className={s.cardTitle}>Nova pelada</h2>
           <form className={s.form} onSubmit={(e) => void onCreate(e)} style={{ maxWidth: '36rem' }}>
@@ -180,14 +194,44 @@ export function SelectPeladaPage() {
       )}
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>Peladas disponíveis</h2>
+        <h2 className={s.cardTitle}>Escolha sua pelada</h2>
+        <div className={s.formInline}>
+          <div className={s.field} style={{ flex: 1, minWidth: '16rem' }}>
+            <label className={s.fieldLabel} htmlFor="pelada-search">
+              Buscar pelada
+            </label>
+            <input
+              id="pelada-search"
+              className={s.input}
+              value={search}
+              onChange={(ev) => setSearch(ev.target.value)}
+              placeholder="Digite o nome da pelada"
+            />
+          </div>
+          <div className={s.field}>
+            <label className={s.fieldLabel} htmlFor="pelada-page-size">
+              Itens por página
+            </label>
+            <select
+              id="pelada-page-size"
+              className={s.input}
+              value={String(pageSize)}
+              onChange={(ev) => setPageSize(Number(ev.target.value))}
+            >
+              <option value="10">10</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
         {loading ? (
           <p className={s.lead}>Carregando…</p>
-        ) : peladas.length === 0 ? (
+        ) : filteredPeladas.length === 0 ? (
           <p className={s.lead}>Nenhuma pelada cadastrada ainda.</p>
         ) : (
-          <ul className={s.matchList}>
-            {sortedPeladas.map((p) => (
+          <>
+            <ul className={s.matchList}>
+            {pagedPeladas.map((p) => (
               <li key={p.id} className={s.matchItem}>
                 <button type="button" className={s.matchLink} onClick={() => choose(p)}>
                   <PeladaListThumb pelada={p} />
@@ -196,13 +240,38 @@ export function SelectPeladaPage() {
                 </button>
               </li>
             ))}
-          </ul>
+            </ul>
+            <div className={s.formInline} style={{ justifyContent: 'space-between', marginTop: '0.9rem' }}>
+              <span className={s.statsDetailMeta}>
+                Mostrando {pageStart + 1}-{Math.min(pageStart + pageSize, filteredPeladas.length)} de{' '}
+                {filteredPeladas.length} peladas
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button className={s.btnGhost} type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  Anterior
+                </button>
+                <span className={s.statsDetailMeta}>
+                  Página {page} de {totalPages}
+                </span>
+                <button
+                  className={s.btnGhost}
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      <p className={s.lead} style={{ marginTop: '1rem' }}>
-        <Link to="/">Voltar ao dashboard</Link> (só funciona bem após escolher uma pelada)
-      </p>
+      {isAuthenticated && (
+        <p className={s.lead} style={{ marginTop: '1rem' }}>
+          <Link to="/">Voltar ao dashboard</Link>
+        </p>
+      )}
     </div>
   );
 }

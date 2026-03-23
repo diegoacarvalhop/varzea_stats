@@ -909,6 +909,9 @@
   margin: 0 0 1.25rem;
   padding: 0.5rem 0;
   overflow-x: auto;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  padding-bottom: calc(0.35rem + var(--safe-bottom-effective));
 }
 
 .trajectoryCumCol {
@@ -945,6 +948,9 @@
 .trajectoryTableWrap {
   overflow-x: auto;
   margin-bottom: 1.25rem;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  padding-bottom: calc(0.35rem + var(--safe-bottom-effective));
   border-radius: $radius-sm;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1038,6 +1044,9 @@
 .permissionMatrixWrap {
   overflow-x: auto;
   margin: 0.75rem 0 0;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  padding-bottom: calc(0.35rem + var(--safe-bottom-effective));
   border-radius: $radius-sm;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1119,4 +1128,85 @@
   color: $bg-void;
   background: rgba(105, 240, 174, 0.85);
   border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 0 0 2rem;
+  }
+
+  .lead {
+    font-size: 0.98rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .card {
+    padding: 1rem 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  .formInline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .input,
+  .select,
+  .btn,
+  .btnPrimary,
+  .btnVoteGood,
+  .btnVoteBad {
+    width: 100%;
+  }
+
+  .matchLink {
+    gap: 0.45rem 0.75rem;
+    padding: 0.85rem 0.8rem;
+  }
+
+  .matchMeta {
+    font-size: 0.9rem;
+  }
+
+  .peladaListIconWrap {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .featureGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .featureCardLink {
+    padding: 1rem 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-bottom: 1.5rem;
+  }
+
+  .cardTitle {
+    font-size: 0.76rem;
+    letter-spacing: 0.1em;
+  }
+
+  .fieldLabel {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .statsDetailMeta {
+    font-size: 0.75rem;
+  }
+
+  .matchChevron {
+    font-size: 1rem;
+  }
+
+  .featureText {
+    font-size: 0.92rem;
+  }
 }
