@@ -126,6 +126,12 @@ export function LoginPage() {
             {loading ? 'Entrando…' : 'Acessar painel'}
           </button>
           <p className={styles.subtitle} style={{ marginTop: '1rem', marginBottom: 0, textAlign: 'center' }}>
+            <Link to="/esqueci-senha">Esqueci minha senha</Link>
+          </p>
+          <p className={styles.subtitle} style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+            <Link to="/cadastro">Realizar cadastro</Link>
+          </p>
+          <p className={styles.subtitle} style={{ marginTop: '0.5rem', marginBottom: 0, textAlign: 'center' }}>
             <Link to="/pelada">Voltar para peladas</Link>
           </p>
         </form>
