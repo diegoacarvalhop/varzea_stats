@@ -1,0 +1,192 @@
+@use 'sass:color';
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+
+.root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.bgGlow {
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(0, 230, 118, 0.12), transparent 42%),
+    radial-gradient(circle at 70% 80%, rgba(0, 255, 200, 0.08), transparent 38%);
+  pointer-events: none;
+  animation: pulseGlow 8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.fieldLines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.4) 49.5%, rgba(255, 255, 255, 0.4) 50.5%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49%, rgba(255, 255, 255, 0.15) 49%, rgba(255, 255, 255, 0.15) 51%, transparent 51%);
+  background-size: 100% 100%, 100% 120px;
+  background-position: center, center bottom;
+  pointer-events: none;
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  @include glass-panel;
+  padding: 2rem 2rem 2.25rem;
+  border-radius: $radius-lg;
+  border-color: rgba(0, 255, 200, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    0 0 80px rgba(0, 230, 118, 0.08);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, $accent-bright, transparent);
+    border-radius: 0 0 4px 4px;
+    opacity: 0.9;
+  }
+}
+
+.badge {
+  font-family: $font-display;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: $electric;
+  margin-bottom: 0.35rem;
+}
+
+.title {
+  font-family: $font-display;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.35rem;
+  @include text-gradient-accent;
+}
+
+.subtitle {
+  margin: 0 0 1.75rem;
+  color: $text-muted;
+  font-size: 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.secondaryActionWrap {
+  margin: 1rem 0 0;
+  text-align: center;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $text-muted;
+}
+
+.requiredMark {
+  margin-left: 0.2rem;
+  color: $accent-bright;
+  font-weight: 700;
+}
+
+.input {
+  @include input-base;
+  padding: 0.75rem 1rem;
+}
+
+.error {
+  color: $danger;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  background: $danger-bg;
+  border-radius: $radius-sm;
+  border: 1px solid rgba(255, 82, 82, 0.3);
+}
+
+.submit {
+  @include btn-base;
+  margin-top: 0.25rem;
+  padding: 0.85rem 1.5rem;
+  width: 100%;
+  background: linear-gradient(135deg, $accent 0%, color.adjust($accent, $lightness: -14%) 100%);
+  color: $bg-void;
+  font-size: 1rem;
+  box-shadow:
+    0 0 32px rgba(0, 230, 118, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 48px rgba(0, 230, 118, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+}
+
+/** Secundário (ex.: Sair no primeiro acesso) — texto claro; não herdar `color` escuro de `.submit`. */
+.submitSecondary {
+  @include btn-base;
+  margin-top: 0;
+  padding: 0.85rem 1.5rem;
+  width: 100%;
+  font-size: 1rem;
+  color: $text-primary;
+  background: rgba(5, 12, 14, 0.55);
+  border: 1px solid $border-strong;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  &:hover:not(:disabled) {
+    color: $accent-bright;
+    background: rgba(0, 230, 118, 0.08);
+    border-color: rgba(0, 255, 200, 0.45);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}

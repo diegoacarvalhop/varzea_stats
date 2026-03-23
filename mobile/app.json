@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "VARzea Stats",
+    "slug": "varzea-stats-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "varzeastats",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#14532d"
+      }
+    },
+    "extra": {
+      "apiUrl": "http://localhost:8080"
+    }
+  }
+}

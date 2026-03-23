@@ -1,0 +1,14 @@
+# Build + Nginx. Uso: cd frontend && docker compose up --build
+# Imagem e container: varzea-frontend → http://localhost:8081
+
+name: varzea-frontend-stack
+
+services:
+  frontend:
+    image: varzea-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: varzea-frontend
+    ports:
+      - "8081:80"

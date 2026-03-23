@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "VarzeaStatsApplication",
+      "request": "launch",
+      "mainClass": "com.varzeastats.VarzeaStatsApplication",
+      "projectName": "varzea-stats"
+    }
+  ]
+}

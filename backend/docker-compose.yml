@@ -1,0 +1,53 @@
+# Backend Spring Boot + PostgreSQL (tudo em Docker).
+# Uso: cd backend && docker compose up --build
+#
+# API: http://localhost:8080
+# No host, o Postgres em Docker fica sempre em 127.0.0.1:5433 (IDE/DBeaver/psql).
+# Entre containers, a API usa o serviço postgres na porta interna 5432.
+
+name: varzea-backend-stack
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: varzea-postgresql
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: varzea
+    ports:
+      - "5433:5432"
+    volumes:
+      - varzea_pg_stack_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d varzea"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    image: varzea-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: varzea-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/varzea
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      VARZEA_PELADA_LOGO_DIR: /app/data/pelada-logos
+      # Opcional em produção:
+      # JWT_SECRET: ...
+      # FRONTEND_URL: https://seu-frontend.com
+    volumes:
+      - varzea_pelada_logos:/app/data/pelada-logos
+
+volumes:
+  varzea_pg_stack_data:
+  varzea_pelada_logos:

@@ -1,0 +1,1122 @@
+@use 'sass:color';
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 0.25rem 3rem;
+  animation: fadeSlideUp 0.45s ease forwards;
+}
+
+.lead {
+  color: $text-muted;
+  font-size: 1.1rem;
+  max-width: 52ch;
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+}
+
+.card {
+  @include glass-panel;
+  padding: 1.35rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.cardTitle {
+  font-family: $font-display;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  color: $electric;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: $text-muted;
+  user-select: none;
+
+  input[type='checkbox'] {
+    $cb: 1.125rem;
+    width: $cb;
+    height: $cb;
+    min-width: $cb;
+    min-height: $cb;
+    margin: 0.2rem 0 0;
+    flex-shrink: 0;
+    accent-color: $accent;
+    cursor: pointer;
+  }
+
+  span {
+    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.gkBadge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  font-family: $font-display;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $bg-void;
+  background: linear-gradient(135deg, $electric 0%, $accent 100%);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+
+  @media (min-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.formInline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $text-muted;
+}
+
+.requiredMark {
+  margin-left: 0.2rem;
+  color: $accent-bright;
+  font-weight: 700;
+}
+
+.input,
+.select {
+  @include input-base;
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%2369f0ae'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2369f0ae' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+.btn {
+  @include btn-base;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(145deg, $pitch-mid 0%, color.adjust($pitch-mid, $lightness: -6%) 100%);
+  color: $text-primary;
+  border: 1px solid $border-strong;
+  box-shadow: 0 0 20px rgba(0, 230, 118, 0.12);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 28px rgba(0, 230, 118, 0.25),
+      0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: $accent-bright;
+  }
+}
+
+.btnPrimary {
+  @include btn-base;
+  padding: 0.65rem 1.35rem;
+  background: linear-gradient(135deg, $accent 0%, color.adjust($accent, $lightness: -12%) 100%);
+  color: $bg-void;
+  box-shadow:
+    0 0 24px rgba(0, 230, 118, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 36px rgba(0, 230, 118, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+}
+
+.btnVoteGood {
+  @include btn-base;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, #00c853 0%, #009624 100%);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(0, 200, 83, 0.35);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 0 32px rgba(0, 230, 118, 0.5);
+  }
+}
+
+.btnVoteBad {
+  @include btn-base;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, #37474f 0%, #263238 100%);
+  color: $text-muted;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    color: $text-primary;
+    border-color: rgba(255, 82, 82, 0.4);
+    box-shadow: 0 0 20px rgba(255, 82, 82, 0.15);
+  }
+}
+
+.error {
+  color: $danger;
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  background: $danger-bg;
+  border-radius: $radius-sm;
+  border: 1px solid rgba(255, 82, 82, 0.25);
+  margin: 0 0 1rem;
+}
+
+.warnBanner {
+  color: #e8d4a8;
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 193, 7, 0.08);
+  border-radius: $radius-sm;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  margin: 0 0 1rem;
+}
+
+.placarHighlight {
+  margin: 0.35rem 0 0;
+  font-family: $font-display;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  color: $accent-bright;
+  text-shadow: 0 0 24px rgba(0, 230, 118, 0.2);
+}
+
+.finishedBanner {
+  color: $text-muted;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1.25rem;
+  background: rgba(55, 71, 79, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: $radius-sm;
+  border-left: 3px solid $accent;
+}
+
+.success {
+  color: $success;
+  padding: 0.65rem 0.85rem;
+  background: $success-bg;
+  border-radius: $radius-sm;
+  border: 1px solid rgba(105, 240, 174, 0.25);
+  margin: 0 0 1rem;
+}
+
+.matchList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.matchItem {
+  /** Fundo opaco: evita “cartão branco” com vidro + blur e mantém contraste do texto. */
+  background: $bg-panel-solid;
+  border: 1px solid rgba(105, 240, 174, 0.22);
+  border-radius: $radius-md;
+  padding: 0;
+  overflow: hidden;
+  transition:
+    border-color $transition-fast,
+    box-shadow $transition-fast,
+    background $transition-fast;
+
+  &:hover {
+    border-color: rgba(0, 255, 200, 0.42);
+    box-shadow: 0 0 0 1px rgba(0, 230, 118, 0.12);
+    background: color.adjust($bg-panel-solid, $lightness: 5%);
+  }
+}
+
+.matchLink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  padding: 1rem 1.15rem;
+  color: inherit;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba(0, 230, 118, 0.08);
+  }
+
+  &:hover .matchChevron {
+    color: $electric;
+    transform: translateX(4px);
+  }
+}
+
+.matchChevron {
+  margin-left: auto;
+  color: $accent-bright;
+  font-size: 1.15rem;
+  font-weight: 600;
+  transition:
+    color $transition-fast,
+    transform $transition-fast;
+}
+
+.matchId {
+  font-family: $font-display;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: $text-primary;
+  padding: 0.28rem 0.6rem;
+  background: rgba(0, 55, 40, 0.95);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 230, 118, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.peladaListIconWrap {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 230, 118, 0.45);
+  background: rgba(0, 55, 40, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.peladaListIconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.peladaListIconPlaceholder {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: $accent-bright;
+  opacity: 0.9;
+}
+
+.matchFinishedTag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $text-dim;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(55, 71, 79, 0.5);
+}
+
+.matchMeta {
+  color: color.adjust($text-primary, $alpha: -0.12);
+  font-size: 0.95rem;
+}
+
+.matchPlacar {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 0.15rem;
+  font-family: $font-display;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: $accent-bright;
+}
+
+.statBlock {
+  @include glass-panel;
+  padding: 1.25rem 1.4rem;
+  margin-top: 1rem;
+  border-radius: $radius-md;
+}
+
+.statList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.95rem;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.statKey {
+  color: $text-muted;
+  font-family: $font-display;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statVal {
+  color: $accent-bright;
+  font-weight: 700;
+}
+
+.voteRow {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+
+  p {
+    margin: 0;
+    color: $text-muted;
+
+    strong {
+      color: $accent-bright;
+      font-family: $font-display;
+    }
+  }
+}
+
+.teamGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+
+.teamCard {
+  @include glass-panel;
+  padding: 1rem 1.15rem;
+  border-radius: $radius-md;
+}
+
+.teamTitle {
+  font-family: $font-display;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  color: $accent-bright;
+  margin: 0 0 0.65rem;
+  text-transform: uppercase;
+}
+
+.rosterBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rosterList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: $text-muted;
+  font-size: 0.95rem;
+}
+
+.rosterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.rosterName {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  line-height: 1.35;
+  color: $text-primary;
+}
+
+.rosterDivider {
+  height: 1px;
+  margin: 0.35rem 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(105, 240, 174, 0.35) 20%,
+    rgba(0, 230, 118, 0.5) 50%,
+    rgba(105, 240, 174, 0.35) 80%,
+    transparent 100%
+  );
+  border: none;
+}
+
+.btnRemove {
+  flex-shrink: 0;
+  font-family: $font-body;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  color: rgba(255, 138, 128, 0.95);
+  background: rgba(255, 82, 82, 0.1);
+  border: 1px solid rgba(255, 82, 82, 0.28);
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    color: #ffcdd2;
+    border-color: rgba(255, 82, 82, 0.5);
+    background: rgba(255, 82, 82, 0.18);
+  }
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timelineItem {
+  @include glass-panel;
+  padding: 0.75rem 1rem;
+  border-radius: $radius-sm;
+  font-size: 0.95rem;
+  color: $text-muted;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+
+  strong {
+    color: $accent-bright;
+  }
+}
+
+.timelineId {
+  font-family: $font-display;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: $electric;
+  opacity: 0.85;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.featureCard {
+  @include glass-panel;
+  padding: 1.25rem 1.2rem;
+  border-radius: $radius-md;
+  transition:
+    transform $transition-med,
+    border-color $transition-fast;
+
+  &:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 255, 200, 0.35);
+  }
+}
+
+.featureCardLink {
+  @include glass-panel;
+  display: block;
+  padding: 1.25rem 1.2rem;
+  border-radius: $radius-md;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform $transition-med,
+    border-color $transition-fast,
+    box-shadow $transition-fast;
+
+  &:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 255, 200, 0.45);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent-bright;
+    outline-offset: 3px;
+  }
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-family: $font-display;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $accent-bright;
+  }
+}
+
+.featureCardPreview {
+  margin: 0.65rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: $text-muted;
+}
+
+.openMatchPlacar {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-family: $font-display;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: $electric;
+}
+
+.featureCardCta {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: $font-display;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $electric;
+}
+
+.featureIcon {
+  font-size: 1.75rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 8px rgba(105, 240, 174, 0.4));
+}
+
+.featureText {
+  margin: 0;
+  color: $text-muted;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.rankingBoard {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+
+  @media (min-width: 720px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rankingColumn {
+  min-width: 0;
+}
+
+.rankingSubtitle {
+  margin: 0 0 0.75rem;
+  font-family: $font-display;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $electric;
+}
+
+.rankingOrderedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rankingListItem {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: $radius-sm;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.92rem;
+}
+
+.rankingPos {
+  font-family: $font-display;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: $accent-bright;
+}
+
+.rankingName {
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankingVotes {
+  font-family: $font-display;
+  font-size: 0.8rem;
+  color: $text-muted;
+}
+
+.rankingQty {
+  font-family: $font-display;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: $accent-bright;
+  text-align: right;
+}
+
+.rankingQtyCaption {
+  margin: 0 0 0.35rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $text-dim;
+}
+
+.rankingLancesGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1100px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.rankingLanceBlock {
+  min-width: 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: $radius-sm;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.statsPanoramaGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.statsPickRow {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: rgba(0, 230, 118, 0.08);
+    border-color: rgba(0, 230, 118, 0.2);
+  }
+}
+
+.statsPickLi {
+  margin-bottom: 0.35rem;
+
+  &:last-child .statsPickRow {
+    margin-bottom: 0;
+  }
+}
+
+.statsPlayerIdHint {
+  font-size: 0.78rem;
+  color: $text-dim;
+  font-weight: 400;
+}
+
+.statsDetailHeading {
+  margin: 0 0 0.25rem;
+  font-family: $font-display;
+  font-size: 1.15rem;
+  color: $accent-bright;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.statsDetailMeta {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: $text-dim;
+  letter-spacing: 0.06em;
+}
+
+.statsDetailSub {
+  margin: 1rem 0 0.5rem;
+  font-family: $font-display;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $electric;
+}
+
+.roleTag {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  font-family: $font-display;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: $bg-void;
+  background: linear-gradient(90deg, $accent, $electric);
+  border-radius: 4px;
+}
+
+.trajectoryBars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0 0 1.25rem;
+}
+
+.trajectoryBarRow {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr 1.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.trajectoryBarLabel {
+  color: $text-dim;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trajectoryBarTrack {
+  height: 0.55rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.trajectoryBarFill {
+  height: 100%;
+  min-width: 2px;
+  background: linear-gradient(90deg, $accent, $electric);
+  border-radius: 4px;
+  transition: width 0.25s ease;
+}
+
+.trajectoryBarVal {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: $accent-bright;
+}
+
+.trajectoryCumulative {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  min-height: 7rem;
+  margin: 0 0 1.25rem;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+}
+
+.trajectoryCumCol {
+  flex: 1 0 2.25rem;
+  max-width: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 6rem;
+}
+
+.trajectoryCumBar {
+  width: 100%;
+  min-height: 4px;
+  margin-top: auto;
+  background: linear-gradient(180deg, $electric, $accent);
+  border-radius: 3px 3px 0 0;
+  transition: height 0.25s ease;
+}
+
+.trajectoryCumLabel {
+  font-size: 0.62rem;
+  color: $text-dim;
+  text-align: center;
+  line-height: 1.15;
+  writing-mode: horizontal-tb;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trajectoryTableWrap {
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  border-radius: $radius-sm;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.trajectoryTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th,
+  td {
+    padding: 0.45rem 0.55rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  th {
+    font-family: $font-display;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $electric;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  td:nth-child(n + 3) {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  tbody tr:hover td {
+    background: rgba(0, 230, 118, 0.05);
+  }
+}
+
+.forecastCard {
+  margin-top: 0.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: $radius-sm;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(105, 240, 174, 0.15);
+}
+
+.forecastTitle {
+  margin: 0 0 0.65rem;
+  font-family: $font-display;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $electric;
+}
+
+.forecastTrend {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: $text-muted;
+}
+
+.forecastEstimates {
+  margin: 0 0 0.65rem;
+  padding-left: 1.1rem;
+  color: $text-muted;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.forecastAverages {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: $text-dim;
+}
+
+.forecastNarrative {
+  margin: 0 0 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: $text-muted;
+}
+
+.methodologyNote {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: $text-dim;
+  padding: 0.65rem 0.75rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: $radius-sm;
+  border-left: 3px solid rgba(255, 193, 7, 0.5);
+}
+
+.permissionMatrixWrap {
+  overflow-x: auto;
+  margin: 0.75rem 0 0;
+  border-radius: $radius-sm;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.permissionMatrix {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.45rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  thead th {
+    font-family: $font-display;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $electric;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  tbody td:first-child {
+    color: $text-muted;
+    max-width: 22rem;
+    line-height: 1.35;
+  }
+
+  tbody td:not(:first-child) {
+    text-align: center;
+    font-size: 1rem;
+  }
+}
+
+.matrixYes {
+  color: $accent-bright;
+}
+
+.matrixNo {
+  color: $text-dim;
+  opacity: 0.45;
+}
+
+.userListTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.55rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  th {
+    font-family: $font-display;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $electric;
+  }
+
+  tbody tr:hover td {
+    background: rgba(0, 230, 118, 0.05);
+  }
+}
+
+.rolePill {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  font-family: $font-display;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $bg-void;
+  background: rgba(105, 240, 174, 0.85);
+  border-radius: 4px;
+}

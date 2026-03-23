@@ -1,0 +1,29 @@
+# Somente PostgreSQL — para rodar o backend na IDE (ou ./gradlew bootRun) apontando para 127.0.0.1:5433.
+# Stack completa (API + Postgres em Docker): use docker-compose.yml
+# Atenção: o container chama-se varzea-postgresql como na stack; não suba os dois Compose ao mesmo tempo.
+#
+# PostgreSQL 15 — no host: 127.0.0.1:5433 -> no container: 5432
+# Rodar: cd backend && docker compose -f docker-compose-local.yml up -d
+
+name: varzea-stats-db
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: varzea-postgresql
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: varzea
+    ports:
+      - "5433:5432"
+    volumes:
+      - varzea_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d varzea"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  varzea_pg_data:

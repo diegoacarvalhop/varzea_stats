@@ -1,0 +1,11 @@
+**/node_modules/
+**/build/
+**/.gradle/
+**/dist/
+**/.expo/
+**/*.iml
+.idea/
+.DS_Store
+*.log
+.env
+.env.local

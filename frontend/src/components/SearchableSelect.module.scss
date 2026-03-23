@@ -1,0 +1,121 @@
+@use '../styles/variables' as *;
+
+.wrap {
+  position: relative;
+  width: 100%;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.triggerText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  font-size: 0.55rem;
+  opacity: 0.75;
+  margin-right: -0.15rem;
+}
+
+.dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(5, 12, 14, 0.98);
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 230, 118, 0.12);
+  overflow: hidden;
+}
+
+.filter {
+  font-family: $font-body;
+  font-size: 0.95rem;
+  color: $text-primary;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  border-bottom: 1px solid $border-subtle;
+  padding: 0.55rem 0.75rem;
+  width: 100%;
+
+  &::placeholder {
+    color: $text-dim;
+  }
+
+  &:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  max-height: min(50vh, 280px);
+  overflow-y: auto;
+}
+
+.groupLabel {
+  padding: 0.45rem 0.75rem 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $electric;
+  pointer-events: none;
+}
+
+.option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-family: $font-body;
+  font-size: 0.95rem;
+  color: $text-primary;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(0, 230, 118, 0.12);
+    outline: none;
+  }
+
+  &[aria-selected='true'] {
+    background: rgba(0, 230, 118, 0.08);
+  }
+}
+
+.emptyHint {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+  color: $text-muted;
+}

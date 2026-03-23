@@ -1,0 +1,96 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: $font-body;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: $text-primary;
+  background-color: $bg-void;
+  background-image:
+    radial-gradient(ellipse 100% 70% at 50% -15%, $electric-dim, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 50%, rgba(0, 230, 118, 0.06), transparent 45%),
+    radial-gradient(ellipse 50% 35% at 0% 80%, rgba(0, 255, 200, 0.05), transparent 40%),
+    linear-gradient(180deg, $bg-deep 0%, $bg-void 55%, #030506 100%);
+  @include pitch-stripes;
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3 {
+  font-family: $font-display;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  @include text-gradient-accent;
+}
+
+h2 {
+  font-size: 1.15rem;
+  color: $accent-bright;
+  text-shadow: 0 0 24px rgba(105, 240, 174, 0.25);
+}
+
+h3 {
+  font-size: 0.95rem;
+  color: $text-muted;
+  letter-spacing: 0.12em;
+}
+
+a {
+  color: $accent-bright;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $electric;
+    text-shadow: 0 0 12px $accent-glow;
+  }
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+select {
+  cursor: pointer;
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

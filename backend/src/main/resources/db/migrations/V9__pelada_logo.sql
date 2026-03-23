@@ -1,0 +1,2 @@
+ALTER TABLE peladas
+    ADD COLUMN IF NOT EXISTS logo_file_name VARCHAR(255) NULL;

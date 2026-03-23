@@ -1,0 +1,239 @@
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+
+.shell {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.shellContent {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.bgBrand {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  /* Largura 50% da viewport, altura proporcional */
+  background-size: 50% auto;
+  /* ~10% mais baixo que o centro (50% → 60% no eixo vertical) */
+  background-position: center 25%;
+  background-repeat: no-repeat;
+  opacity: 1.00;
+  pointer-events: none;
+}
+
+.bgBrandScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Um pouco mais transparente que antes para a marca ler melhor com a logo mais forte */
+  background: linear-gradient(
+    180deg,
+    rgba(3, 5, 6, 0.76) 0%,
+    rgba(5, 10, 12, 0.7) 45%,
+    rgba(3, 5, 6, 0.8) 100%
+  );
+}
+
+.brandLogoImg {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: contain;
+  border: 1px solid $border-strong;
+  box-shadow:
+    0 0 20px rgba(0, 230, 118, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: rgba(5, 10, 12, 0.5);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.65rem 1.25rem;
+  background: rgba(5, 10, 12, 0.78);
+  backdrop-filter: blur($header-blur);
+  -webkit-backdrop-filter: blur($header-blur);
+  border-bottom: 1px solid $border-subtle;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 230, 118, 0.04);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.logoMark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, $accent 0%, $pitch-mid 55%, $bg-deep 100%);
+  border: 1px solid $border-strong;
+  box-shadow:
+    0 0 20px rgba(0, 230, 118, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.brandText {
+  font-family: $font-display;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  @include text-gradient-accent;
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.navLink {
+  padding: 0.45rem 0.85rem;
+  border-radius: $radius-sm;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: $text-muted;
+  border: 1px solid transparent;
+  transition:
+    color $transition-fast,
+    background $transition-fast,
+    border-color $transition-fast;
+
+  &:hover {
+    color: $accent-bright;
+    background: rgba(0, 230, 118, 0.06);
+    border-color: rgba(105, 240, 174, 0.15);
+  }
+}
+
+.navLinkActive {
+  color: $accent-bright !important;
+  background: rgba(0, 230, 118, 0.1) !important;
+  border-color: rgba(0, 255, 200, 0.35) !important;
+  box-shadow: 0 0 16px rgba(0, 230, 118, 0.12);
+}
+
+.spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.userName {
+  font-size: 0.92rem;
+  color: $text-muted;
+  max-width: min(220px, 28vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  strong {
+    color: $accent-bright;
+    font-weight: 600;
+  }
+}
+
+.userRoles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: min(320px, 42vw);
+}
+
+.btnLogout {
+  @include btn-base;
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+  background: transparent;
+  color: $text-muted;
+  border: 1px solid $border-subtle;
+
+  &:hover:not(:disabled) {
+    color: $danger;
+    border-color: rgba(255, 82, 82, 0.45);
+    box-shadow: 0 0 16px rgba(255, 82, 82, 0.12);
+  }
+}
+
+.btnLogin {
+  @include btn-base;
+  padding: 0.5rem 1.15rem;
+  font-size: 0.85rem;
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.2) 0%, rgba(0, 255, 200, 0.12) 100%);
+  color: $accent-bright;
+  border: 1px solid $border-strong;
+
+  &:hover {
+    background: linear-gradient(135deg, rgba(0, 230, 118, 0.35) 0%, rgba(0, 255, 200, 0.2) 100%);
+    box-shadow: $shadow-glow;
+  }
+}
+
+.peladaBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.45rem 1.25rem;
+  background: rgba(0, 230, 118, 0.08);
+  border-bottom: 1px solid rgba(105, 240, 174, 0.2);
+  font-size: 0.88rem;
+  color: $text-muted;
+}
+
+.peladaBar strong {
+  color: $accent-bright;
+}
+
+.peladaBarLink {
+  font-weight: 600;
+  color: $electric;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 3rem;
+}

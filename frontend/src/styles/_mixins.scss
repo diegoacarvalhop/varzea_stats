@@ -1,0 +1,76 @@
+@use 'variables' as *;
+
+@mixin glass-panel {
+  background: $bg-panel;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@mixin pitch-stripes {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 100, 60, 0.07) 0px,
+    rgba(0, 100, 60, 0.07) 3px,
+    rgba(0, 80, 50, 0.05) 3px,
+    rgba(0, 80, 50, 0.05) 6px
+  );
+}
+
+@mixin text-gradient-accent {
+  background: linear-gradient(135deg, $accent-bright 0%, $electric 50%, $accent 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@mixin focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px $bg-deep, 0 0 0 4px $accent-dim;
+}
+
+@mixin btn-base {
+  font-family: $font-body;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition:
+    transform $transition-fast,
+    box-shadow $transition-fast,
+    background $transition-fast;
+}
+
+@mixin input-base {
+  font-family: $font-body;
+  font-size: 1.05rem;
+  color: $text-primary;
+  background: rgba(5, 12, 14, 0.85);
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  padding: 0.65rem 0.9rem;
+  width: 100%;
+  transition:
+    border-color $transition-fast,
+    box-shadow $transition-fast;
+
+  &::placeholder {
+    color: $text-dim;
+  }
+
+  &:hover {
+    border-color: rgba(105, 240, 174, 0.35);
+  }
+
+  &:focus {
+    @include focus-ring;
+    border-color: $accent;
+  }
+}

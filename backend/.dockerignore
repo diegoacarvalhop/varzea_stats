@@ -1,0 +1,18 @@
+# Build / IDE
+build/
+.gradle/
+.idea/
+*.iml
+.vscode/
+
+# Git
+.git
+.gitignore
+
+# Docker (evita contexto recursivo)
+Dockerfile
+docker-compose*.yml
+
+# Docs e testes não necessários na imagem de runtime
+README.md
+src/test/
