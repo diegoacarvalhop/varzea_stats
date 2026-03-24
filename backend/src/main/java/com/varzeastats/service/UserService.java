@@ -99,7 +99,16 @@ public class UserService {
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("E-mail já cadastrado");
         }
-        LinkedHashSet<Role> roles = new LinkedHashSet<>(EnumSet.of(Role.PLAYER));
+        Pelada selectedPelada = null;
+        LinkedHashSet<Role> roles;
+        if (request.getPeladaId() != null) {
+            selectedPelada = peladaRepository
+                    .findById(request.getPeladaId())
+                    .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
+            roles = new LinkedHashSet<>(EnumSet.of(Role.PLAYER));
+        } else {
+            roles = new LinkedHashSet<>(EnumSet.of(Role.ADMIN));
+        }
         User user = User.builder()
                 .name(request.getName().trim())
                 .email(email)
@@ -107,9 +116,12 @@ public class UserService {
                 .mustChangePassword(false)
                 .accountActive(true)
                 .roles(roles)
-                .pelada(null)
+                .pelada(selectedPelada)
                 .build();
         user = userRepository.save(user);
+        if (selectedPelada != null) {
+            replaceMemberships(user.getId(), List.of(selectedPelada.getId()), null);
+        }
         return toResponse(user);
     }
 

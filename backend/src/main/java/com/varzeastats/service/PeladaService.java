@@ -6,8 +6,12 @@ import com.varzeastats.dto.PeladaResponse;
 import com.varzeastats.dto.PeladaSettingsRequest;
 import com.varzeastats.entity.Pelada;
 import com.varzeastats.entity.Role;
+import com.varzeastats.entity.User;
+import com.varzeastats.entity.UserPeladaId;
+import com.varzeastats.entity.UserPeladaMembership;
 import com.varzeastats.repository.PeladaRepository;
 import com.varzeastats.repository.UserPeladaMembershipRepository;
+import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -34,6 +38,7 @@ public class PeladaService {
     private final PeladaRepository peladaRepository;
     private final PeladaLogoStorageService peladaLogoStorageService;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public List<PeladaResponse> findAll() {
@@ -92,12 +97,13 @@ public class PeladaService {
     }
 
     @Transactional
-    public PeladaResponse create(PeladaCreateRequest request) {
-        return create(request.getName().trim(), null);
+    public PeladaResponse create(PeladaCreateRequest request, Authentication authentication) {
+        return create(request.getName().trim(), null, authentication);
     }
 
     @Transactional
-    public PeladaResponse create(String name, MultipartFile logoFile) {
+    public PeladaResponse create(String name, MultipartFile logoFile, Authentication authentication) {
+        AppUserDetails caller = requireCaller(authentication);
         Pelada p = Pelada.builder()
                 .name(name)
                 .createdAt(Instant.now())
@@ -113,7 +119,41 @@ public class PeladaService {
             p.setLogoFileName(stored);
             p = peladaRepository.save(p);
         }
+        bindCreatorIfNeeded(caller, p);
         return toResponse(p);
+    }
+
+    private AppUserDetails requireCaller(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AppUserDetails caller)) {
+            throw new AccessDeniedException("Acesso negado.");
+        }
+        if (caller.isAdminGeral()) {
+            return caller;
+        }
+        if (caller.hasRole(Role.ADMIN) && caller.getPeladaId() == null) {
+            return caller;
+        }
+        throw new AccessDeniedException("Sem permissão para criar pelada.");
+    }
+
+    private void bindCreatorIfNeeded(AppUserDetails caller, Pelada pelada) {
+        if (caller.isAdminGeral()) {
+            return;
+        }
+        User creator = userRepository.findById(caller.getUserId()).orElseThrow();
+        if (!creator.getRoles().contains(Role.ADMIN)) {
+            throw new AccessDeniedException("Somente ADMIN pode criar a própria pelada.");
+        }
+        if (creator.getPelada() != null) {
+            throw new IllegalArgumentException("Este administrador já está vinculado a uma pelada.");
+        }
+        creator.setPelada(pelada);
+        userRepository.save(creator);
+        UserPeladaMembership m = UserPeladaMembership.builder()
+                .id(new UserPeladaId(creator.getId(), pelada.getId()))
+                .billingMonthly(true)
+                .build();
+        userPeladaMembershipRepository.save(m);
     }
 
     @Transactional

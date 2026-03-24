@@ -18,4 +18,7 @@ public class PublicRegistrationRequest {
     @NotBlank
     @Size(min = 6)
     private String password;
+
+    /** Quando informado, o cadastro público entra como PLAYER nessa pelada. */
+    private Long peladaId;
 }

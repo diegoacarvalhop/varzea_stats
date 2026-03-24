@@ -15,6 +15,8 @@ public interface PeladaPaymentRepository extends JpaRepository<PeladaPayment, Lo
             Long peladaId, Long userId, PaymentKind kind, LocalDate referenceMonth);
 
     List<PeladaPayment> findByPelada_IdAndReferenceMonth(Long peladaId, LocalDate referenceMonth);
+    List<PeladaPayment> findByPelada_IdAndUser_IdAndKindOrderByReferenceMonthDescPaidAtDescIdDesc(
+            Long peladaId, Long userId, PaymentKind kind);
 
     @Query(
             """

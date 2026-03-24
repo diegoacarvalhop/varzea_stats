@@ -31,6 +31,7 @@ export function Layout() {
     roles,
     peladaId,
     peladaName,
+    refreshProfile,
     logout,
     membershipPeladaIds,
     monthlyDelinquentPeladaIds,
@@ -39,6 +40,7 @@ export function Layout() {
   const { logoUrl } = usePeladaBranding();
   const [headerLogoBroken, setHeaderLogoBroken] = useState(false);
   const [membershipPeladas, setMembershipPeladas] = useState<Pelada[]>([]);
+  const [delinquentHere, setDelinquentHere] = useState(false);
 
   useEffect(() => {
     setHeaderLogoBroken(false);
@@ -84,9 +86,9 @@ export function Layout() {
 
   const adminGeralOnUsersRoute =
     isAdminGeral(roles) && location.pathname.startsWith('/admin/users');
+  const adminSemPelada = hasRole(roles, 'ADMIN') && peladaId == null;
   const adminMustPickPelada =
-    isAdminGeral(roles) &&
-    !getPeladaId() &&
+    ((isAdminGeral(roles) && !getPeladaId()) || adminSemPelada) &&
     location.pathname !== '/pelada' &&
     !adminGeralOnUsersRoute;
 
@@ -99,11 +101,26 @@ export function Layout() {
   const canSwitchPeladaMember = !isAdminGeral(roles) && membershipPeladaIds.length > 1;
   const showNav = true;
 
-  const today = new Date();
-  const delinquentHere =
-    peladaId != null &&
-    today.getDate() > 15 &&
-    monthlyDelinquentPeladaIds.includes(peladaId);
+  useEffect(() => {
+    const today = new Date();
+    if (peladaId == null || today.getDate() <= 15) {
+      setDelinquentHere(false);
+      return;
+    }
+    let active = true;
+    void refreshProfile()
+      .then((res) => {
+        if (!active) return;
+        setDelinquentHere((res.monthlyDelinquentPeladaIds ?? []).includes(peladaId));
+      })
+      .catch(() => {
+        if (!active) return;
+        setDelinquentHere(monthlyDelinquentPeladaIds.includes(peladaId));
+      });
+    return () => {
+      active = false;
+    };
+  }, [peladaId, refreshProfile, monthlyDelinquentPeladaIds]);
 
   return (
     <div className={styles.shell}>

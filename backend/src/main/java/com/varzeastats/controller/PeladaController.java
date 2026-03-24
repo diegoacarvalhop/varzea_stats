@@ -45,19 +45,22 @@ public class PeladaController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('ADMIN_GERAL')")
-    public ResponseEntity<PeladaResponse> createJson(@Valid @RequestBody PeladaCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(peladaService.create(request));
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN')")
+    public ResponseEntity<PeladaResponse> createJson(
+            @Valid @RequestBody PeladaCreateRequest request, Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(peladaService.create(request, authentication));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN_GERAL')")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN')")
     public ResponseEntity<PeladaResponse> createMultipart(
-            @RequestPart("name") String name, @RequestPart(value = "logo", required = false) MultipartFile logo) {
+            @RequestPart("name") String name,
+            @RequestPart(value = "logo", required = false) MultipartFile logo,
+            Authentication authentication) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Nome da pelada é obrigatório.");
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(peladaService.create(name.trim(), logo));
+        return ResponseEntity.status(HttpStatus.CREATED).body(peladaService.create(name.trim(), logo, authentication));
     }
 
     @PutMapping("/{id}/settings")

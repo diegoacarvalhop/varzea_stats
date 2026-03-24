@@ -4,6 +4,7 @@ export interface PublicRegisterPayload {
   name: string;
   email: string;
   password: string;
+  peladaId?: number | null;
 }
 
 export type Role = 'ADMIN_GERAL' | 'ADMIN' | 'SCOUT' | 'PLAYER' | 'MEDIA' | 'FINANCEIRO';

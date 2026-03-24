@@ -4,10 +4,12 @@ import { appToast } from '@/lib/appToast';
 import { getApiErrorMessage } from '@/lib/apiError';
 import { maskCurrencyBRInput, parseMaskedMoneyToCents } from '@/lib/moneyMask';
 import {
+  listMonthlyPaymentsByUser,
   listDelinquent,
   recordPayment,
   sendDelinquentReminder,
   type FinanceDelinquentRow,
+  type FinanceMonthlyPayment,
   type PaymentKind,
 } from '@/services/financeService';
 import { listUsers, type UserSummary } from '@/services/userService';
@@ -62,6 +64,10 @@ export function FinancePage() {
   const [refMonth, setRefMonth] = useState(() => monthStartIso(new Date()));
   const [submitting, setSubmitting] = useState(false);
   const [sendingReminderByUser, setSendingReminderByUser] = useState<Record<number, boolean>>({});
+  const [historyUserId, setHistoryUserId] = useState<number | ''>('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [monthlyHistory, setMonthlyHistory] = useState<FinanceMonthlyPayment[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (peladaId == null) {
@@ -142,6 +148,29 @@ export function FinancePage() {
       appToast.error(getApiErrorMessage(err, 'Não foi possível enviar a cobrança por e-mail.'));
     } finally {
       setSendingReminderByUser((prev) => ({ ...prev, [row.userId]: false }));
+    }
+  }
+
+  async function onListMonthlyHistory(e: FormEvent) {
+    e.preventDefault();
+    if (peladaId == null || historyUserId === '') {
+      appToast.warning('Selecione o jogador para listar as mensalidades.');
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const rows = await listMonthlyPaymentsByUser({ peladaId, userId: Number(historyUserId) });
+      setMonthlyHistory(rows);
+      setHistoryLoaded(true);
+      if (rows.length === 0) {
+        appToast.success('Nenhuma mensalidade registrada para este jogador nesta pelada.');
+      }
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível listar as mensalidades do jogador.'));
+      setMonthlyHistory([]);
+      setHistoryLoaded(false);
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -245,6 +274,76 @@ export function FinancePage() {
                 {submitting ? 'Salvando…' : 'Registrar'}
               </button>
             </form>
+          </section>
+          <section className={s.card} style={{ marginTop: '1.25rem' }}>
+            <h2 className={s.cardTitle}>Mensalidades por jogador</h2>
+            <p className={s.lead} style={{ marginTop: 0 }}>
+              Consulta disponível para Financeiro, Admin da pelada e Admin geral.
+            </p>
+            <form className={s.form} style={{ maxWidth: '28rem' }} onSubmit={(e) => void onListMonthlyHistory(e)}>
+              <div className={s.field}>
+                <label className={s.fieldLabel} htmlFor="fin-history-user">
+                  Jogador
+                </label>
+                <select
+                  id="fin-history-user"
+                  className={s.input}
+                  value={historyUserId === '' ? '' : String(historyUserId)}
+                  onChange={(ev) => setHistoryUserId(ev.target.value === '' ? '' : Number(ev.target.value))}
+                  required
+                >
+                  <option value="">Selecione…</option>
+                  {filteredUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className={s.btnPrimary} type="submit" disabled={historyLoading}>
+                {historyLoading ? 'Listando…' : 'Listar pagamentos'}
+              </button>
+            </form>
+            <div style={{ marginTop: '1rem' }}>
+              {monthlyHistory.length === 0 ? (
+                <p className={s.lead}>
+                  {historyLoaded
+                    ? 'Nenhuma mensalidade registrada para o jogador selecionado nesta pelada.'
+                    : 'Selecione um jogador e clique em listar para ver as mensalidades registradas.'}
+                </p>
+              ) : (
+                <div className={s.trajectoryTableWrap}>
+                  <table className={s.userListTable}>
+                    <thead>
+                      <tr>
+                        <th>Mês de referência</th>
+                        <th>Data do pagamento</th>
+                        <th>Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyHistory.map((row) => (
+                        <tr key={row.id}>
+                          <td>
+                            {new Date(`${row.referenceMonth}T00:00:00`).toLocaleDateString('pt-BR', {
+                              month: 'long',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td>{new Date(`${row.paidAt}T00:00:00`).toLocaleDateString('pt-BR')}</td>
+                          <td>
+                            {`R$ ${(row.amountCents / 100).toLocaleString('pt-BR', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </section>
           <section className={s.card} style={{ marginTop: '1.25rem' }}>
             <h2 className={s.cardTitle}>Inadimplência (mensalistas)</h2>

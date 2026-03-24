@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { peladaLogoAbsoluteUrl } from '@/lib/peladaLogoUrl';
-import { isAdminGeral } from '@/lib/roles';
+import { hasRole, isAdminGeral } from '@/lib/roles';
 import { appToast } from '@/lib/appToast';
 import { createPelada, listPeladas, type Pelada } from '@/services/peladaService';
 import s from '@/styles/pageShared.module.scss';
@@ -52,6 +52,7 @@ export function SelectPeladaPage() {
   const navigate = useNavigate();
   const { isAuthenticated, roles, switchPelada } = useAuth();
   const isAdminGlobal = isAdminGeral(roles);
+  const canCreatePelada = isAdminGlobal || hasRole(roles, 'ADMIN');
 
   const [peladas, setPeladas] = useState<Pelada[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +127,7 @@ export function SelectPeladaPage() {
       choose(p);
     } catch {
       appToast.error(
-        'Não foi possível criar a pelada (apenas o administrador geral pode cadastrar). Verifique nome e imagem (PNG, JPEG, GIF ou WebP, até 2 MB).',
+        'Não foi possível criar a pelada. Verifique nome e imagem (PNG, JPEG, GIF ou WebP, até 2 MB).',
       );
     } finally {
       setCreating(false);
@@ -141,12 +142,11 @@ export function SelectPeladaPage() {
       </p>
       {!isAuthenticated && (
         <p className={s.lead} style={{ marginTop: '-0.75rem' }}>
-          Se você é <strong>administrador geral</strong> e ainda não existem peladas,{' '}
-          <Link to="/login">entre aqui</Link> para criar a primeira.
+          Se você vai criar uma nova pelada, faça login com sua conta <strong>ADMIN</strong>.
         </p>
       )}
 
-      {isAuthenticated && isAdminGlobal && (
+      {isAuthenticated && canCreatePelada && (
         <div className={s.card} style={{ marginBottom: '1.25rem' }}>
           <h2 className={s.cardTitle}>Nova pelada</h2>
           <form className={s.form} onSubmit={(e) => void onCreate(e)} style={{ maxWidth: '36rem' }}>

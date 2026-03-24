@@ -39,8 +39,8 @@ export function PublicHomePage() {
           <Link to="/login" className={grid.actionBtn}>
             Entrar
           </Link>
-          <Link to="/cadastro" className={grid.actionBtnSecondary}>
-            Cadastrar
+          <Link to="/cadastro?tipo=admin" className={grid.actionBtnSecondary}>
+            Criar nova pelada (ADMIN)
           </Link>
         </div>
         {loading ? (
@@ -68,6 +68,9 @@ export function PublicHomePage() {
                       <dd>{c.scheduleLabel?.trim() || '—'}</dd>
                     </div>
                   </dl>
+                  <p style={{ marginTop: '0.75rem' }}>
+                    <Link to={`/cadastro?peladaId=${c.id}`}>Entrar nesta pelada (cadastro de jogador)</Link>
+                  </p>
                 </li>
               ))}
             </ul>

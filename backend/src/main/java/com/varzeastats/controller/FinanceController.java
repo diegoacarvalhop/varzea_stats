@@ -2,6 +2,7 @@ package com.varzeastats.controller;
 
 import com.varzeastats.dto.FinanceDelinquentRowResponse;
 import com.varzeastats.dto.FinanceDelinquentReminderRequest;
+import com.varzeastats.dto.FinanceMonthlyPaymentResponse;
 import com.varzeastats.dto.PaymentRecordRequest;
 import com.varzeastats.security.AppUserDetails;
 import com.varzeastats.service.FinanceService;
@@ -48,5 +49,13 @@ public class FinanceController {
             @Valid @RequestBody FinanceDelinquentReminderRequest request, Authentication authentication) {
         financeService.sendDelinquentReminder(request, (AppUserDetails) authentication.getPrincipal());
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/payments/monthly")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','FINANCEIRO')")
+    public ResponseEntity<List<FinanceMonthlyPaymentResponse>> monthlyPaymentsByUser(
+            @RequestParam Long peladaId, @RequestParam Long userId, Authentication authentication) {
+        return ResponseEntity.ok(
+                financeService.listMonthlyPaymentsForUser(peladaId, userId, (AppUserDetails) authentication.getPrincipal()));
     }
 }

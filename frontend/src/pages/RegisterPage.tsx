@@ -1,20 +1,26 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PasswordField } from '@/components/PasswordField';
 import { useAuth } from '@/hooks/useAuth';
 import { getApiErrorMessage } from '@/lib/apiError';
 import { appToast } from '@/lib/appToast';
 import { registerPublicAccount } from '@/services/authService';
+import { listPeladas } from '@/services/peladaService';
 import styles from './LoginPage.module.scss';
 
 export function RegisterPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [peladaNome, setPeladaNome] = useState<string | null>(null);
+  const peladaIdParam = searchParams.get('peladaId');
+  const peladaId = peladaIdParam ? Number(peladaIdParam) : NaN;
+  const cadastroAdmin = searchParams.get('tipo') === 'admin' || !Number.isFinite(peladaId);
 
   useEffect(() => {
     document.title = 'Cadastro · VARzea Stats';
@@ -22,6 +28,19 @@ export function RegisterPage() {
       document.title = 'VARzea Stats';
     };
   }, []);
+
+  useEffect(() => {
+    if (!Number.isFinite(peladaId)) {
+      setPeladaNome(null);
+      return;
+    }
+    void listPeladas()
+      .then((list) => {
+        const p = list.find((x) => x.id === peladaId);
+        setPeladaNome(p?.name ?? null);
+      })
+      .catch(() => setPeladaNome(null));
+  }, [peladaId]);
 
   if (isAuthenticated) {
     return <Navigate to="/painel" replace />;
@@ -43,8 +62,13 @@ export function RegisterPage() {
         name: name.trim(),
         email: email.trim(),
         password,
+        peladaId: Number.isFinite(peladaId) ? peladaId : null,
       });
-      appToast.success('Conta criada. Faça login e escolha suas peladas em Minhas peladas.');
+      appToast.success(
+        cadastroAdmin
+          ? 'Conta ADMIN criada. Faça login para criar a pelada e concluir seu acesso.'
+          : 'Conta de jogador criada. Faça login para entrar na pelada.',
+      );
       navigate('/login', { replace: true });
     } catch (err) {
       appToast.error(getApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
@@ -61,7 +85,16 @@ export function RegisterPage() {
         <p className={styles.badge}>Acesso ao sistema</p>
         <h1 className={styles.title}>Realizar cadastro</h1>
         <p className={styles.subtitle}>
-          Crie sua conta como <strong>jogador</strong>. Depois do login você escolhe em quais peladas participa.
+          {cadastroAdmin ? (
+            <>
+              Este cadastro cria sua conta como <strong>ADMIN</strong> para criar uma nova pelada.
+            </>
+          ) : (
+            <>
+              Este cadastro cria sua conta como <strong>JOGADOR</strong> para entrar na pelada{' '}
+              <strong>{peladaNome ?? `#${peladaId}`}</strong>.
+            </>
+          )}
         </p>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>

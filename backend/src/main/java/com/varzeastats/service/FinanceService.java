@@ -2,6 +2,7 @@ package com.varzeastats.service;
 
 import com.varzeastats.dto.FinanceDelinquentRowResponse;
 import com.varzeastats.dto.FinanceDelinquentReminderRequest;
+import com.varzeastats.dto.FinanceMonthlyPaymentResponse;
 import com.varzeastats.dto.PaymentRecordRequest;
 import com.varzeastats.entity.PaymentKind;
 import com.varzeastats.entity.Pelada;
@@ -125,6 +126,37 @@ public class FinanceService {
             }
         }
         return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<FinanceMonthlyPaymentResponse> listMonthlyPaymentsForUser(
+            Long peladaId, Long userId, AppUserDetails caller) {
+        authorizeForPelada(caller, peladaId);
+        User user = userRepository
+                .findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(userId, peladaId)) {
+            throw new IllegalArgumentException("O usuário não participa desta pelada.");
+        }
+        Pelada pelada = peladaRepository
+                .findById(peladaId)
+                .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
+        return peladaPaymentRepository
+                .findByPelada_IdAndUser_IdAndKindOrderByReferenceMonthDescPaidAtDescIdDesc(
+                        peladaId, userId, PaymentKind.MONTHLY)
+                .stream()
+                .map(pay -> FinanceMonthlyPaymentResponse.builder()
+                        .id(pay.getId())
+                        .userId(user.getId())
+                        .userName(user.getName())
+                        .userEmail(user.getEmail())
+                        .peladaId(peladaId)
+                        .peladaName(pelada.getName())
+                        .amountCents(pay.getAmountCents())
+                        .paidAt(pay.getPaidAt())
+                        .referenceMonth(pay.getReferenceMonth())
+                        .build())
+                .toList();
     }
 
     @Transactional
