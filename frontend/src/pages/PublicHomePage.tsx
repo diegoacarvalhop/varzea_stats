@@ -71,7 +71,7 @@ export function PublicHomePage() {
                   <div style={{ marginTop: '0.75rem' }}>
                     <Link to={`/cadastro?peladaId=${c.id}`} className={grid.actionBtnSecondary}>
                       Cadastrar-se nesta pelada <br />
-                      (JOGADOR)
+                      <span className={grid.playerBadge}>(JOGADOR)</span>
                     </Link>
                   </div>
                 </li>
