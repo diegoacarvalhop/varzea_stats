@@ -161,7 +161,7 @@ export function RegisterPage() {
                   *
                 </span>
               </legend>
-              <label className={styles.subtitle} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+              <label className={`${styles.subtitle} ${styles.billingOption}`}>
                 <input
                   type="checkbox"
                   checked={billingMonthly}
@@ -171,7 +171,7 @@ export function RegisterPage() {
                 />
                 <span>Mensalista — R$ 15,00 por mês</span>
               </label>
-              <label className={styles.subtitle} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+              <label className={`${styles.subtitle} ${styles.billingOption}`}>
                 <input
                   type="checkbox"
                   checked={!billingMonthly}
