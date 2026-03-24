@@ -18,6 +18,7 @@ export function RegisterPage() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [peladaNome, setPeladaNome] = useState<string | null>(null);
+  const [billingMonthly, setBillingMonthly] = useState(true);
   const peladaIdParam = searchParams.get('peladaId');
   const peladaId = peladaIdParam ? Number(peladaIdParam) : NaN;
   const cadastroAdmin = searchParams.get('tipo') === 'admin' || !Number.isFinite(peladaId);
@@ -63,6 +64,7 @@ export function RegisterPage() {
         email: email.trim(),
         password,
         peladaId: Number.isFinite(peladaId) ? peladaId : null,
+        billingMonthly: cadastroAdmin ? undefined : billingMonthly,
       });
       appToast.success(
         cadastroAdmin
@@ -92,7 +94,8 @@ export function RegisterPage() {
           ) : (
             <>
               Este cadastro cria sua conta como <strong>JOGADOR</strong> para entrar na pelada{' '}
-              <strong>{peladaNome ?? `#${peladaId}`}</strong>.
+              <strong>{peladaNome ?? `#${peladaId}`}</strong>. Escolha abaixo seu tipo de cobrança: mensalista
+              (R$15,00/mês) ou diarista (R$10,00 por dia de jogo).
             </>
           )}
         </p>
@@ -150,6 +153,36 @@ export function RegisterPage() {
             required
             minLength={6}
           />
+          {!cadastroAdmin && (
+            <fieldset className={styles.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend className={styles.label}>
+                Tipo de cobrança
+                <span className={styles.requiredMark} aria-hidden>
+                  *
+                </span>
+              </legend>
+              <label className={styles.subtitle} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <input
+                  type="checkbox"
+                  checked={billingMonthly}
+                  onChange={(ev) => {
+                    if (ev.target.checked) setBillingMonthly(true);
+                  }}
+                />
+                <span>Mensalista — R$ 15,00 por mês</span>
+              </label>
+              <label className={styles.subtitle} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <input
+                  type="checkbox"
+                  checked={!billingMonthly}
+                  onChange={(ev) => {
+                    if (ev.target.checked) setBillingMonthly(false);
+                  }}
+                />
+                <span>Diarista — R$ 10,00 por dia de jogo</span>
+              </label>
+            </fieldset>
+          )}
           <button className={styles.submit} type="submit" disabled={loading}>
             {loading ? 'Cadastrando…' : 'Criar conta'}
           </button>

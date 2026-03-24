@@ -5,6 +5,7 @@ export interface PublicRegisterPayload {
   email: string;
   password: string;
   peladaId?: number | null;
+  billingMonthly?: boolean;
 }
 
 export type Role = 'ADMIN_GERAL' | 'ADMIN' | 'SCOUT' | 'PLAYER' | 'MEDIA' | 'FINANCEIRO';
@@ -25,6 +26,7 @@ export interface LoginResult {
   mustChangePassword?: boolean;
   membershipPeladaIds?: number[];
   monthlyDelinquentPeladaIds?: number[];
+  billingMonthlyByPelada?: Record<string, boolean>;
   accountActive?: boolean;
 }
 

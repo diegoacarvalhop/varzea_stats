@@ -16,8 +16,10 @@ import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -120,7 +122,9 @@ public class UserService {
                 .build();
         user = userRepository.save(user);
         if (selectedPelada != null) {
-            replaceMemberships(user.getId(), List.of(selectedPelada.getId()), null);
+            java.util.Map<Long, Boolean> billingMap = new java.util.LinkedHashMap<>();
+            billingMap.put(selectedPelada.getId(), Boolean.TRUE.equals(request.getBillingMonthly()));
+            replaceMemberships(user.getId(), List.of(selectedPelada.getId()), billingMap);
         }
         return toResponse(user);
     }
@@ -276,6 +280,10 @@ public class UserService {
                 .map(m -> m.getId().getPeladaId())
                 .sorted()
                 .collect(Collectors.toList());
+        Map<Long, Boolean> billingByPelada = new LinkedHashMap<>();
+        userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
+            billingByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
+        });
         return UserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
@@ -285,6 +293,7 @@ public class UserService {
                 .peladaName(pname)
                 .accountActive(user.isAccountActive())
                 .peladaIds(pids)
+                .billingMonthlyByPelada(billingByPelada)
                 .build();
     }
 }

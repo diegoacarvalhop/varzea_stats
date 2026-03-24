@@ -360,6 +360,23 @@ export function UsersAdminPage() {
       .join(', ');
   }
 
+  function billingLabelForUser(u: UserSummary): string {
+    const ids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
+    if (ids.length === 0) return '—';
+    const billing = u.billingMonthlyByPelada ?? {};
+    if (!isAdminGeral(viewerRoles) && viewerPeladaId != null) {
+      const monthly = billing[String(viewerPeladaId)];
+      return monthly === false ? 'Diarista (R$10)' : 'Mensalista (R$15)';
+    }
+    return ids
+      .map((id) => {
+        const mode = billing[String(id)] === false ? 'Diarista (R$10)' : 'Mensalista (R$15)';
+        const pName = peladas.find((p) => p.id === id)?.name ?? `#${id}`;
+        return `${pName}: ${mode}`;
+      })
+      .join(' | ');
+  }
+
   return (
     <div className={s.page}>
       <h1>Usuários</h1>
@@ -630,6 +647,7 @@ export function UsersAdminPage() {
                   <th>E-mail</th>
                   <th>Perfis</th>
                   <th>Peladas</th>
+                  <th>Cobrança</th>
                   <th>Ativo</th>
                   <th />
                 </tr>
@@ -649,6 +667,7 @@ export function UsersAdminPage() {
                       </div>
                     </td>
                     <td>{peladaLabelsForUser(u)}</td>
+                    <td>{billingLabelForUser(u)}</td>
                     <td>{u.accountActive === false ? 'Não' : 'Sim'}</td>
                     <td>
                       <button type="button" className={s.btn} onClick={() => openEdit(u)}>

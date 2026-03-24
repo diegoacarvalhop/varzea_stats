@@ -10,6 +10,7 @@ export interface UserSummary {
   peladaName?: string | null;
   accountActive?: boolean;
   peladaIds?: number[];
+  billingMonthlyByPelada?: Record<string, boolean>;
 }
 
 export interface CreateUserPayload {

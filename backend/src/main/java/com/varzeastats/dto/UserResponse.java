@@ -1,6 +1,7 @@
 package com.varzeastats.dto;
 
 import com.varzeastats.entity.Role;
+import java.util.Map;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,4 +24,6 @@ public class UserResponse {
     private Boolean accountActive;
 
     private java.util.List<Long> peladaIds;
+
+    private Map<Long, Boolean> billingMonthlyByPelada;
 }

@@ -38,6 +38,7 @@ interface AuthState {
   mustChangePassword: boolean;
   membershipPeladaIds: number[];
   monthlyDelinquentPeladaIds: number[];
+  billingMonthlyByPelada: Record<string, boolean>;
   accountActive: boolean;
 }
 
@@ -81,6 +82,7 @@ function loadStored(): AuthState {
       mustChangePassword: false,
       membershipPeladaIds: [],
       monthlyDelinquentPeladaIds: [],
+      billingMonthlyByPelada: {},
       accountActive: true,
     };
   }
@@ -96,6 +98,7 @@ function loadStored(): AuthState {
       mustChangePassword?: boolean;
       membershipPeladaIds?: number[];
       monthlyDelinquentPeladaIds?: number[];
+      billingMonthlyByPelada?: Record<string, boolean>;
       accountActive?: boolean;
     };
     const roles = normalizeRolesFromStored(u);
@@ -139,6 +142,8 @@ function loadStored(): AuthState {
       monthlyDelinquentPeladaIds: Array.isArray(u.monthlyDelinquentPeladaIds)
         ? u.monthlyDelinquentPeladaIds
         : [],
+      billingMonthlyByPelada:
+        u.billingMonthlyByPelada && typeof u.billingMonthlyByPelada === 'object' ? u.billingMonthlyByPelada : {},
       accountActive: u.accountActive !== false,
     };
   } catch {
@@ -153,6 +158,7 @@ function loadStored(): AuthState {
       mustChangePassword: false,
       membershipPeladaIds: [],
       monthlyDelinquentPeladaIds: [],
+      billingMonthlyByPelada: {},
       accountActive: true,
     };
   }
@@ -169,6 +175,7 @@ function buildUserJson(res: LoginResult, mustChange: boolean) {
     mustChangePassword: mustChange,
     membershipPeladaIds: res.membershipPeladaIds ?? [],
     monthlyDelinquentPeladaIds: res.monthlyDelinquentPeladaIds ?? [],
+    billingMonthlyByPelada: res.billingMonthlyByPelada ?? {},
     accountActive: res.accountActive !== false,
   };
 }
@@ -237,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mustChangePassword: mustChange,
         membershipPeladaIds: res.membershipPeladaIds ?? [],
         monthlyDelinquentPeladaIds: res.monthlyDelinquentPeladaIds ?? [],
+        billingMonthlyByPelada: res.billingMonthlyByPelada ?? {},
         accountActive: res.accountActive !== false,
       });
       await syncPeladaAfterLogin(res);
@@ -315,6 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mustChangePassword: false,
       membershipPeladaIds: [],
       monthlyDelinquentPeladaIds: [],
+      billingMonthlyByPelada: {},
       accountActive: true,
     });
     navigate('/login', { replace: true });

@@ -39,11 +39,19 @@ const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
 };
 
 export function ProfilePage() {
-  const { name, email, roles, changePassword } = useAuth();
+  const { name, email, roles, peladaId, peladaName, membershipPeladaIds, billingMonthlyByPelada, updateMemberships, changePassword } =
+    useAuth();
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarNovaSenha, setConfirmarNovaSenha] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [savingBillingMode, setSavingBillingMode] = useState(false);
+
+  const isPlayerContext = useMemo(() => (roles ?? []).includes('PLAYER') && peladaId != null, [roles, peladaId]);
+  const billingMonthlyCurrent = useMemo(() => {
+    if (peladaId == null) return true;
+    return billingMonthlyByPelada[String(peladaId)] !== false;
+  }, [peladaId, billingMonthlyByPelada]);
 
   const capabilities = useMemo(() => {
     const roleList = roles ?? [];
@@ -77,6 +85,25 @@ export function ProfilePage() {
       appToast.error('Não foi possível alterar a senha. Verifique a senha atual.');
     } finally {
       setSavingPassword(false);
+    }
+  }
+
+  async function onToggleBillingMode(nextMonthly: boolean) {
+    if (peladaId == null) return;
+    const peladaIds = membershipPeladaIds.length > 0 ? membershipPeladaIds : [peladaId];
+    const billingMonthlyMap: Record<string, boolean> = {};
+    for (const id of peladaIds) {
+      const current = billingMonthlyByPelada[String(id)];
+      billingMonthlyMap[String(id)] = id === peladaId ? nextMonthly : current !== false;
+    }
+    setSavingBillingMode(true);
+    try {
+      await updateMemberships({ peladaIds, billingMonthlyByPelada: billingMonthlyMap });
+      appToast.success(nextMonthly ? 'Perfil atualizado para mensalista (R$ 15,00/mês).' : 'Perfil atualizado para diarista (R$ 10,00 por dia).');
+    } catch {
+      appToast.error('Não foi possível atualizar seu tipo de cobrança.');
+    } finally {
+      setSavingBillingMode(false);
     }
   }
 
@@ -123,6 +150,41 @@ export function ProfilePage() {
           </ul>
         )}
       </section>
+
+      {isPlayerContext && (
+        <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="profile-billing-title">
+          <h2 className={s.cardTitle} id="profile-billing-title">
+            Tipo de cobrança na pelada atual
+          </h2>
+          <p className={s.lead} style={{ marginTop: 0 }}>
+            Pelada: <strong>{peladaName ?? `#${peladaId}`}</strong>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <label className={s.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={billingMonthlyCurrent}
+                disabled={savingBillingMode}
+                onChange={(ev) => {
+                  if (ev.target.checked) void onToggleBillingMode(true);
+                }}
+              />
+              <span>Mensalista — R$ 15,00 por mês</span>
+            </label>
+            <label className={s.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={!billingMonthlyCurrent}
+                disabled={savingBillingMode}
+                onChange={(ev) => {
+                  if (ev.target.checked) void onToggleBillingMode(false);
+                }}
+              />
+              <span>Diarista — R$ 10,00 por dia de jogo</span>
+            </label>
+          </div>
+        </section>
+      )}
 
       <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="profile-pass-title">
         <h2 className={s.cardTitle} id="profile-pass-title">

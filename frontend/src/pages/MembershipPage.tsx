@@ -6,7 +6,7 @@ import { getApiErrorMessage } from '@/lib/apiError';
 import s from '@/styles/pageShared.module.scss';
 
 export function MembershipPage() {
-  const { membershipPeladaIds, updateMemberships } = useAuth();
+  const { membershipPeladaIds, billingMonthlyByPelada, updateMemberships } = useAuth();
   const [cards, setCards] = useState<PeladaPublicCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,11 +36,12 @@ export function MembershipPage() {
     setMonthlyByPelada((prev) => {
       const next: Record<number, boolean> = {};
       for (const id of membershipPeladaIds) {
-        next[id] = id in prev ? prev[id] : true;
+        const authVal = billingMonthlyByPelada[String(id)];
+        next[id] = typeof authVal === 'boolean' ? authVal : id in prev ? prev[id] : true;
       }
       return next;
     });
-  }, [membershipPeladaIds]);
+  }, [membershipPeladaIds, billingMonthlyByPelada]);
 
   const sorted = useMemo(
     () => [...cards].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })),

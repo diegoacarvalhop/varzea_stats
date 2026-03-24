@@ -21,4 +21,7 @@ public class PublicRegistrationRequest {
 
     /** Quando informado, o cadastro público entra como PLAYER nessa pelada. */
     private Long peladaId;
+
+    /** Para cadastro de PLAYER: true=mensalista (R$15), false=diarista (R$10). */
+    private Boolean billingMonthly;
 }

@@ -10,7 +10,9 @@ import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.JwtService;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -88,6 +90,10 @@ public class AuthService {
                 .map(m -> m.getId().getPeladaId())
                 .sorted()
                 .collect(Collectors.toList());
+        Map<Long, Boolean> billingMonthlyByPelada = new LinkedHashMap<>();
+        userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
+            billingMonthlyByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
+        });
         List<Long> delinquent = financeService.monthlyDelinquentPeladaIdsForUser(
                 user.getId(), membershipIds, LocalDate.now());
         return LoginResponse.builder()
@@ -101,6 +107,7 @@ public class AuthService {
                 .mustChangePassword(user.isMustChangePassword())
                 .membershipPeladaIds(membershipIds)
                 .monthlyDelinquentPeladaIds(delinquent)
+                .billingMonthlyByPelada(billingMonthlyByPelada)
                 .accountActive(user.isAccountActive())
                 .build();
     }
