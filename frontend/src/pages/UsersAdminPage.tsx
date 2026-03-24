@@ -552,6 +552,7 @@ export function UsersAdminPage() {
               value={editPassword}
               onChange={setEditPassword}
               autoComplete="new-password"
+              required={false}
               minLength={6}
             />
             <span className={s.statsDetailMeta}>
