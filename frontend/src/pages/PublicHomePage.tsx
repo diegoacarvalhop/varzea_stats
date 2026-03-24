@@ -68,9 +68,11 @@ export function PublicHomePage() {
                       <dd>{c.scheduleLabel?.trim() || '—'}</dd>
                     </div>
                   </dl>
-                  <p style={{ marginTop: '0.75rem' }}>
-                    <Link to={`/cadastro?peladaId=${c.id}`}>Entrar nesta pelada (cadastro de jogador)</Link>
-                  </p>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <Link to={`/cadastro?peladaId=${c.id}`} className={grid.actionBtnSecondary}>
+                      Entrar nesta pelada (cadastro de jogador)
+                    </Link>
+                  </div>
                 </li>
               ))}
             </ul>

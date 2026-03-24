@@ -50,6 +50,12 @@
   border: 1px solid color-mix(in srgb, var(--vs-border, #2a3344) 78%, rgba(0, 255, 200, 0.35));
 }
 
+.peladaCard .actionBtnSecondary {
+  width: 100%;
+  margin-top: 0.15rem;
+  font-size: 0.84rem;
+}
+
 .cardGrid {
   list-style: none;
   margin: 1.25rem 0 0;

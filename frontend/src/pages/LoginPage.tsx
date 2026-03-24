@@ -115,6 +115,9 @@ export function LoginPage() {
           <p className={styles.subtitle} style={{ marginTop: '0.5rem', textAlign: 'center' }}>
             <Link to="/cadastro">Realizar cadastro</Link>
           </p>
+          <p className={styles.subtitle} style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+            <Link to="/">Voltar ao início</Link>
+          </p>
         </form>
       </div>
     </div>
