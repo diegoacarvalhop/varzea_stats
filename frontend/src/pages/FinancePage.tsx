@@ -276,6 +276,52 @@ export function FinancePage() {
             </form>
           </section>
           <section className={s.card} style={{ marginTop: '1.25rem' }}>
+            <h2 className={s.cardTitle}>Inadimplência (mensalistas)</h2>
+            {!showDelinquent ? (
+              <p className={s.lead}>A lista de inadimplentes do mês só é exibida após o dia 15.</p>
+            ) : delinquent.length === 0 ? (
+              <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
+            ) : (
+              <div className={s.trajectoryTableWrap}>
+                <table className={s.userListTable}>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>E-mail</th>
+                      <th>Mês(es) em atraso</th>
+                      <th>Status</th>
+                      <th style={{ width: '12rem' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {delinquent.map((row) => (
+                      <tr key={`${row.userId}-${row.peladaId}`}>
+                        <td>{row.userName}</td>
+                        <td>{row.email}</td>
+                        <td>{formatOverdueMonths(row.overdueMonths)}</td>
+                        <td>{formatReminderSentAt(row.reminderSentAt)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={s.btn}
+                            disabled={Boolean(sendingReminderByUser[row.userId])}
+                            onClick={() => void onSendReminder(row)}
+                          >
+                            {sendingReminderByUser[row.userId]
+                              ? 'Enviando…'
+                              : row.reminderSentAt
+                                ? 'Reenviar cobrança'
+                                : 'Enviar cobrança'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+          <section className={s.card} style={{ marginTop: '1.25rem' }}>
             <h2 className={s.cardTitle}>Mensalidades por jogador</h2>
             <p className={s.lead} style={{ marginTop: 0 }}>
               Consulta disponível para Financeiro, Admin da pelada e Admin geral.
@@ -344,52 +390,6 @@ export function FinancePage() {
                 </div>
               )}
             </div>
-          </section>
-          <section className={s.card} style={{ marginTop: '1.25rem' }}>
-            <h2 className={s.cardTitle}>Inadimplência (mensalistas)</h2>
-            {!showDelinquent ? (
-              <p className={s.lead}>A lista de inadimplentes do mês só é exibida após o dia 15.</p>
-            ) : delinquent.length === 0 ? (
-              <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
-            ) : (
-              <div className={s.trajectoryTableWrap}>
-                <table className={s.userListTable}>
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>E-mail</th>
-                      <th>Mês(es) em atraso</th>
-                      <th>Status</th>
-                      <th style={{ width: '12rem' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {delinquent.map((row) => (
-                      <tr key={`${row.userId}-${row.peladaId}`}>
-                        <td>{row.userName}</td>
-                        <td>{row.email}</td>
-                        <td>{formatOverdueMonths(row.overdueMonths)}</td>
-                        <td>{formatReminderSentAt(row.reminderSentAt)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className={s.btn}
-                            disabled={Boolean(sendingReminderByUser[row.userId])}
-                            onClick={() => void onSendReminder(row)}
-                          >
-                            {sendingReminderByUser[row.userId]
-                              ? 'Enviando…'
-                              : row.reminderSentAt
-                                ? 'Reenviar cobrança'
-                                : 'Enviar cobrança'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
         </>
       )}
