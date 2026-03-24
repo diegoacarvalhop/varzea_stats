@@ -19,7 +19,7 @@ public class PaymentRecordRequest {
     private PaymentKind kind;
 
     @NotNull
-    @Min(1)
+    @Min(0)
     private Integer amountCents;
 
     @NotNull

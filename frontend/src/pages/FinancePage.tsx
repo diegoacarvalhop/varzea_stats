@@ -119,8 +119,8 @@ export function FinancePage() {
       return;
     }
     const amountCents = parseMaskedMoneyToCents(amount);
-    if (amountCents == null || amountCents <= 0) {
-      appToast.warning('Informe o valor pago.');
+    if (amountCents == null || amountCents < 0) {
+      appToast.warning('Informe um valor válido (R$ 0,00 ou maior).');
       return;
     }
     setSubmitting(true);
