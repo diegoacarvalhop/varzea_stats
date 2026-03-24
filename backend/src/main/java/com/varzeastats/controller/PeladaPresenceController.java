@@ -5,6 +5,10 @@ import com.varzeastats.entity.Pelada;
 import com.varzeastats.entity.PeladaPresence;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
+import com.varzeastats.entity.UserPeladaId;
+import com.varzeastats.entity.UserPeladaMembership;
+import com.varzeastats.entity.PeladaDailyDebit;
+import com.varzeastats.repository.PeladaDailyDebitRepository;
 import com.varzeastats.repository.PeladaPresenceRepository;
 import com.varzeastats.repository.PeladaRepository;
 import com.varzeastats.repository.UserPeladaMembershipRepository;
@@ -12,7 +16,9 @@ import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -36,6 +42,7 @@ public class PeladaPresenceController {
     private final PeladaRepository peladaRepository;
     private final UserRepository userRepository;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
+    private final PeladaDailyDebitRepository peladaDailyDebitRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','FINANCEIRO')")
@@ -62,10 +69,15 @@ public class PeladaPresenceController {
         Pelada pelada = peladaRepository
                 .findById(peladaId)
                 .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
+        int dailyFee = pelada.getDailyFeeCents() != null && pelada.getDailyFeeCents() > 0 ? pelada.getDailyFeeCents() : 1000;
         peladaPresenceRepository.deleteByPeladaIdAndPresenceDate(peladaId, body.getDate());
         List<Long> distinctUserIds = body.getPresentUserIds().stream().distinct().toList();
+        Set<Long> diaristaPresentIds = new HashSet<>();
         for (Long uid : distinctUserIds) {
-            if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(uid, peladaId)) {
+            UserPeladaMembership mem = userPeladaMembershipRepository
+                    .findById(new UserPeladaId(uid, peladaId))
+                    .orElseThrow(() -> new IllegalArgumentException("Usuário não é membro desta pelada: " + uid));
+            if (mem == null) {
                 throw new IllegalArgumentException("Usuário não é membro desta pelada: " + uid);
             }
             User u = userRepository
@@ -77,6 +89,27 @@ public class PeladaPresenceController {
                     .presenceDate(body.getDate())
                     .present(true)
                     .build());
+            if (!mem.isBillingMonthly()) {
+                diaristaPresentIds.add(uid);
+                peladaDailyDebitRepository
+                        .findByPelada_IdAndUser_IdAndDebitDate(peladaId, uid, body.getDate())
+                        .or(() -> java.util.Optional.of(PeladaDailyDebit.builder()
+                                .pelada(pelada)
+                                .user(u)
+                                .debitDate(body.getDate())
+                                .amountCents(dailyFee)
+                                .build()))
+                        .ifPresent(debit -> {
+                            if (debit.getId() == null) {
+                                peladaDailyDebitRepository.save(debit);
+                            }
+                        });
+            }
+        }
+        for (PeladaDailyDebit debit : peladaDailyDebitRepository.findByPelada_IdAndDebitDate(peladaId, body.getDate())) {
+            if (debit.getPaidAt() == null && !diaristaPresentIds.contains(debit.getUser().getId())) {
+                peladaDailyDebitRepository.delete(debit);
+            }
         }
         return ResponseEntity.ok().build();
     }

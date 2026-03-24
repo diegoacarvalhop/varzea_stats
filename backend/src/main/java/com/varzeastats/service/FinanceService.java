@@ -6,6 +6,7 @@ import com.varzeastats.dto.FinanceMonthlyPaymentResponse;
 import com.varzeastats.dto.PaymentRecordRequest;
 import com.varzeastats.entity.PaymentKind;
 import com.varzeastats.entity.Pelada;
+import com.varzeastats.entity.PeladaDailyDebit;
 import com.varzeastats.entity.PeladaDelinquentReminder;
 import com.varzeastats.entity.PeladaPayment;
 import com.varzeastats.entity.Role;
@@ -13,6 +14,7 @@ import com.varzeastats.entity.User;
 import com.varzeastats.entity.UserPeladaId;
 import com.varzeastats.entity.UserPeladaMembership;
 import com.varzeastats.repository.PeladaPaymentRepository;
+import com.varzeastats.repository.PeladaDailyDebitRepository;
 import com.varzeastats.repository.PeladaDelinquentReminderRepository;
 import com.varzeastats.repository.PeladaRepository;
 import com.varzeastats.repository.UserPeladaMembershipRepository;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FinanceService {
 
     private final PeladaPaymentRepository peladaPaymentRepository;
+    private final PeladaDailyDebitRepository peladaDailyDebitRepository;
     private final PeladaDelinquentReminderRepository peladaDelinquentReminderRepository;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
     private final UserRepository userRepository;
@@ -63,15 +66,20 @@ public class FinanceService {
         pay.setPaidAt(request.getPaidAt());
         pay.setReferenceMonth(ref);
         peladaPaymentRepository.save(pay);
+        if (request.getKind() == PaymentKind.DAILY) {
+            peladaDailyDebitRepository
+                    .findByPelada_IdAndUser_IdAndDebitDate(pelada.getId(), user.getId(), request.getPaidAt())
+                    .ifPresent(debit -> {
+                        debit.setPaidAt(request.getPaidAt());
+                        peladaDailyDebitRepository.save(debit);
+                    });
+        }
     }
 
     @Transactional(readOnly = true)
     public List<FinanceDelinquentRowResponse> listDelinquents(Long peladaId, LocalDate today, AppUserDetails caller) {
         authorizeForPelada(caller, peladaId);
         LocalDate monthStart = today.withDayOfMonth(1);
-        if (today.getDayOfMonth() <= 15) {
-            return List.of();
-        }
         Pelada pelada = peladaRepository
                 .findById(peladaId)
                 .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
@@ -81,13 +89,19 @@ public class FinanceService {
         List<FinanceDelinquentRowResponse> out = new ArrayList<>();
         for (UserPeladaMembership m : members) {
             Long uid = m.getId().getUserId();
-            List<LocalDate> overdueMonths = listOverdueMonthsForUser(peladaId, uid, pelada, monthStart);
-            if (!overdueMonths.isEmpty()) {
-                User u = userRepository.findById(uid).orElse(null);
-                if (u != null
-                        && u.isAccountActive()
-                        && u.getRoles() != null
-                        && u.getRoles().contains(Role.PLAYER)) {
+            User u = userRepository.findById(uid).orElse(null);
+            if (u == null
+                    || !u.isAccountActive()
+                    || u.getRoles() == null
+                    || !u.getRoles().contains(Role.PLAYER)) {
+                continue;
+            }
+            if (m.isBillingMonthly()) {
+                if (today.getDayOfMonth() <= 15) {
+                    continue;
+                }
+                List<LocalDate> overdueMonths = listOverdueMonthsForUser(peladaId, uid, pelada, monthStart);
+                if (!overdueMonths.isEmpty()) {
                     out.add(FinanceDelinquentRowResponse.builder()
                             .userId(u.getId())
                             .userName(u.getName())
@@ -98,7 +112,24 @@ public class FinanceService {
                                     .findByPelada_IdAndUser_IdAndReferenceMonth(peladaId, uid, monthStart)
                                     .map(PeladaDelinquentReminder::getSentAt)
                                     .orElse(null))
+                            .billingType(PaymentKind.MONTHLY.name())
                             .overdueMonths(overdueMonths.stream().map(LocalDate::toString).toList())
+                            .build());
+                }
+            } else {
+                List<PeladaDailyDebit> pendingDaily = peladaDailyDebitRepository
+                        .findByPelada_IdAndUser_IdAndPaidAtIsNullOrderByDebitDateAsc(peladaId, uid);
+                if (!pendingDaily.isEmpty()) {
+                    out.add(FinanceDelinquentRowResponse.builder()
+                            .userId(u.getId())
+                            .userName(u.getName())
+                            .email(u.getEmail())
+                            .peladaId(pelada.getId())
+                            .peladaName(pelada.getName())
+                            .billingType(PaymentKind.DAILY.name())
+                            .overdueDailyDates(pendingDaily.stream()
+                                    .map(d -> d.getDebitDate().toString())
+                                    .toList())
                             .build());
                 }
             }
@@ -108,7 +139,7 @@ public class FinanceService {
 
     @Transactional(readOnly = true)
     public List<Long> monthlyDelinquentPeladaIdsForUser(Long userId, List<Long> peladaIds, LocalDate today) {
-        if (today.getDayOfMonth() <= 15 || peladaIds == null || peladaIds.isEmpty()) {
+        if (peladaIds == null || peladaIds.isEmpty()) {
             return List.of();
         }
         LocalDate monthStart = today.withDayOfMonth(1);
@@ -117,6 +148,12 @@ public class FinanceService {
             Optional<UserPeladaMembership> mem = userPeladaMembershipRepository.findById(
                     new UserPeladaId(userId, pid));
             if (mem.isEmpty() || !mem.get().isBillingMonthly()) {
+                if (peladaDailyDebitRepository.existsByPelada_IdAndUser_IdAndPaidAtIsNull(pid, userId)) {
+                    out.add(pid);
+                }
+                continue;
+            }
+            if (today.getDayOfMonth() <= 15) {
                 continue;
             }
             boolean paidThisMonth =

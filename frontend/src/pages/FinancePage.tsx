@@ -52,6 +52,14 @@ function formatOverdueMonths(months?: string[]): string {
     .join(', ');
 }
 
+function formatOverdueDailyDates(days?: string[]): string {
+  if (!days || days.length === 0) return '—';
+  return [...days]
+    .sort()
+    .map((d) => new Date(`${d}T00:00:00`).toLocaleDateString('pt-BR'))
+    .join(', ');
+}
+
 export function FinancePage() {
   const { peladaId, peladaName } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -103,9 +111,6 @@ export function FinancePage() {
         (Array.isArray(u.peladaIds) && u.peladaIds.includes(peladaId)),
     );
   }, [users, peladaId]);
-
-  const today = new Date();
-  const showDelinquent = today.getDate() > 15;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -186,8 +191,8 @@ export function FinancePage() {
     <div className={s.page}>
       <h1>Financeiro — {peladaName ?? `Pelada #${peladaId}`}</h1>
       <p className={s.lead}>
-        Registre pagamentos mensais ou diários. Após o dia 15, mensalistas sem pagamento do mês aparecem como
-        inadimplentes para gestores e para o próprio jogador no painel.
+        Registre pagamentos mensais ou diários. Mensalistas entram em inadimplência após o dia 15 sem quitação do mês.
+        Diaristas entram em inadimplência no dia em que forem marcados presentes e o débito não for baixado.
       </p>
       {loading ? (
         <p className={s.lead}>Carregando…</p>
@@ -276,10 +281,8 @@ export function FinancePage() {
             </form>
           </section>
           <section className={s.card} style={{ marginTop: '1.25rem' }}>
-            <h2 className={s.cardTitle}>Inadimplência (mensalistas)</h2>
-            {!showDelinquent ? (
-              <p className={s.lead}>A lista de inadimplentes do mês só é exibida após o dia 15.</p>
-            ) : delinquent.length === 0 ? (
+            <h2 className={s.cardTitle}>Inadimplência</h2>
+            {delinquent.length === 0 ? (
               <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
             ) : (
               <div className={s.trajectoryTableWrap}>
@@ -288,7 +291,8 @@ export function FinancePage() {
                     <tr>
                       <th>Nome</th>
                       <th>E-mail</th>
-                      <th>Mês(es) em atraso</th>
+                      <th>Tipo</th>
+                      <th>Referência em atraso</th>
                       <th>Status</th>
                       <th style={{ width: '12rem' }}>Ações</th>
                     </tr>
@@ -298,21 +302,30 @@ export function FinancePage() {
                       <tr key={`${row.userId}-${row.peladaId}`}>
                         <td>{row.userName}</td>
                         <td>{row.email}</td>
-                        <td>{formatOverdueMonths(row.overdueMonths)}</td>
+                        <td>{row.billingType === 'DAILY' ? 'Diarista' : 'Mensalista'}</td>
+                        <td>
+                          {row.billingType === 'DAILY'
+                            ? formatOverdueDailyDates(row.overdueDailyDates)
+                            : formatOverdueMonths(row.overdueMonths)}
+                        </td>
                         <td>{formatReminderSentAt(row.reminderSentAt)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className={s.btn}
-                            disabled={Boolean(sendingReminderByUser[row.userId])}
-                            onClick={() => void onSendReminder(row)}
-                          >
-                            {sendingReminderByUser[row.userId]
-                              ? 'Enviando…'
-                              : row.reminderSentAt
-                                ? 'Reenviar cobrança'
-                                : 'Enviar cobrança'}
-                          </button>
+                          {row.billingType === 'DAILY' ? (
+                            <span className={s.statsDetailMeta}>Dar baixa em "Registrar pagamento"</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={s.btn}
+                              disabled={Boolean(sendingReminderByUser[row.userId])}
+                              onClick={() => void onSendReminder(row)}
+                            >
+                              {sendingReminderByUser[row.userId]
+                                ? 'Enviando…'
+                                : row.reminderSentAt
+                                  ? 'Reenviar cobrança'
+                                  : 'Enviar cobrança'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

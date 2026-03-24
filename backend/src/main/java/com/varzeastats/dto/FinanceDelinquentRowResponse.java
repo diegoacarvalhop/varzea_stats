@@ -19,5 +19,7 @@ public class FinanceDelinquentRowResponse {
     private Long peladaId;
     private String peladaName;
     private Instant reminderSentAt;
+    private String billingType;
     private List<String> overdueMonths;
+    private List<String> overdueDailyDates;
 }

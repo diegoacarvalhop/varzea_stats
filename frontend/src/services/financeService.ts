@@ -18,7 +18,9 @@ export interface FinanceDelinquentRow {
   peladaId: number;
   peladaName: string;
   reminderSentAt?: string | null;
+  billingType?: 'MONTHLY' | 'DAILY';
   overdueMonths?: string[];
+  overdueDailyDates?: string[];
 }
 
 export interface FinanceMonthlyPayment {

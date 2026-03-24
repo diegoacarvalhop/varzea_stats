@@ -135,8 +135,8 @@ public class UserService {
         User user = userRepository
                 .findByEmail(caller.getEmail())
                 .orElseThrow(() -> new IllegalStateException("Usuário não encontrado."));
-        if (!(user.getRoles().size() == 1 && user.getRoles().contains(Role.PLAYER))) {
-            throw new AccessDeniedException("Somente contas exclusivamente de jogador podem alterar peladas aqui.");
+        if (!user.getRoles().contains(Role.PLAYER)) {
+            throw new AccessDeniedException("Somente contas com perfil de jogador podem alterar peladas aqui.");
         }
         List<Long> ids = request.getPeladaIds().stream().filter(Objects::nonNull).distinct().toList();
         for (Long pid : ids) {
