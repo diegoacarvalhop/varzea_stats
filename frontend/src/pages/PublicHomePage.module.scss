@@ -54,11 +54,15 @@
   width: 100%;
   margin-top: 0.15rem;
   font-size: 0.84rem;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+  gap: 0.1rem;
 }
 
 .playerBadge {
   display: block;
-  width: 100%;
   text-align: center;
 }
 
