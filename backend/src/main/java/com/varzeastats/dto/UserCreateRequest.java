@@ -24,4 +24,7 @@ public class UserCreateRequest {
      * Obrigatório exceto quando o único perfil é ADMIN_GERAL. Combinar ADMIN_GERAL com outros perfis não é permitido.
      */
     private Long peladaId;
+
+    @NotBlank
+    private String password;
 }

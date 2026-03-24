@@ -13,12 +13,12 @@ import com.varzeastats.entity.Pelada;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
 import com.varzeastats.repository.PeladaRepository;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -39,15 +38,13 @@ class UserServiceTest {
     private PeladaRepository peladaRepository;
 
     @Mock
+    private UserPeladaMembershipRepository userPeladaMembershipRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private UserService userService;
-
-    @BeforeEach
-    void setDefaultPassword() {
-        ReflectionTestUtils.setField(userService, "defaultPassword", "123456");
-    }
 
     private Authentication authFor(User user) {
         AppUserDetails principal = new AppUserDetails(user);
@@ -69,9 +66,10 @@ class UserServiceTest {
         req.setEmail("novo@n.com");
         req.setRoles(List.of(Role.PLAYER));
         req.setPeladaId(7L);
+        req.setPassword("definida123");
 
         when(userRepository.existsByEmail("novo@n.com")).thenReturn(false);
-        when(passwordEncoder.encode("123456")).thenReturn("{bcrypt}hash");
+        when(passwordEncoder.encode("definida123")).thenReturn("{bcrypt}hash");
         when(userRepository.save(any(User.class)))
                 .thenAnswer(inv -> {
                     User u = inv.getArgument(0);
@@ -80,12 +78,14 @@ class UserServiceTest {
                 });
         Pelada pelada = Pelada.builder().id(7L).name("Grupo").build();
         when(peladaRepository.findById(7L)).thenReturn(Optional.of(pelada));
+        when(userPeladaMembershipRepository.findById_UserId(99L)).thenReturn(List.of());
 
         UserResponse out = userService.create(req, authFor(caller));
 
         assertThat(out.getEmail()).isEqualTo("novo@n.com");
         assertThat(out.getPeladaId()).isEqualTo(7L);
         verify(userRepository).save(any(User.class));
+        verify(userPeladaMembershipRepository).deleteById_UserId(any());
     }
 
     @Test
@@ -102,6 +102,7 @@ class UserServiceTest {
         req.setName("X");
         req.setEmail("x@x.com");
         req.setRoles(List.of(Role.ADMIN_GERAL, Role.PLAYER));
+        req.setPassword("x");
 
         when(userRepository.existsByEmail("x@x.com")).thenReturn(false);
 
@@ -125,6 +126,7 @@ class UserServiceTest {
         req.setName("Novo AG");
         req.setEmail("novoag@x.com");
         req.setRoles(List.of(Role.ADMIN_GERAL));
+        req.setPassword("x");
 
         when(userRepository.existsByEmail("novoag@x.com")).thenReturn(false);
 
@@ -148,6 +150,7 @@ class UserServiceTest {
         req.setEmail("dup@dup.com");
         req.setRoles(List.of(Role.PLAYER));
         req.setPeladaId(1L);
+        req.setPassword("x");
 
         when(userRepository.existsByEmail("dup@dup.com")).thenReturn(true);
 
@@ -157,27 +160,26 @@ class UserServiceTest {
     }
 
     @Test
-    void registerPublic_createsPlayerWithDefaultPassword() {
+    void registerPublic_createsPlayerWithChosenPassword() {
         PublicRegistrationRequest req = new PublicRegistrationRequest();
         req.setName("  João  ");
         req.setEmail("  joao@pelada.com ");
-        req.setPeladaId(5L);
+        req.setPassword("minhasenha");
 
         when(userRepository.existsByEmail("joao@pelada.com")).thenReturn(false);
-        when(passwordEncoder.encode("123456")).thenReturn("{bcrypt}hash");
+        when(passwordEncoder.encode("minhasenha")).thenReturn("{bcrypt}hash");
         when(userRepository.save(any(User.class)))
                 .thenAnswer(inv -> {
                     User u = inv.getArgument(0);
                     u.setId(42L);
                     return u;
                 });
-        Pelada pelada = Pelada.builder().id(5L).name("Pelada X").build();
-        when(peladaRepository.findById(5L)).thenReturn(Optional.of(pelada));
+        when(userPeladaMembershipRepository.findById_UserId(42L)).thenReturn(List.of());
 
         UserResponse out = userService.registerPublic(req);
 
         assertThat(out.getEmail()).isEqualTo("joao@pelada.com");
-        assertThat(out.getPeladaId()).isEqualTo(5L);
+        assertThat(out.getPeladaId()).isNull();
         assertThat(out.getRoles()).containsExactly(Role.PLAYER);
         verify(userRepository).save(any(User.class));
     }
@@ -187,7 +189,7 @@ class UserServiceTest {
         PublicRegistrationRequest req = new PublicRegistrationRequest();
         req.setName("X");
         req.setEmail("dup@dup.com");
-        req.setPeladaId(1L);
+        req.setPassword("senha123");
         when(userRepository.existsByEmail("dup@dup.com")).thenReturn(true);
 
         assertThatThrownBy(() -> userService.registerPublic(req))

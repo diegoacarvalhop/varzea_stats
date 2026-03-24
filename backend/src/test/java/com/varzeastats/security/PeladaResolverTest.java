@@ -9,6 +9,7 @@ import com.varzeastats.entity.Pelada;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
 import com.varzeastats.repository.PeladaRepository;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,9 @@ class PeladaResolverTest {
 
     @Mock
     private PeladaRepository peladaRepository;
+
+    @Mock
+    private UserPeladaMembershipRepository userPeladaMembershipRepository;
 
     @Mock
     private HttpServletRequest request;
@@ -81,7 +85,19 @@ class PeladaResolverTest {
     }
 
     @Test
-    void resolve_scout_ignoresHeader_usesAccountPelada() {
+    void resolve_scout_usesHeaderWhenProvidedAndMembershipOk() {
+        when(peladaRepository.existsById(10L)).thenReturn(true);
+        when(userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(2L, 10L)).thenReturn(true);
+        Authentication auth = new UsernamePasswordAuthenticationToken(scoutWithPelada(99L), null, null);
+
+        assertThat(peladaResolver.resolvePeladaId(request, auth)).isEqualTo(10L);
+    }
+
+    @Test
+    void resolve_scout_withoutHeader_usesAccountPeladaWhenMembershipOk() {
+        when(request.getHeader("X-Pelada-Id")).thenReturn(null);
+        when(peladaRepository.existsById(99L)).thenReturn(true);
+        when(userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(2L, 99L)).thenReturn(true);
         Authentication auth = new UsernamePasswordAuthenticationToken(scoutWithPelada(99L), null, null);
 
         assertThat(peladaResolver.resolvePeladaId(request, auth)).isEqualTo(99L);

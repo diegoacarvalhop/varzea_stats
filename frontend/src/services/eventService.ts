@@ -2,11 +2,13 @@ import { api } from '@/services/api';
 
 export type EventType =
   | 'GOAL'
+  | 'OWN_GOAL'
   | 'ASSIST'
   | 'YELLOW_CARD'
   | 'RED_CARD'
   | 'BLUE_CARD'
   | 'FOUL'
+  | 'PENALTY'
   | 'SUBSTITUTION'
   | 'OTHER';
 

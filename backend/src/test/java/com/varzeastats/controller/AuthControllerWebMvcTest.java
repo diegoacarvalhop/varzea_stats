@@ -103,15 +103,15 @@ class AuthControllerWebMvcTest {
                 .name("Novo")
                 .email("n@n.com")
                 .roles(List.of(Role.PLAYER))
-                .peladaId(2L)
-                .peladaName("Grupo")
+                .peladaId(null)
+                .peladaName(null)
                 .build();
         when(userService.registerPublic(any(PublicRegistrationRequest.class))).thenReturn(body);
 
         PublicRegistrationRequest req = new PublicRegistrationRequest();
         req.setName("Novo");
         req.setEmail("n@n.com");
-        req.setPeladaId(2L);
+        req.setPassword("senha123");
 
         mockMvc.perform(
                         post("/auth/cadastro")

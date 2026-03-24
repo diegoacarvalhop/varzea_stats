@@ -4,6 +4,7 @@ import com.varzeastats.dto.ChangePasswordRequest;
 import com.varzeastats.dto.EsqueciSenhaRequest;
 import com.varzeastats.dto.LoginRequest;
 import com.varzeastats.dto.LoginResponse;
+import com.varzeastats.dto.MembershipUpdateRequest;
 import com.varzeastats.dto.PublicRegistrationRequest;
 import com.varzeastats.dto.UserResponse;
 import com.varzeastats.dto.RedefinirSenhaRequest;
@@ -14,11 +15,15 @@ import com.varzeastats.service.UserService;
 import jakarta.validation.Valid;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,6 +39,21 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<LoginResponse> me(
+            Authentication authentication, @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        AppUserDetails details = (AppUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.profile(details.getEmail(), authorization));
+    }
+
+    @PutMapping("/me/memberships")
+    public ResponseEntity<LoginResponse> memberships(
+            @Valid @RequestBody MembershipUpdateRequest request, Authentication authentication) {
+        userService.updateMyMemberships(request, authentication);
+        AppUserDetails details = (AppUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.reissueToken(details.getEmail()));
     }
 
     @PostMapping("/cadastro")

@@ -25,4 +25,10 @@ public class LoginResponse {
 
     /** True quando o usuário precisa definir nova senha (ex.: senha padrão no primeiro acesso). */
     private boolean mustChangePassword;
+
+    private List<Long> membershipPeladaIds;
+
+    private List<Long> monthlyDelinquentPeladaIds;
+
+    private boolean accountActive;
 }

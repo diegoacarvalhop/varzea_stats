@@ -62,4 +62,8 @@ public class User {
     @Column(name = "must_change_password", nullable = false)
     @Builder.Default
     private boolean mustChangePassword = false;
+
+    @Column(name = "account_active", nullable = false)
+    @Builder.Default
+    private boolean accountActive = true;
 }

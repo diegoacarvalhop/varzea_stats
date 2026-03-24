@@ -44,7 +44,7 @@ export function ChangePasswordPage() {
     if (isAdminGeral(roles) && !getPeladaId()) {
       return <Navigate to="/pelada" replace />;
     }
-    return <Navigate to="/" replace />;
+    return <Navigate to="/painel" replace />;
   }
 
   async function onSubmit(e: FormEvent) {

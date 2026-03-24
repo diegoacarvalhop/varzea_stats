@@ -6,11 +6,18 @@ import com.varzeastats.dto.PlayerResponse;
 import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Player;
 import com.varzeastats.entity.Team;
+import com.varzeastats.entity.User;
 import com.varzeastats.repository.EventRepository;
 import com.varzeastats.repository.PlayerRepository;
 import com.varzeastats.repository.TeamRepository;
+import com.varzeastats.repository.UserRepository;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.VoteRepository;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,14 +30,46 @@ public class PlayerService {
     private final TeamRepository teamRepository;
     private final EventRepository eventRepository;
     private final VoteRepository voteRepository;
+    private final UserRepository userRepository;
+    private final UserPeladaMembershipRepository userPeladaMembershipRepository;
 
     private final MatchAccessHelper matchAccessHelper;
 
     @Transactional(readOnly = true)
-    public List<PlayerDirectoryEntryResponse> findAllDirectory(long peladaId) {
-        return playerRepository.findAllForDirectoryInPelada(peladaId).stream()
+    public List<PlayerDirectoryEntryResponse> findAllDirectory(long peladaId, boolean includePeladaMembers) {
+        List<Player> players = playerRepository.findAllForDirectoryInPelada(peladaId);
+        List<PlayerDirectoryEntryResponse> out = new ArrayList<>(players.stream()
                 .map(this::toDirectoryEntry)
-                .toList();
+                .toList());
+        if (!includePeladaMembers) {
+            return out;
+        }
+        Set<String> namesTaken = new HashSet<>();
+        for (Player p : players) {
+            namesTaken.add(normalizeDirectoryName(p.getName()));
+        }
+        for (User u : userRepository.findMembersByPeladaId(peladaId)) {
+            String nu = normalizeDirectoryName(u.getName());
+            if (namesTaken.add(nu)) {
+                out.add(PlayerDirectoryEntryResponse.builder()
+                        .playerId(-u.getId())
+                        .playerName(u.getName())
+                        .teamName("Cadastro na pelada")
+                        .matchId(null)
+                        .matchDate(null)
+                        .matchLocation(null)
+                        .goalkeeper(false)
+                        .build());
+            }
+        }
+        return out;
+    }
+
+    private static String normalizeDirectoryName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     @Transactional(readOnly = true)
@@ -44,20 +83,48 @@ public class PlayerService {
     @Transactional
     public PlayerResponse createForMatch(Long matchId, PlayerMatchCreateRequest request, long peladaId) {
         matchAccessHelper.requireInPelada(matchId, peladaId);
+        Long ref = request.getDirectoryRef();
+        if (ref == null || ref == 0L) {
+            throw new IllegalArgumentException("Referência do diretório inválida.");
+        }
         Team team = teamRepository
                 .findById(request.getTeamId())
                 .orElseThrow(() -> new IllegalArgumentException("Equipe não encontrada"));
         if (!team.getMatch().getId().equals(matchId)) {
             throw new IllegalArgumentException("Esta equipe não pertence a esta partida");
         }
+        String name = resolveNameFromDirectoryRef(ref, peladaId);
         boolean isGk = Boolean.TRUE.equals(request.getGoalkeeper());
         Player player = Player.builder()
-                .name(request.getName().trim())
+                .name(name)
                 .team(team)
                 .goalkeeper(isGk)
                 .build();
         player = playerRepository.save(player);
         return toResponse(player);
+    }
+
+    private String resolveNameFromDirectoryRef(long directoryRef, long peladaId) {
+        if (directoryRef > 0) {
+            Player source = playerRepository
+                    .findById(directoryRef)
+                    .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado no diretório."));
+            if (source.getTeam() == null || source.getTeam().getMatch() == null) {
+                throw new IllegalArgumentException("Cadastro de jogador inválido.");
+            }
+            if (!source.getTeam().getMatch().getPelada().getId().equals(peladaId)) {
+                throw new IllegalArgumentException("Este jogador não pertence a esta pelada.");
+            }
+            return source.getName().trim();
+        }
+        long userId = -directoryRef;
+        User user = userRepository
+                .findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado no diretório."));
+        if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(userId, peladaId)) {
+            throw new IllegalArgumentException("Este usuário não é membro desta pelada.");
+        }
+        return user.getName().trim();
     }
 
     @Transactional

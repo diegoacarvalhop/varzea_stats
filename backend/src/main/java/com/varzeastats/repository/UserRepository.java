@@ -16,4 +16,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     List<User> findAllByPelada_Id(Long peladaId, Sort sort);
+
+    @Query(
+            """
+            select u from User u, UserPeladaMembership m
+            where m.id.userId = u.id and m.id.peladaId = :peladaId
+            order by lower(u.name), u.id
+            """)
+    List<User> findMembersByPeladaId(@Param("peladaId") Long peladaId);
 }

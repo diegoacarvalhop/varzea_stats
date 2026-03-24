@@ -6,6 +6,8 @@ export interface PlayerStats {
   teamId: number | null;
   teamName: string | null;
   goalkeeper: boolean;
+  goalsConceded: number;
+  foulsSuffered: number;
   eventsByType: Record<string, number>;
   bolaCheiaVotes: number;
   bolaMurchaVotes: number;
@@ -21,11 +23,15 @@ export interface TrajectoryMatchSlice {
   matchDate: string;
   matchLocation: string;
   goals: number;
+  ownGoals: number;
   assists: number;
   yellowCards: number;
   redCards: number;
   blueCards: number;
   fouls: number;
+  foulsSuffered: number;
+  otherEvents: number;
+  goalsConceded: number;
 }
 
 export interface TrajectoryCumulativePoint {
@@ -40,6 +46,8 @@ export interface PlayerTrajectoryForecast {
   estimatedGoalsNextMatch?: number | null;
   averageAssistsPerMatch?: number;
   estimatedAssistsNextMatch?: number | null;
+  averageByEventPerMatch?: Record<string, number>;
+  estimatedByEventNextMatch?: Record<string, number>;
   goalsTrendLabel: string;
   narrative: string;
   methodologyNote: string;

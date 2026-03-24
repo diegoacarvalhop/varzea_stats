@@ -3,10 +3,10 @@ import { api } from '@/services/api';
 export interface PublicRegisterPayload {
   name: string;
   email: string;
-  peladaId: number;
+  password: string;
 }
 
-export type Role = 'ADMIN_GERAL' | 'ADMIN' | 'SCOUT' | 'PLAYER' | 'MEDIA';
+export type Role = 'ADMIN_GERAL' | 'ADMIN' | 'SCOUT' | 'PLAYER' | 'MEDIA' | 'FINANCEIRO';
 
 export interface LoginPayload {
   email: string;
@@ -22,10 +22,28 @@ export interface LoginResult {
   peladaName?: string | null;
   peladaHasLogo?: boolean | null;
   mustChangePassword?: boolean;
+  membershipPeladaIds?: number[];
+  monthlyDelinquentPeladaIds?: number[];
+  accountActive?: boolean;
+}
+
+export interface MembershipUpdatePayload {
+  peladaIds: number[];
+  billingMonthlyByPelada?: Record<string, boolean>;
 }
 
 export async function login(payload: LoginPayload): Promise<LoginResult> {
   const { data } = await api.post<LoginResult>('/auth/login', payload);
+  return data;
+}
+
+export async function fetchProfile(): Promise<LoginResult> {
+  const { data } = await api.get<LoginResult>('/auth/me');
+  return data;
+}
+
+export async function updateMemberships(payload: MembershipUpdatePayload): Promise<LoginResult> {
+  const { data } = await api.put<LoginResult>('/auth/me/memberships', payload);
   return data;
 }
 
@@ -47,7 +65,6 @@ export async function resetPasswordWithToken(token: string, novaSenha: string): 
   return data;
 }
 
-/** Cadastro público (perfil jogador, senha padrão do sistema, troca obrigatória no 1º acesso). */
 export async function registerPublicAccount(payload: PublicRegisterPayload): Promise<void> {
   await api.post('/auth/cadastro', payload);
 }

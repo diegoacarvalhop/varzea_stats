@@ -21,6 +21,8 @@ public class AppUserDetails implements UserDetails {
     /** Nulo para conta só ADMIN_GERAL; preenchido quando há perfil vinculado à pelada. */
     private final Long peladaId;
 
+    private final boolean accountActive;
+
     private final Collection<? extends GrantedAuthority> authorities;
 
     public AppUserDetails(User user) {
@@ -29,6 +31,7 @@ public class AppUserDetails implements UserDetails {
         this.password = user.getPassword();
         this.roles = user.getRoles() != null ? new LinkedHashSet<>(user.getRoles()) : new LinkedHashSet<>();
         this.peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
+        this.accountActive = user.isAccountActive();
         this.authorities = this.roles.stream()
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))
                 .collect(Collectors.toUnmodifiableList());
@@ -75,5 +78,9 @@ public class AppUserDetails implements UserDetails {
     @Override
     public boolean isEnabled() {
         return true;
+    }
+
+    public boolean isAccountActive() {
+        return accountActive;
     }
 }

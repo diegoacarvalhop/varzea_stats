@@ -57,6 +57,9 @@ public class PeladaScopeFilter extends OncePerRequestFilter {
         if (uri.startsWith("/users")) {
             return false;
         }
+        if (uri.startsWith("/finance")) {
+            return false;
+        }
         if (uri.startsWith("/peladas")) {
             return false;
         }

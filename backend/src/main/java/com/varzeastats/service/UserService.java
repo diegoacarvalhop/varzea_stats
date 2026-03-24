@@ -1,21 +1,27 @@
 package com.varzeastats.service;
 
+import com.varzeastats.dto.MembershipUpdateRequest;
 import com.varzeastats.dto.PublicRegistrationRequest;
 import com.varzeastats.dto.UserCreateRequest;
 import com.varzeastats.dto.UserResponse;
+import com.varzeastats.dto.UserUpdateRequest;
 import com.varzeastats.entity.Pelada;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
+import com.varzeastats.entity.UserPeladaId;
+import com.varzeastats.entity.UserPeladaMembership;
 import com.varzeastats.repository.PeladaRepository;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
-import java.util.EnumSet;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -29,10 +35,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PeladaRepository peladaRepository;
+    private final UserPeladaMembershipRepository userPeladaMembershipRepository;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${varzea.user.default-password:123456}")
-    private String defaultPassword;
 
     @Transactional(readOnly = true)
     public List<UserResponse> listForPrincipal(Authentication authentication) {
@@ -42,7 +46,7 @@ public class UserService {
                     .map(this::toResponse)
                     .toList();
         }
-        if (caller.hasRole(Role.ADMIN)) {
+        if (caller.hasRole(Role.ADMIN) || caller.hasRole(Role.FINANCEIRO)) {
             Long pid = caller.getPeladaId();
             if (pid == null) {
                 return List.of();
@@ -64,45 +68,145 @@ public class UserService {
         AppUserDetails caller = (AppUserDetails) authentication.getPrincipal();
         enforceCreateRules(caller, roleSet, request.getPeladaId());
         Pelada pelada = resolvePeladaForRoles(roleSet, request.getPeladaId());
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new IllegalArgumentException("Informe a senha inicial do usuário.");
+        }
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(defaultPassword))
-                .mustChangePassword(true)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .mustChangePassword(false)
+                .accountActive(true)
                 .roles(new LinkedHashSet<>(roleSet))
                 .pelada(pelada)
                 .build();
         user = userRepository.save(user);
+        if (pelada != null) {
+            replaceMemberships(user.getId(), List.of(pelada.getId()), null);
+        }
         return toResponse(user);
     }
 
-    /**
-     * Autoatendimento na tela de login: cria conta só com perfil {@link Role#PLAYER}, senha padrão e
-     * {@code mustChangePassword=true}.
-     */
     @Transactional
     public UserResponse registerPublic(PublicRegistrationRequest request) {
         String email = request.getEmail().trim();
         if (email.isEmpty()) {
             throw new IllegalArgumentException("E-mail é obrigatório.");
         }
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw new IllegalArgumentException("A senha deve ter pelo menos 6 caracteres.");
+        }
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("E-mail já cadastrado");
         }
-        Pelada pelada = peladaRepository
-                .findById(request.getPeladaId())
-                .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
         LinkedHashSet<Role> roles = new LinkedHashSet<>(EnumSet.of(Role.PLAYER));
         User user = User.builder()
                 .name(request.getName().trim())
                 .email(email)
-                .password(passwordEncoder.encode(defaultPassword))
-                .mustChangePassword(true)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .mustChangePassword(false)
+                .accountActive(true)
                 .roles(roles)
-                .pelada(pelada)
+                .pelada(null)
                 .build();
         user = userRepository.save(user);
         return toResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateMyMemberships(MembershipUpdateRequest request, Authentication authentication) {
+        AppUserDetails caller = (AppUserDetails) authentication.getPrincipal();
+        User user = userRepository
+                .findByEmail(caller.getEmail())
+                .orElseThrow(() -> new IllegalStateException("Usuário não encontrado."));
+        if (!(user.getRoles().size() == 1 && user.getRoles().contains(Role.PLAYER))) {
+            throw new AccessDeniedException("Somente contas exclusivamente de jogador podem alterar peladas aqui.");
+        }
+        List<Long> ids = request.getPeladaIds().stream().filter(Objects::nonNull).distinct().toList();
+        for (Long pid : ids) {
+            if (!peladaRepository.existsById(pid)) {
+                throw new IllegalArgumentException("Pelada não encontrada: " + pid);
+            }
+        }
+        replaceMemberships(user.getId(), ids, request.getBillingMonthlyByPelada());
+        if (ids.isEmpty()) {
+            user.setPelada(null);
+        } else {
+            Pelada first = peladaRepository.findById(ids.get(0)).orElseThrow();
+            user.setPelada(first);
+        }
+        userRepository.save(user);
+        return toResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateUser(Long id, UserUpdateRequest request, Authentication authentication) {
+        AppUserDetails caller = (AppUserDetails) authentication.getPrincipal();
+        User target = userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        enforceUpdateRules(caller, target);
+        if (request.getName() != null && !request.getName().isBlank()) {
+            target.setName(request.getName().trim());
+        }
+        if (request.getAccountActive() != null) {
+            target.setAccountActive(request.getAccountActive());
+        }
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            target.setPassword(passwordEncoder.encode(request.getPassword()));
+            target.setMustChangePassword(false);
+        }
+        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+            LinkedHashSet<Role> roleSet = new LinkedHashSet<>(request.getRoles());
+            validateRoleCombination(roleSet);
+            target.setRoles(roleSet);
+        }
+        if (request.getPeladaIds() != null && !request.getPeladaIds().isEmpty()) {
+            replaceMemberships(target.getId(), request.getPeladaIds(), null);
+            Pelada p = peladaRepository.findById(request.getPeladaIds().get(0)).orElse(null);
+            target.setPelada(p);
+        } else if (request.getPeladaId() != null) {
+            Pelada p = peladaRepository
+                    .findById(request.getPeladaId())
+                    .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
+            if (target.getRoles().contains(Role.ADMIN_GERAL)) {
+                target.setPelada(null);
+                userPeladaMembershipRepository.deleteById_UserId(target.getId());
+            } else {
+                target.setPelada(p);
+                replaceMemberships(target.getId(), List.of(p.getId()), null);
+            }
+        }
+        target = userRepository.save(target);
+        return toResponse(target);
+    }
+
+    private void enforceUpdateRules(AppUserDetails caller, User target) {
+        if (caller.isAdminGeral()) {
+            return;
+        }
+        if (caller.hasRole(Role.ADMIN) && caller.getPeladaId() != null) {
+            if (target.getPelada() != null && target.getPelada().getId().equals(caller.getPeladaId())) {
+                return;
+            }
+            if (userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(target.getId(), caller.getPeladaId())) {
+                return;
+            }
+        }
+        throw new AccessDeniedException("Sem permissão para editar este usuário.");
+    }
+
+    private void replaceMemberships(Long userId, List<Long> peladaIds, java.util.Map<Long, Boolean> billingMap) {
+        userPeladaMembershipRepository.deleteById_UserId(userId);
+        for (Long pid : peladaIds) {
+            boolean monthly = true;
+            if (billingMap != null && billingMap.containsKey(pid)) {
+                monthly = Boolean.TRUE.equals(billingMap.get(pid));
+            }
+            UserPeladaMembership m = UserPeladaMembership.builder()
+                    .id(new UserPeladaId(userId, pid))
+                    .billingMonthly(monthly)
+                    .build();
+            userPeladaMembershipRepository.save(m);
+        }
     }
 
     private static void validateRoleCombination(Set<Role> roles) {
@@ -156,6 +260,10 @@ public class UserService {
                 .toList();
         Long pid = user.getPelada() != null ? user.getPelada().getId() : null;
         String pname = user.getPelada() != null ? user.getPelada().getName() : null;
+        List<Long> pids = userPeladaMembershipRepository.findById_UserId(user.getId()).stream()
+                .map(m -> m.getId().getPeladaId())
+                .sorted()
+                .collect(Collectors.toList());
         return UserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
@@ -163,6 +271,8 @@ public class UserService {
                 .roles(sortedRoles)
                 .peladaId(pid)
                 .peladaName(pname)
+                .accountActive(user.isAccountActive())
+                .peladaIds(pids)
                 .build();
     }
 }

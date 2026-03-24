@@ -170,7 +170,7 @@ Tudo fica **escopado à partida**: equipes e jogadores pertencem a um jogo espec
 1. **POST /matches** — cria a partida (`ADMIN_GERAL`, `ADMIN`, SCOUT, MEDIA).
 2. **GET /matches/{id}** — detalhe da partida (público).
 3. **GET/POST /matches/{id}/teams** — lista / cria equipe **nessa** partida (POST: `ADMIN_GERAL`, `ADMIN`, SCOUT).
-4. **GET/POST /matches/{id}/players** — lista / cria jogador em uma equipe da partida; body `{ "teamId", "name" }` (POST: `ADMIN_GERAL`, `ADMIN`, SCOUT).
+4. **GET/POST /matches/{id}/players** — lista / cria jogador em uma equipe da partida; body `{ "teamId", "directoryRef", "goalkeeper?" }` (`directoryRef`: ID de `Player` na pelada, ou `-userId` de membro em `user_pelada`) (POST: `ADMIN_GERAL`, `ADMIN`, SCOUT).
 5. **GET/POST /matches/{id}/events** — lista / registra lance (`type`, `playerId`, `targetId` opcionais); jogadores devem ser da partida (POST: `ADMIN_GERAL`, `ADMIN`, SCOUT, MEDIA).
 
 Isso alimenta **GET /stats/player/{id}**. Leituras **GET** sob `/matches/...` são públicas.

@@ -5,10 +5,13 @@ import com.varzeastats.dto.LoginRequest;
 import com.varzeastats.dto.LoginResponse;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.JwtService;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final UserPeladaMembershipRepository userPeladaMembershipRepository;
+    private final FinanceService financeService;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
@@ -32,6 +37,22 @@ public class AuthService {
         User user = userRepository
                 .findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Credenciais inválidas"));
+        Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
+        String token = jwtService.generateToken(
+                user.getEmail(), user.getRoles(), peladaId, user.isMustChangePassword());
+        return toLoginResponse(user, token);
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse profile(String email, String bearerToken) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        String token = bearerToken != null && bearerToken.startsWith("Bearer ") ? bearerToken.substring(7) : bearerToken;
+        return toLoginResponse(user, token != null ? token : "");
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse reissueToken(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
         Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
         String token = jwtService.generateToken(
                 user.getEmail(), user.getRoles(), peladaId, user.isMustChangePassword());
@@ -63,6 +84,12 @@ public class AuthService {
         List<Role> rolesSorted = user.getRoles().stream()
                 .sorted(Comparator.comparing(Enum::name))
                 .toList();
+        List<Long> membershipIds = userPeladaMembershipRepository.findById_UserId(user.getId()).stream()
+                .map(m -> m.getId().getPeladaId())
+                .sorted()
+                .collect(Collectors.toList());
+        List<Long> delinquent = financeService.monthlyDelinquentPeladaIdsForUser(
+                user.getId(), membershipIds, LocalDate.now());
         return LoginResponse.builder()
                 .token(token)
                 .email(user.getEmail())
@@ -72,6 +99,9 @@ public class AuthService {
                 .peladaName(peladaName)
                 .peladaHasLogo(peladaHasLogo)
                 .mustChangePassword(user.isMustChangePassword())
+                .membershipPeladaIds(membershipIds)
+                .monthlyDelinquentPeladaIds(delinquent)
+                .accountActive(user.isAccountActive())
                 .build();
     }
 }

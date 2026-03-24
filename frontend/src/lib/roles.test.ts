@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EVENT_RECORDER_ROLES,
+  FINANCE_MODULE_ROLES,
   hasAnyRole,
   hasRole,
   isAdminGeral,
@@ -33,5 +34,9 @@ describe('roles', () => {
 
   it('EVENT_RECORDER_ROLES inclui SCOUT', () => {
     expect(EVENT_RECORDER_ROLES).toContain('SCOUT');
+  });
+
+  it('FINANCE_MODULE_ROLES inclui FINANCEIRO', () => {
+    expect(FINANCE_MODULE_ROLES).toContain('FINANCEIRO');
   });
 });

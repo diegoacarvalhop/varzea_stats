@@ -1,7 +1,9 @@
 package com.varzeastats.controller;
 
 import com.varzeastats.dto.PeladaCreateRequest;
+import com.varzeastats.dto.PeladaPublicCardResponse;
 import com.varzeastats.dto.PeladaResponse;
+import com.varzeastats.dto.PeladaSettingsRequest;
 import com.varzeastats.security.AppUserDetails;
 import com.varzeastats.service.PeladaService;
 import jakarta.validation.Valid;
@@ -13,7 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -27,19 +31,15 @@ public class PeladaController {
 
     private final PeladaService peladaService;
 
-    /**
-     * ADMIN_GERAL: todas as peladas. Demais perfis autenticados: só a própria. Anônimo: todas (para escolher onde
-     * acompanhar).
-     */
+    @GetMapping("/public-cards")
+    public ResponseEntity<List<PeladaPublicCardResponse>> publicCards() {
+        return ResponseEntity.ok(peladaService.findPublicCards());
+    }
+
     @GetMapping
     public ResponseEntity<List<PeladaResponse>> list(Authentication authentication) {
         if (authentication != null && authentication.getPrincipal() instanceof AppUserDetails u) {
-            if (u.isAdminGeral()) {
-                return ResponseEntity.ok(peladaService.findAll());
-            }
-            if (u.getPeladaId() != null) {
-                return ResponseEntity.ok(List.of(peladaService.findById(u.getPeladaId())));
-            }
+            return ResponseEntity.ok(peladaService.findForPrincipal(u));
         }
         return ResponseEntity.ok(peladaService.findAll());
     }
@@ -58,5 +58,14 @@ public class PeladaController {
             throw new IllegalArgumentException("Nome da pelada é obrigatório.");
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(peladaService.create(name.trim(), logo));
+    }
+
+    @PutMapping("/{id}/settings")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN')")
+    public ResponseEntity<PeladaResponse> updateSettings(
+            @PathVariable Long id,
+            @Valid @RequestBody PeladaSettingsRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(peladaService.updateSettings(id, request, authentication));
     }
 }

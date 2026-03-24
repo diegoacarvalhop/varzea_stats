@@ -17,6 +17,8 @@ public class PlayerStatsResponse {
     private Long teamId;
     private String teamName;
     private boolean goalkeeper;
+    private long goalsConceded;
+    private long foulsSuffered;
     private Map<String, Long> eventsByType;
     private long bolaCheiaVotes;
     private long bolaMurchaVotes;

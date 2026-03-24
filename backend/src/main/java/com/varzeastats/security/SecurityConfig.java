@@ -23,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AccountInactiveEnforcementFilter accountInactiveEnforcementFilter;
     private final MustChangePasswordEnforcementFilter mustChangePasswordEnforcementFilter;
     private final PeladaResolver peladaResolver;
 
@@ -53,7 +54,8 @@ public class SecurityConfig {
                         .authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(mustChangePasswordEnforcementFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(accountInactiveEnforcementFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(mustChangePasswordEnforcementFilter, AccountInactiveEnforcementFilter.class)
                 .addFilterAfter(peladaScopeFilter, MustChangePasswordEnforcementFilter.class);
         return http.build();
     }

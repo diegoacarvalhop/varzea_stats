@@ -18,7 +18,7 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   }
 
   if (roles && roles.length > 0 && !hasAnyRole(userRoles, roles)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/painel" replace />;
   }
 
   return <>{children}</>;

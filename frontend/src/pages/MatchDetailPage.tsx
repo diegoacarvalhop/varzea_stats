@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createEventForMatch,
@@ -16,7 +16,16 @@ import {
   type Player,
   type PlayerDirectoryEntry,
 } from '@/services/playerService';
+import { buildMatchTeamNameChoices } from '@/lib/peladaTeamNames';
+import { getApiErrorMessage } from '@/lib/apiError';
+import {
+  listPresence,
+  runDraft,
+  savePresence,
+} from '@/services/peladaOpsService';
+import { listPeladas, type Pelada } from '@/services/peladaService';
 import { createTeamForMatch, listTeamsByMatch, type Team } from '@/services/teamService';
+import { listUsers, type UserSummary } from '@/services/userService';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { MatchMediaGallery } from '@/components/MatchMediaGallery';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/SearchableSelect';
@@ -26,18 +35,20 @@ import {
   EVENT_RECORDER_ROLES,
   hasAnyRole,
   MATCH_MANAGER_ROLES,
+  PRESENCE_DRAFT_ROLES,
   ROSTER_EDITOR_ROLES,
 } from '@/lib/roles';
 import s from '@/styles/pageShared.module.scss';
 
 const EVENT_TYPES: { value: EventType; label: string }[] = [
   { value: 'GOAL', label: 'Gol' },
+  { value: 'OWN_GOAL', label: 'Gol contra' },
   { value: 'ASSIST', label: 'Assistência' },
   { value: 'YELLOW_CARD', label: 'Cartão amarelo' },
   { value: 'RED_CARD', label: 'Cartão vermelho' },
   { value: 'BLUE_CARD', label: 'Cartão azul' },
   { value: 'FOUL', label: 'Falta' },
-  { value: 'SUBSTITUTION', label: 'Substituição' },
+  { value: 'PENALTY', label: 'Pênalti' },
   { value: 'OTHER', label: 'Outro' },
 ];
 
@@ -45,12 +56,84 @@ const EVENT_LABELS: Record<EventType, string> = Object.fromEntries(
   EVENT_TYPES.map((x) => [x.value, x.label]),
 ) as Record<EventType, string>;
 
+/** Data local (calendário) a partir do instante da partida — alinhada à presença/sorteio da pelada. */
+function instantToLocalDateIso(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
+function normalizeDirectoryNameForPresence(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** Diretório filtrado: só entradas ligadas a quem está marcado como presente (membro user id negativo ou nome igual a um presente). */
+function filterDirectoryGroupsByPresent(
+  groups: { label: string; entries: PlayerDirectoryEntry[] }[],
+  presentUserIds: Set<number>,
+  peladaUsers: UserSummary[],
+): { label: string; entries: PlayerDirectoryEntry[] }[] {
+  const presentNameNorm = new Set(
+    peladaUsers.filter((u) => presentUserIds.has(u.id)).map((u) => normalizeDirectoryNameForPresence(u.name)),
+  );
+  const out: { label: string; entries: PlayerDirectoryEntry[] }[] = [];
+  for (const g of groups) {
+    const entries = g.entries.filter((e) => {
+      if (e.playerId < 0) return presentUserIds.has(-e.playerId);
+      return presentNameNorm.has(normalizeDirectoryNameForPresence(e.playerName));
+    });
+    if (entries.length > 0) out.push({ label: g.label, entries });
+  }
+  return out;
+}
+
+/** userIds de goleiros na partida, entre os presentes (cruzamento por nome). */
+function goalkeeperUserIdsFromMatchRoster(
+  roster: Player[],
+  presentUserIds: Set<number>,
+  peladaUsers: UserSummary[],
+): number[] {
+  const nameToUserId = new Map<string, number>();
+  for (const uid of presentUserIds) {
+    const u = peladaUsers.find((x) => x.id === uid);
+    if (u) nameToUserId.set(normalizeDirectoryNameForPresence(u.name), uid);
+  }
+  const out = new Set<number>();
+  for (const p of roster) {
+    if (!p.goalkeeper) continue;
+    const uid = nameToUserId.get(normalizeDirectoryNameForPresence(p.name));
+    if (uid != null && presentUserIds.has(uid)) out.add(uid);
+  }
+  return [...out];
+}
+
+function findDirectoryEntryByPick(
+  dir: PlayerDirectoryEntry[],
+  pick: string,
+): PlayerDirectoryEntry | null {
+  const ci = pick.indexOf(':');
+  const pidStr = ci >= 0 ? pick.slice(0, ci) : pick;
+  const midStr = ci >= 0 ? pick.slice(ci + 1) : '';
+  return (
+    dir.find(
+      (x) =>
+        String(x.playerId) === pidStr && String(x.matchId ?? '') === (midStr || String(x.matchId ?? '')),
+    ) ?? null
+  );
+}
+
 function groupDirectoryForRoster(entries: PlayerDirectoryEntry[], currentMatchId: number) {
   const map = new Map<string, PlayerDirectoryEntry[]>();
   for (const e of entries) {
     const teamPart = e.teamName?.trim() || 'Equipe';
     const matchPart =
-      e.matchId === currentMatchId ? 'esta partida' : `Partida #${e.matchId ?? '?'}`;
+      e.matchId === currentMatchId
+        ? 'esta partida'
+        : e.matchId != null
+          ? `Partida #${e.matchId}`
+          : 'cadastro na pelada';
     const label = `${teamPart} · ${matchPart}`;
     if (!map.has(label)) map.set(label, []);
     map.get(label)!.push(e);
@@ -110,6 +193,17 @@ function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSele
   return out;
 }
 
+function formatCountdown(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export function MatchDetailPage() {
   const { matchId: matchIdParam } = useParams<{ matchId: string }>();
   const matchId = Number(matchIdParam);
@@ -124,26 +218,52 @@ export function MatchDetailPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [mediaItems, setMediaItems] = useState<MatchMediaItem[]>([]);
+
+  const [draftPeladaUsers, setDraftPeladaUsers] = useState<UserSummary[]>([]);
+  const [presentForDraft, setPresentForDraft] = useState<Set<number>>(new Set());
+  const [runningDraftOnMatch, setRunningDraftOnMatch] = useState(false);
+  const lastSavedPresenceKeyRef = useRef<string>('');
+  const [loadingMatchDraft, setLoadingMatchDraft] = useState(false);
   const [removePlayerConfirm, setRemovePlayerConfirm] = useState<Player | null>(null);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [playerDirectory, setPlayerDirectory] = useState<PlayerDirectoryEntry[]>([]);
 
   const [newTeamName, setNewTeamName] = useState('');
-  const [playerNamesByTeam, setPlayerNamesByTeam] = useState<Record<number, string>>({});
+  const [peladaForMatch, setPeladaForMatch] = useState<Pelada | null | undefined>(undefined);
+  const [rosterPickByTeam, setRosterPickByTeam] = useState<Record<number, string>>({});
   const [playerGoalkeeperByTeam, setPlayerGoalkeeperByTeam] = useState<Record<number, boolean>>({});
 
   const [eventType, setEventType] = useState<EventType>('GOAL');
   const [eventPlayerId, setEventPlayerId] = useState('');
   const [eventTargetId, setEventTargetId] = useState('');
+  const [penaltyPlayerId, setPenaltyPlayerId] = useState('');
+  const [penaltyTargetId, setPenaltyTargetId] = useState('');
   const [finishing, setFinishing] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const [countdownRunning, setCountdownRunning] = useState(false);
+  const [extraMinutesInput, setExtraMinutesInput] = useState('0');
 
   const matchFinished = Boolean(match?.finishedAt);
   const effectiveCanRoster = canRoster && !matchFinished;
+  const canDraftPresence =
+    isAuthenticated &&
+    hasAnyRole(roles, PRESENCE_DRAFT_ROLES) &&
+    match != null &&
+    !matchFinished;
+  const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
+  const timerConfigured = configuredDurationMinutes > 0;
+  const timerEnded = timerConfigured && countdownSeconds === 0;
 
   const rosterDirectoryGroups = useMemo(
     () => groupDirectoryForRoster(playerDirectory, matchId),
     [playerDirectory, matchId],
   );
+
+  const rosterGroupsForPicker = useMemo(() => {
+    if (match?.peladaId == null) return rosterDirectoryGroups;
+    if (loadingMatchDraft) return [];
+    return filterDirectoryGroupsByPresent(rosterDirectoryGroups, presentForDraft, draftPeladaUsers);
+  }, [match?.peladaId, loadingMatchDraft, rosterDirectoryGroups, presentForDraft, draftPeladaUsers]);
 
   const eventMainPlayer = useMemo(() => {
     if (!eventPlayerId) return null;
@@ -153,22 +273,33 @@ export function MatchDetailPage() {
   }, [eventPlayerId, players]);
 
   const targetPlayerOptions = useMemo(() => {
-    if (eventType !== 'FOUL') return players;
-    if (!eventMainPlayer) return [];
+    if (!eventMainPlayer) return players;
     return players.filter((p) => p.teamId !== eventMainPlayer.teamId);
-  }, [eventType, eventMainPlayer, players]);
+  }, [eventMainPlayer, players]);
+
+  const penaltyMainPlayer = useMemo(() => {
+    if (!penaltyPlayerId) return null;
+    const id = Number(penaltyPlayerId);
+    if (!Number.isFinite(id)) return null;
+    return players.find((p) => p.id === id) ?? null;
+  }, [penaltyPlayerId, players]);
+
+  const penaltyTargetOptions = useMemo(() => {
+    if (!penaltyMainPlayer) return players;
+    return players.filter((p) => p.teamId !== penaltyMainPlayer.teamId);
+  }, [penaltyMainPlayer, players]);
 
   useEffect(() => {
-    if (eventType !== 'FOUL' || !eventTargetId) return;
+    if (!eventTargetId) return;
     const tid = Number(eventTargetId);
     if (!Number.isFinite(tid)) return;
     const ok = targetPlayerOptions.some((p) => p.id === tid);
     if (!ok) setEventTargetId('');
-  }, [eventType, eventTargetId, targetPlayerOptions]);
+  }, [eventTargetId, targetPlayerOptions]);
 
   const directorySelectOptions = useMemo(() => {
     const out: SearchableSelectOption[] = [];
-    for (const g of rosterDirectoryGroups) {
+    for (const g of rosterGroupsForPicker) {
       for (const e of g.entries) {
         out.push({
           value: `${e.playerId}:${e.matchId ?? ''}`,
@@ -178,7 +309,7 @@ export function MatchDetailPage() {
       }
     }
     return out;
-  }, [rosterDirectoryGroups]);
+  }, [rosterGroupsForPicker]);
 
   const eventTypeSelectOptions = useMemo(
     () => EVENT_TYPES.map((x) => ({ value: x.value, label: x.label })),
@@ -187,9 +318,19 @@ export function MatchDetailPage() {
 
   const eventPlayerSelectOptions = useMemo(() => buildPlayerOptionsByTeam(players, teams), [players, teams]);
 
+  const teamNameChoices = useMemo(() => {
+    if (peladaForMatch === undefined) return [];
+    return buildMatchTeamNameChoices(peladaForMatch, teams);
+  }, [peladaForMatch, teams]);
+
   const targetPlayerSelectOptions = useMemo(
     () => buildPlayerOptionsByTeam(targetPlayerOptions, teams),
     [targetPlayerOptions, teams],
+  );
+
+  const penaltyTargetSelectOptions = useMemo(
+    () => buildPlayerOptionsByTeam(penaltyTargetOptions, teams),
+    [penaltyTargetOptions, teams],
   );
 
   const refresh = useCallback(async () => {
@@ -199,13 +340,53 @@ export function MatchDetailPage() {
       listTeamsByMatch(matchId),
       listPlayersByMatch(matchId),
       listEventsByMatch(matchId),
-      listPlayersDirectory().catch(() => [] as PlayerDirectoryEntry[]),
+      listPlayersDirectory({ includePeladaMembers: true }).catch(() => [] as PlayerDirectoryEntry[]),
     ]);
     setMatch(m);
     setTeams(t);
     setPlayers(p);
     setEvents(e);
     setPlayerDirectory(dir);
+    if (m?.peladaId != null) {
+      try {
+        const list = await listPeladas();
+        setPeladaForMatch(list.find((x) => x.id === m.peladaId) ?? null);
+      } catch {
+        setPeladaForMatch(null);
+      }
+      setLoadingMatchDraft(true);
+      try {
+        const presenceDate = instantToLocalDateIso(m.date);
+        const [users, presenceIds] = await Promise.all([
+          listUsers(),
+          listPresence(m.peladaId, presenceDate),
+        ]);
+        const pid = m.peladaId!;
+        const memberIds = new Set(
+          users
+            .filter(
+              (u) => u.peladaId === pid || (Array.isArray(u.peladaIds) && u.peladaIds.includes(pid)),
+            )
+            .map((u) => u.id),
+        );
+        setDraftPeladaUsers(users.filter((u) => memberIds.has(u.id)));
+        const pidPresence = presenceIds ?? [];
+        lastSavedPresenceKeyRef.current = [...pidPresence].sort((a, b) => a - b).join(',');
+        setPresentForDraft(new Set(pidPresence));
+      } catch {
+        lastSavedPresenceKeyRef.current = '';
+        setDraftPeladaUsers([]);
+        setPresentForDraft(new Set());
+      } finally {
+        setLoadingMatchDraft(false);
+      }
+    } else {
+      setPeladaForMatch(null);
+      lastSavedPresenceKeyRef.current = '';
+      setDraftPeladaUsers([]);
+      setPresentForDraft(new Set());
+      setLoadingMatchDraft(false);
+    }
     try {
       const media = await listMediaForMatch(matchId);
       setMediaItems(media);
@@ -221,6 +402,140 @@ export function MatchDetailPage() {
     }
     void refresh().catch(() => appToast.error('Não foi possível carregar a partida.'));
   }, [matchId, refresh]);
+
+  useEffect(() => {
+    if (peladaForMatch === undefined) return;
+    if (newTeamName && !teamNameChoices.includes(newTeamName)) {
+      setNewTeamName('');
+    }
+  }, [peladaForMatch, teamNameChoices, newTeamName]);
+
+  useEffect(() => {
+    if (!timerConfigured) {
+      setCountdownRunning(false);
+      setCountdownSeconds(0);
+      return;
+    }
+    setCountdownRunning(false);
+    setCountdownSeconds(configuredDurationMinutes * 60);
+    setExtraMinutesInput('0');
+  }, [configuredDurationMinutes, timerConfigured, match?.id]);
+
+  useEffect(() => {
+    if (!countdownRunning || countdownSeconds <= 0) return;
+    const tid = window.setInterval(() => {
+      setCountdownSeconds((prev) => {
+        if (prev <= 1) {
+          setCountdownRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(tid);
+  }, [countdownRunning, countdownSeconds]);
+
+  const presenceDateForMatch = match ? instantToLocalDateIso(match.date) : '';
+
+  const draftMembersSorted = useMemo(() => {
+    const list = [...draftPeladaUsers];
+    list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return list;
+  }, [draftPeladaUsers]);
+
+  const presentForDraftKey = useMemo(
+    () =>
+      [...presentForDraft]
+        .sort((a, b) => a - b)
+        .join(','),
+    [presentForDraft],
+  );
+
+  const currentGoalkeeperUserIds = useMemo(
+    () => new Set(goalkeeperUserIdsFromMatchRoster(players, presentForDraft, draftPeladaUsers)),
+    [players, presentForDraft, draftPeladaUsers],
+  );
+
+  useEffect(() => {
+    if (!match?.peladaId || !presenceDateForMatch || !canDraftPresence || loadingMatchDraft) return;
+    if (presentForDraftKey === lastSavedPresenceKeyRef.current) return;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const ids = presentForDraftKey
+            ? presentForDraftKey.split(',').map((x) => Number(x))
+            : [];
+          await savePresence(match.peladaId!, {
+            date: presenceDateForMatch,
+            presentUserIds: ids,
+          });
+          lastSavedPresenceKeyRef.current = presentForDraftKey;
+        } catch (e) {
+          appToast.error(getApiErrorMessage(e, 'Falha ao salvar presença.'));
+        }
+      })();
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [presentForDraftKey, match?.peladaId, presenceDateForMatch, canDraftPresence, loadingMatchDraft]);
+
+  function togglePresentOnMatchDraft(userId: number, on: boolean) {
+    setPresentForDraft((prev) => {
+      const n = new Set(prev);
+      if (on) n.add(userId);
+      else n.delete(userId);
+      return n;
+    });
+  }
+
+  async function runDraftOnMatchPage() {
+    if (!match?.peladaId || !presenceDateForMatch) return;
+    if (teams.length < 2) {
+      appToast.warning('Crie ao menos 2 equipes na partida antes de sortear.');
+      return;
+    }
+    if (presentForDraft.size < 2) {
+      appToast.warning('Marque ao menos 2 presentes antes de sortear.');
+      return;
+    }
+    setRunningDraftOnMatch(true);
+    try {
+      const gkIds = [...currentGoalkeeperUserIds];
+      const res = await runDraft(match.peladaId, {
+        date: presenceDateForMatch,
+        goalkeeperUserIds: gkIds,
+        teamNames: teams.map((t) => t.name),
+        linePlayersPerTeam:
+          peladaForMatch?.teamCount != null && peladaForMatch.teamCount > 0 ? peladaForMatch.teamCount : undefined,
+      });
+      const draftLines = Array.isArray(res) ? res : [];
+      const teamIdsInMatch = new Set(teams.map((t) => t.id));
+      const teamIdByName = new Map(teams.map((t) => [t.name, t.id]));
+
+      // Aplica o sorteio de forma determinística: limpa equipes da partida e recria elenco completo.
+      const playersInMatchTeams = players.filter((p) => p.teamId != null && teamIdsInMatch.has(p.teamId));
+      for (const p of playersInMatchTeams) {
+        await deletePlayerFromMatch(matchId, p.id);
+      }
+
+      for (const line of draftLines) {
+        const teamId = teamIdByName.get(line.teamName);
+        if (teamId == null) continue;
+        for (const slot of line.players) {
+          await createPlayerForMatch(matchId, teamId, {
+            directoryRef: -slot.userId,
+            goalkeeper: currentGoalkeeperUserIds.has(slot.userId),
+          });
+        }
+      }
+
+      await refresh();
+      appToast.success('Jogadores da linha foram sorteados e adicionados nas equipes.');
+    } catch (e) {
+      appToast.error(getApiErrorMessage(e, 'Falha ao sortear.'));
+    } finally {
+      setRunningDraftOnMatch(false);
+    }
+  }
 
   function rosterSlicesForTeam(teamId: number) {
     const teamPlayers = players.filter((p) => p.teamId === teamId);
@@ -254,15 +569,19 @@ export function MatchDetailPage() {
 
   async function onCreatePlayer(e: FormEvent, teamId: number) {
     e.preventDefault();
-    const name = (playerNamesByTeam[teamId] ?? '').trim();
-    if (!name) {
-      appToast.warning('Informe o nome do jogador.');
+    const pick = rosterPickByTeam[teamId] ?? '';
+    const entry = findDirectoryEntryByPick(playerDirectory, pick);
+    if (!entry) {
+      appToast.warning('Selecione um jogador na lista da pelada.');
       return;
     }
     try {
       const isGk = playerGoalkeeperByTeam[teamId] ?? false;
-      await createPlayerForMatch(matchId, teamId, name, isGk);
-      setPlayerNamesByTeam((prev) => ({ ...prev, [teamId]: '' }));
+      await createPlayerForMatch(matchId, teamId, {
+        directoryRef: entry.playerId,
+        goalkeeper: isGk,
+      });
+      setRosterPickByTeam((prev) => ({ ...prev, [teamId]: '' }));
       setPlayerGoalkeeperByTeam((prev) => ({ ...prev, [teamId]: false }));
       appToast.success('Jogador adicionado à equipe.');
       await refresh();
@@ -306,6 +625,35 @@ export function MatchDetailPage() {
     }
   }
 
+  async function onRegisterPenalty(e: FormEvent) {
+    e.preventDefault();
+    if (teams.length === 0) {
+      appToast.warning('Cadastre ao menos uma equipe antes de registrar pênaltis.');
+      return;
+    }
+    if (players.length === 0) {
+      appToast.warning('Cadastre jogadores nas equipes antes de registrar pênaltis.');
+      return;
+    }
+    if (!penaltyPlayerId) {
+      appToast.warning('Selecione o cobrador do pênalti.');
+      return;
+    }
+    try {
+      await createEventForMatch(matchId, {
+        type: 'PENALTY',
+        playerId: Number(penaltyPlayerId),
+        targetId: penaltyTargetId ? Number(penaltyTargetId) : null,
+      });
+      setPenaltyPlayerId('');
+      setPenaltyTargetId('');
+      appToast.success('Pênalti registrado.');
+      await refresh();
+    } catch {
+      appToast.error('Falha ao registrar pênalti.');
+    }
+  }
+
   async function executeFinishMatch() {
     setFinishConfirmOpen(false);
     setFinishing(true);
@@ -318,6 +666,17 @@ export function MatchDetailPage() {
     } finally {
       setFinishing(false);
     }
+  }
+
+  function applyExtraTime() {
+    const mins = Number(extraMinutesInput);
+    if (!Number.isFinite(mins) || mins <= 0) {
+      appToast.warning('Informe minutos de acréscimo válidos.');
+      return;
+    }
+    const secondsToAdd = Math.floor(mins * 60);
+    setCountdownSeconds((prev) => prev + secondsToAdd);
+    appToast.success(`Acréscimo aplicado: +${mins} min.`);
   }
 
   function eventLine(ev: MatchEvent) {
@@ -339,6 +698,9 @@ export function MatchDetailPage() {
     );
   }
 
+  const penalties = useMemo(() => events.filter((ev) => ev.type === 'PENALTY'), [events]);
+  const nonPenaltyEvents = useMemo(() => events.filter((ev) => ev.type !== 'PENALTY'), [events]);
+
   if (!Number.isFinite(matchId)) {
     return (
       <div className={s.page}>
@@ -356,7 +718,58 @@ export function MatchDetailPage() {
 
       {match && (
         <>
-          <h1>Partida #{match.id}</h1>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem 1rem' }}>
+            <h1 style={{ margin: 0 }}>Partida #{match.id}</h1>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.35rem 0.55rem',
+                borderRadius: 10,
+                border: `1px solid ${timerEnded ? 'rgba(255,82,82,0.6)' : 'rgba(105,240,174,0.35)'}`,
+                background: timerEnded ? 'rgba(255,82,82,0.12)' : 'rgba(0,0,0,0.22)',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  fontSize: '1.05rem',
+                  color: timerEnded ? '#ff8a80' : 'rgba(230,255,240,0.95)',
+                }}
+              >
+                {timerConfigured ? formatCountdown(countdownSeconds) : '--:--'}
+              </span>
+              <button
+                type="button"
+                className={s.btnPrimary}
+                onClick={() => setCountdownRunning((v) => !v)}
+                disabled={!timerConfigured}
+              >
+                {countdownRunning ? 'Pausar' : 'Iniciar'}
+              </button>
+              <input
+                className={s.input}
+                style={{ width: '5.5rem' }}
+                type="number"
+                min={1}
+                step={1}
+                value={extraMinutesInput}
+                onChange={(ev) => setExtraMinutesInput(ev.target.value)}
+                aria-label="Minutos de acréscimo"
+                placeholder="Acréscimo"
+              />
+              <button type="button" className={s.btn} onClick={applyExtraTime} disabled={!timerConfigured}>
+                Acréscimos
+              </button>
+            </div>
+          </div>
+          {!timerConfigured && (
+            <p className={s.statsDetailMeta} style={{ marginTop: '0.45rem' }}>
+              Defina a duração da partida nas configurações da pelada para habilitar o cronômetro.
+            </p>
+          )}
           <p className={s.lead}>
             {new Date(match.date).toLocaleString('pt-BR')} · {match.location}
           </p>
@@ -371,13 +784,82 @@ export function MatchDetailPage() {
         </p>
       )}
 
-      {match && <MatchMediaGallery items={mediaItems} />}
+      {match && mediaItems.length > 0 && <MatchMediaGallery items={mediaItems} />}
+
+      {match?.peladaId != null && (
+        <div className={s.card} style={{ marginBottom: '1.25rem' }}>
+            <h2 className={s.cardTitle}>1. Presença nesta partida</h2>
+            <p className={s.lead} style={{ marginBottom: '1rem' }}>
+              Data de referência: <strong>{presenceDateForMatch}</strong> (dia da partida). A presença é confirmada ao
+              marcar ou desmarcar cada jogador. Apenas administradores e scout podem alterar.
+            </p>
+            {loadingMatchDraft ? (
+              <p className={s.lead}>Carregando presença…</p>
+            ) : canDraftPresence ? (
+              <>
+                <p className={s.statsDetailMeta} style={{ marginBottom: '0.5rem' }}>
+                  Marque quem compareceu à pelada neste dia.
+                </p>
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                  }}
+                >
+                  {draftMembersSorted.map((u) => (
+                    <li key={u.id}>
+                      <label className={s.checkboxRow}>
+                        <input
+                          type="checkbox"
+                          checked={presentForDraft.has(u.id)}
+                          onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
+                        />
+                        <span>{u.name}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : draftMembersSorted.length === 0 ? (
+              <p className={s.lead}>Nenhum jogador cadastrado nesta pelada.</p>
+            ) : (
+              <ul
+                style={{
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem',
+                }}
+              >
+                {draftMembersSorted.map((u) => {
+                  const isPresent = presentForDraft.has(u.id);
+                  return (
+                  <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }} aria-hidden>
+                      {isPresent ? '✓' : '✕'}
+                    </span>
+                    <span>{u.name}</span>
+                  </li>
+                  );
+                })}
+              </ul>
+            )}
+        </div>
+      )}
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>1. Equipes desta partida</h2>
+        <h2 className={s.cardTitle}>2. Equipes desta partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
-          Cada equipe existe só neste jogo. Marque o <strong>goleiro</strong>; ele aparece primeiro na lista. Use{' '}
-          <strong>Remover</strong> para substituições (lances antigos permanecem, sem vínculo com o jogador).
+          Cada equipe existe só neste jogo. Os nomes vêm da <strong>configuração da pelada</strong>. O select de jogadores
+          lista apenas quem está <strong>marcado como presente</strong> na seção 1. Use o checkbox{' '}
+          <strong>É o goleiro desta equipe</strong> ao adicionar o goleiro; no sorteio da linha, esses jogadores ficam de
+          fora da distribuição do restante. Use <strong>Remover</strong> para substituições.
         </p>
         {effectiveCanRoster && (
           <form className={s.formInline} style={{ marginBottom: '1.5rem' }} onSubmit={onCreateTeam}>
@@ -388,16 +870,43 @@ export function MatchDetailPage() {
                   *
                 </span>
               </label>
-              <input
+              <select
                 id="new-team-name"
-                className={s.input}
+                className={`${s.input} ${s.select}`}
                 value={newTeamName}
                 onChange={(ev) => setNewTeamName(ev.target.value)}
-                placeholder="Ex.: Time da esquerda"
                 required
-              />
+                disabled={peladaForMatch === undefined || teamNameChoices.length === 0}
+              >
+                <option value="">
+                  {peladaForMatch === undefined
+                    ? 'Carregando…'
+                    : teamNameChoices.length === 0
+                      ? 'Nenhuma equipe disponível'
+                      : 'Selecione a equipe…'}
+                </option>
+                {teamNameChoices.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {peladaForMatch !== undefined && teamNameChoices.length === 0 && teams.length > 0 && (
+                <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem', marginBottom: 0 }}>
+                  Todas as equipes previstas para esta pelada já foram adicionadas à partida.
+                </p>
+              )}
+              {peladaForMatch === null && (
+                <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem', marginBottom: 0 }}>
+                  Não foi possível carregar a pelada. Atualize a página ou confira sua conexão.
+                </p>
+              )}
             </div>
-            <button className={s.btnPrimary} type="submit">
+            <button
+              className={s.btnPrimary}
+              type="submit"
+              disabled={peladaForMatch === undefined || teamNameChoices.length === 0 || !newTeamName.trim()}
+            >
               Adicionar equipe
             </button>
           </form>
@@ -459,54 +968,40 @@ export function MatchDetailPage() {
                 >
                   <SearchableSelect
                     id={`player-dir-${team.id}`}
-                    label="Jogador já cadastrado na pelada"
-                    value=""
-                    aria-label="Preencher nome a partir de um jogador já cadastrado na pelada (inclui esta partida)"
+                    label={
+                      <>
+                        Jogador presente / cadastro na pelada
+                        <span className={s.requiredMark} aria-hidden>
+                          *
+                        </span>
+                      </>
+                    }
+                    value={rosterPickByTeam[team.id] ?? ''}
+                    aria-label="Escolher jogador presente nesta data (seção 1)"
                     options={directorySelectOptions}
+                    disabled={match?.peladaId != null && loadingMatchDraft}
+                    required
                     emptyOption={{
                       value: '',
                       label:
-                        rosterDirectoryGroups.length === 0
-                          ? '— Nenhum jogador cadastrado na pelada —'
-                          : '— Escolher da lista para preencher o nome —',
+                        match?.peladaId != null && loadingMatchDraft
+                          ? '— Carregando presença… —'
+                          : rosterGroupsForPicker.length === 0
+                            ? '— Marque presenças na seção 1 ou ninguém disponível —'
+                            : '— Selecione o jogador —',
                     }}
                     onChange={(v) => {
+                      setRosterPickByTeam((prev) => ({ ...prev, [team.id]: v }));
                       if (!v) return;
-                      const sep = v.indexOf(':');
-                      const pid = sep >= 0 ? v.slice(0, sep) : v;
-                      const mid = sep >= 0 ? v.slice(sep + 1) : '';
-                      const entry = playerDirectory.find(
-                        (x) =>
-                          String(x.playerId) === pid &&
-                          String(x.matchId ?? '') === (mid || String(x.matchId ?? '')),
-                      );
-                      if (entry) {
-                        setPlayerNamesByTeam((prev) => ({ ...prev, [team.id]: entry.playerName }));
+                      const picked = findDirectoryEntryByPick(playerDirectory, v);
+                      if (picked) {
                         setPlayerGoalkeeperByTeam((prev) => ({
                           ...prev,
-                          [team.id]: entry.goalkeeper,
+                          [team.id]: picked.goalkeeper,
                         }));
                       }
                     }}
                   />
-                  <div className={s.field}>
-                    <label className={s.fieldLabel} htmlFor={`player-name-${team.id}`}>
-                      Nome do jogador
-                      <span className={s.requiredMark} aria-hidden>
-                        *
-                      </span>
-                    </label>
-                    <input
-                      id={`player-name-${team.id}`}
-                      className={s.input}
-                      placeholder="Ex.: João"
-                      value={playerNamesByTeam[team.id] ?? ''}
-                      onChange={(ev) =>
-                        setPlayerNamesByTeam((prev) => ({ ...prev, [team.id]: ev.target.value }))
-                      }
-                      required
-                    />
-                  </div>
                   <label className={s.checkboxRow}>
                     <input
                       type="checkbox"
@@ -520,7 +1015,11 @@ export function MatchDetailPage() {
                     />
                     <span>É o goleiro desta equipe</span>
                   </label>
-                  <button className={s.btn} type="submit">
+                  <button
+                    className={s.btn}
+                    type="submit"
+                    disabled={!rosterPickByTeam[team.id]}
+                  >
                     Adicionar jogador
                   </button>
                 </form>
@@ -528,10 +1027,101 @@ export function MatchDetailPage() {
             </div>
           ))}
         </div>
+
+        {match?.peladaId != null && !loadingMatchDraft && (
+          <>
+            {canDraftPresence && (
+              <div
+                style={{
+                  marginTop: '1.5rem',
+                  paddingTop: '1.25rem',
+                  borderTop: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <h3 className={s.cardTitle} style={{ fontSize: '1.05rem', marginBottom: '0.5rem' }}>
+                  Sorteio da linha
+                </h3>
+                <p className={s.statsDetailMeta} style={{ marginBottom: '0.75rem' }}>
+                  Use o checkbox ao adicionar jogadores nas equipes para marcar goleiros. Eles não entram no sorteio; só os
+                  demais presentes são distribuídos entre os times.
+                </p>
+                <button
+                  type="button"
+                  className={s.btnPrimary}
+                  disabled={runningDraftOnMatch || presentForDraft.size < 2}
+                  onClick={() => void runDraftOnMatchPage()}
+                >
+                  {runningDraftOnMatch ? 'Sorteando…' : 'Sortear jogadores da linha'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>2. Lances (stats) desta partida</h2>
+        <h2 className={s.cardTitle}>3. Pênaltis da partida</h2>
+        <p className={s.lead} style={{ marginBottom: '1rem' }}>
+          Sessão específica para marcação de pênaltis. Use esta seção somente quando a partida terminar empatada.
+        </p>
+        {matchFinished ? (
+          <p className={s.lead}>Não é possível registrar pênaltis nesta partida encerrada.</p>
+        ) : canRecord ? (
+          <form className={s.form} onSubmit={onRegisterPenalty}>
+            <SearchableSelect
+              id="penalty-player"
+              label={
+                <>
+                  Cobrador
+                  <span className={s.requiredMark} aria-hidden>
+                    *
+                  </span>
+                </>
+              }
+              value={penaltyPlayerId}
+              onChange={setPenaltyPlayerId}
+              options={eventPlayerSelectOptions}
+              required
+              emptyOption={{ value: '', label: '— Selecione o cobrador —' }}
+            />
+            <SearchableSelect
+              id="penalty-target"
+              label="Goleiro/alvo (time adversário)"
+              value={penaltyTargetId}
+              onChange={setPenaltyTargetId}
+              options={penaltyTargetSelectOptions}
+              disabled={!penaltyMainPlayer}
+              emptyOption={{
+                value: '',
+                label: !penaltyMainPlayer ? '— Selecione o cobrador primeiro —' : '— Nenhum —',
+              }}
+            />
+            <button className={s.btnPrimary} type="submit">
+              Registrar pênalti
+            </button>
+          </form>
+        ) : (
+          <p className={s.lead}>Entre como administrador, SCOUT ou MEDIA para registrar pênaltis.</p>
+        )}
+        <h3 className={s.cardTitle} style={{ marginTop: '1.25rem' }}>
+          Histórico de pênaltis
+        </h3>
+        {penalties.length === 0 ? (
+          <p className={s.lead}>Nenhum pênalti registrado ainda.</p>
+        ) : (
+          <ul className={s.timeline}>
+            {penalties.map((ev) => (
+              <li key={ev.id} className={s.timelineItem}>
+                <span className={s.timelineId}>#{ev.id}</span>
+                {eventLine(ev)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className={s.card}>
+        <h2 className={s.cardTitle}>4. Lances (stats) desta partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
           Registre o que acontece no jogo; as estatísticas por jogador usam estes eventos.
         </p>
@@ -574,21 +1164,14 @@ export function MatchDetailPage() {
             />
             <SearchableSelect
               id="ev-target"
-              label={
-                eventType === 'FOUL'
-                  ? 'Quem sofreu a falta (somente time adversário ao infrator)'
-                  : 'Jogador alvo (opcional)'
-              }
+              label="Jogador alvo (time adversário ao jogador principal)"
               value={eventTargetId}
               onChange={setEventTargetId}
               options={targetPlayerSelectOptions}
-              disabled={eventType === 'FOUL' && !eventMainPlayer}
+              disabled={!eventMainPlayer}
               emptyOption={{
                 value: '',
-                label:
-                  eventType === 'FOUL' && !eventMainPlayer
-                    ? '— Selecione o infrator primeiro —'
-                    : '— Nenhum —',
+                label: !eventMainPlayer ? '— Selecione o jogador principal primeiro —' : '— Nenhum —',
               }}
             />
             <button className={s.btnPrimary} type="submit">
@@ -602,11 +1185,11 @@ export function MatchDetailPage() {
         <h3 className={s.cardTitle} style={{ marginTop: '1.5rem' }}>
           Histórico (mais recentes primeiro)
         </h3>
-        {events.length === 0 ? (
+        {nonPenaltyEvents.length === 0 ? (
           <p className={s.lead}>Nenhum lance registrado ainda.</p>
         ) : (
           <ul className={s.timeline}>
-            {events.map((ev) => (
+            {nonPenaltyEvents.map((ev) => (
               <li key={ev.id} className={s.timelineItem}>
                 <span className={s.timelineId}>#{ev.id}</span>
                 {eventLine(ev)}
@@ -617,7 +1200,7 @@ export function MatchDetailPage() {
       </div>
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>3. Encerrar partida</h2>
+        <h2 className={s.cardTitle}>5. Encerrar partida</h2>
         <p className={s.lead}>
           Quando o jogo acabar, finalize aqui. Você será levado à tela de <strong>nova partida</strong> para começar o
           próximo cadastro.

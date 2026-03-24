@@ -19,4 +19,8 @@ public class UserResponse {
     private List<Role> roles;
     private Long peladaId;
     private String peladaName;
+
+    private Boolean accountActive;
+
+    private java.util.List<Long> peladaIds;
 }

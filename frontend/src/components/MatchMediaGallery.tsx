@@ -111,28 +111,26 @@ function MediaCard({ item }: { item: MatchMediaItem }) {
 }
 
 export function MatchMediaGallery({ items }: { items: MatchMediaItem[] }) {
+  if (items.length === 0) return null;
+
   return (
     <section className={styles.wrap} aria-labelledby="match-media-heading">
       <div className={styles.head}>
         <h2 className={styles.title} id="match-media-heading">
-          Mídias da pelada
+          Mídias da partida
         </h2>
         <p className={styles.sub}>
           Fotos, vídeos e áudios compartilhados para esta partida. Use <strong>Abrir link</strong> no celular ou{' '}
           <strong>Ver aqui</strong> para YouTube.
         </p>
       </div>
-      {items.length === 0 ? (
-        <p className={styles.empty}>Ainda não há mídias registradas para esta partida.</p>
-      ) : (
-        <div className={styles.strip} role="list">
-          {items.map((item) => (
-            <div key={item.id} role="listitem">
-              <MediaCard item={item} />
-            </div>
-          ))}
-        </div>
-      )}
+      <div className={styles.strip} role="list">
+        {items.map((item) => (
+          <div key={item.id} role="listitem">
+            <MediaCard item={item} />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -20,9 +20,12 @@ RUN yarn install --frozen-lockfile
 
 COPY . .
 
-# Incorporada no bundle em tempo de build (Vite)
-ARG VITE_API_URL=http://localhost:8080
+# Incorporada no bundle em tempo de build (Vite).
+# Para produção, use build-arg ou descomente e ajuste a linha abaixo (e comente o ARG/ENV ativos se quiser fixar só por arquivo):
+ARG VITE_API_URL=https://api.seudominio.com
 ENV VITE_API_URL=${VITE_API_URL}
+#ARG VITE_API_URL=http://localhost:8080
+#ENV VITE_API_URL=${VITE_API_URL}
 
 RUN yarn build
 

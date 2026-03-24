@@ -1,7 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { setPeladaContext } from '@/lib/peladaContext';
 import { peladaLogoAbsoluteUrl } from '@/lib/peladaLogoUrl';
 import { isAdminGeral } from '@/lib/roles';
 import { appToast } from '@/lib/appToast';
@@ -51,7 +50,7 @@ function PeladaListThumb({ pelada }: { pelada: Pelada }) {
 
 export function SelectPeladaPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, roles } = useAuth();
+  const { isAuthenticated, roles, switchPelada } = useAuth();
   const isAdminGlobal = isAdminGeral(roles);
 
   const [peladas, setPeladas] = useState<Pelada[]>([]);
@@ -107,8 +106,8 @@ export function SelectPeladaPage() {
   const pagedPeladas = filteredPeladas.slice(pageStart, pageStart + pageSize);
 
   function choose(p: Pelada) {
-    setPeladaContext(p.id, p.name, Boolean(p.hasLogo));
-    navigate(isAuthenticated ? '/' : '/login', { replace: true });
+    switchPelada(p.id, p.name, Boolean(p.hasLogo));
+    navigate(isAuthenticated ? '/painel' : '/login', { replace: true });
   }
 
   async function onCreate(e: FormEvent) {
@@ -275,7 +274,7 @@ export function SelectPeladaPage() {
 
       {isAuthenticated && (
         <p className={s.lead} style={{ marginTop: '1rem' }}>
-          <Link to="/">Voltar ao dashboard</Link>
+          <Link to="/painel">Voltar ao dashboard</Link>
         </p>
       )}
     </div>

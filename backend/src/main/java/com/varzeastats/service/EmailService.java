@@ -1,5 +1,8 @@
 package com.varzeastats.service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +47,56 @@ public class EmailService {
             }
         } else {
             log.info("SMTP não configurado. Link de redefinição para {}: {}", destinatario, linkRedefinicao);
+        }
+    }
+
+    public void enviarEmailCobrancaMensalidade(
+            String destinatario,
+            String nomeJogador,
+            String nomePelada,
+            LocalDate referenciaMes,
+            Integer valorMensalidadeCents) {
+        DateTimeFormatter mesFmt = DateTimeFormatter.ofPattern("MMMM 'de' yyyy", new Locale("pt", "BR"));
+        String mesRef = referenciaMes.format(mesFmt);
+        String valorTxt = valorMensalidadeCents != null && valorMensalidadeCents > 0
+                ? String.format("R$ %.2f", valorMensalidadeCents / 100.0).replace('.', ',')
+                : "valor conforme combinado com a diretoria da pelada";
+        String assunto = "VARzea Stats — Cobrança de mensalidade em atraso";
+        String texto =
+                "Olá, "
+                        + nomeJogador
+                        + "!\n\n"
+                        + "Identificamos mensalidade(s) em atraso na pelada "
+                        + nomePelada
+                        + ".\n"
+                        + "Referência principal: "
+                        + mesRef
+                        + ".\n"
+                        + "Valor: "
+                        + valorTxt
+                        + ".\n\n"
+                        + "Por favor, regularize o pagamento o quanto antes.\n"
+                        + "Se você já pagou recentemente, desconsidere esta mensagem.\n\n"
+                        + "Equipe VARzea Stats";
+        enviarEmail(destinatario, assunto, texto);
+    }
+
+    private void enviarEmail(String destinatario, String assunto, String texto) {
+        if (mailHost != null && !mailHost.isBlank() && mailSender != null) {
+            try {
+                SimpleMailMessage msg = new SimpleMailMessage();
+                msg.setTo(destinatario);
+                msg.setSubject(assunto);
+                msg.setText(texto);
+                msg.setFrom(mailFrom);
+                mailSender.send(msg);
+                log.info("E-mail enviado para {} com assunto '{}'", destinatario, assunto);
+            } catch (Exception e) {
+                log.warn("Falha ao enviar e-mail; conteúdo registrado no log. Erro: {}", e.getMessage());
+                log.info("E-mail para {} | Assunto: {} | Texto: {}", destinatario, assunto, texto);
+            }
+        } else {
+            log.info("SMTP não configurado. E-mail para {} | Assunto: {} | Texto: {}", destinatario, assunto, texto);
         }
     }
 }

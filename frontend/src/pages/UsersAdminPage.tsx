@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { PasswordField } from '@/components/PasswordField';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { appToast } from '@/lib/appToast';
 import { getPeladaId } from '@/lib/peladaContext';
@@ -6,7 +7,7 @@ import { isAdminGeral, isAdminPelada } from '@/lib/roles';
 import { useAuth } from '@/hooks/useAuth';
 import type { Role } from '@/services/authService';
 import { listPeladas, type Pelada } from '@/services/peladaService';
-import { createUser, listUsers, type UserSummary } from '@/services/userService';
+import { createUser, listUsers, patchUser, type UserSummary } from '@/services/userService';
 import s from '@/styles/pageShared.module.scss';
 
 type MatrixRow = {
@@ -16,6 +17,7 @@ type MatrixRow = {
   scout: boolean;
   media: boolean;
   player: boolean;
+  financeiro: boolean;
 };
 
 const PERMISSION_MATRIX: MatrixRow[] = [
@@ -26,15 +28,17 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: false,
     media: false,
     player: false,
+    financeiro: false,
   },
   {
     feature:
-      'Cadastrar usuários (admin; jogador também pode criar a própria conta em Realizar cadastro no login, só perfil jogador)',
+      'Cadastrar e editar usuários (cadastro público cria só jogador; depois o jogador escolhe peladas em Minhas peladas)',
     adminGeral: true,
     adminPelada: true,
     scout: false,
     media: false,
     player: false,
+    financeiro: false,
   },
   {
     feature: 'Criar partida e encerrar partida',
@@ -43,6 +47,7 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: true,
     media: true,
     player: false,
+    financeiro: false,
   },
   {
     feature: 'Criar equipes e jogadores na partida',
@@ -51,6 +56,7 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: true,
     media: false,
     player: false,
+    financeiro: false,
   },
   {
     feature: 'Registrar lances (gols, cartões, assistências…)',
@@ -59,6 +65,7 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: true,
     media: true,
     player: false,
+    financeiro: false,
   },
   {
     feature: 'Anexar mídia (URL) à partida',
@@ -67,6 +74,7 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: false,
     media: true,
     player: false,
+    financeiro: false,
   },
   {
     feature: 'Consultar partidas, estatísticas e ranking (leitura)',
@@ -75,6 +83,7 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: true,
     media: true,
     player: true,
+    financeiro: false,
   },
   {
     feature: 'Votar bola cheia / bola murcha (API pública; qualquer visitante)',
@@ -83,6 +92,16 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     scout: true,
     media: true,
     player: true,
+    financeiro: false,
+  },
+  {
+    feature: 'Registrar pagamentos e ver inadimplência na pelada',
+    adminGeral: true,
+    adminPelada: true,
+    scout: false,
+    media: false,
+    player: false,
+    financeiro: true,
   },
 ];
 
@@ -106,6 +125,11 @@ const ROLE_OPTIONS: { value: Role; label: string; hint: string }[] = [
     value: 'MEDIA',
     label: 'Mídia',
     hint: 'Registra lances e anexa links de foto/vídeo; cria e encerra partidas.',
+  },
+  {
+    value: 'FINANCEIRO',
+    label: 'Financeiro',
+    hint: 'Registra pagamentos e consulta inadimplência na pelada em que participa.',
   },
   {
     value: 'PLAYER',
@@ -147,6 +171,7 @@ export function UsersAdminPage() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<Set<Role>>(() => new Set(['PLAYER']));
   const [newUserPeladaId, setNewUserPeladaId] = useState<number | ''>(() => {
     const raw = getPeladaId();
@@ -154,6 +179,14 @@ export function UsersAdminPage() {
     return Number.isFinite(n) ? n : '';
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const [editUser, setEditUser] = useState<UserSummary | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRoles, setEditRoles] = useState<Set<Role>>(new Set());
+  const [editActive, setEditActive] = useState(true);
+  const [editPassword, setEditPassword] = useState('');
+  const [editPeladaIds, setEditPeladaIds] = useState<Set<number>>(new Set());
+  const [editSaving, setEditSaving] = useState(false);
 
   const roleOptionsForForm = useMemo(
     () =>
@@ -219,6 +252,17 @@ export function UsersAdminPage() {
   );
 
   const onlyAdminGeral = selectedRoles.size === 1 && selectedRoles.has('ADMIN_GERAL');
+  const editOnlyAdminGeral = editRoles.size === 1 && editRoles.has('ADMIN_GERAL');
+
+  function openEdit(u: UserSummary) {
+    setEditUser(u);
+    setEditName(u.name);
+    setEditRoles(new Set(u.roles ?? ['PLAYER']));
+    setEditActive(u.accountActive !== false);
+    setEditPassword('');
+    const pids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
+    setEditPeladaIds(new Set(pids.filter((x): x is number => x != null)));
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -230,19 +274,23 @@ export function UsersAdminPage() {
       appToast.warning('Selecione a pelada (obrigatória exceto para administrador geral sozinho).');
       return;
     }
+    if (!newPassword.trim()) {
+      appToast.warning('Informe a senha inicial.');
+      return;
+    }
     setSubmitting(true);
     try {
       await createUser({
         name: name.trim(),
         email: email.trim(),
         roles: rolesListSorted,
+        password: newPassword.trim(),
         peladaId: onlyAdminGeral ? null : Number(newUserPeladaId),
       });
-      appToast.success(
-        'Usuário criado. Senha inicial: 123456 — no primeiro login ele será orientado a alterar a senha.',
-      );
+      appToast.success('Usuário criado.');
       setName('');
       setEmail('');
+      setNewPassword('');
       setSelectedRoles(new Set(['PLAYER']));
       if (isAdminPelada(viewerRoles) && viewerPeladaId != null) {
         setNewUserPeladaId(viewerPeladaId);
@@ -259,13 +307,67 @@ export function UsersAdminPage() {
     }
   }
 
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editUser) return;
+    if (editRoles.size === 0) {
+      appToast.warning('Marque pelo menos um perfil.');
+      return;
+    }
+    if (
+      isAdminGeral(viewerRoles) &&
+      !editOnlyAdminGeral &&
+      (editPeladaIds.size === 0 || ![...editPeladaIds].every((id) => peladas.some((p) => p.id === id)))
+    ) {
+      appToast.warning('Marque pelo menos uma pelada válida (exceto para conta só administrador geral).');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const rolesSorted = Array.from(editRoles).sort((a, b) => a.localeCompare(b));
+      const payload: Parameters<typeof patchUser>[1] = {
+        name: editName.trim(),
+        roles: rolesSorted,
+        accountActive: editActive,
+      };
+      if (editPassword.trim()) {
+        payload.password = editPassword.trim();
+      }
+      if (isAdminGeral(viewerRoles) && !editOnlyAdminGeral) {
+        payload.peladaIds = [...editPeladaIds].sort((a, b) => a - b);
+      }
+      await patchUser(editUser.id, payload);
+      appToast.success('Usuário atualizado.');
+      setEditUser(null);
+      await loadUsers();
+    } catch (err: unknown) {
+      appToast.apiError(err, 'Falha ao salvar alterações.');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  function peladaLabelsForUser(u: UserSummary): string {
+    if (u.roles?.length === 1 && u.roles[0] === 'ADMIN_GERAL') {
+      return '—';
+    }
+    const ids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
+    if (ids.length === 0) {
+      return '—';
+    }
+    return ids
+      .map((id) => peladas.find((p) => p.id === id)?.name ?? `#${id}`)
+      .join(', ');
+  }
+
   return (
     <div className={s.page}>
       <h1>Usuários</h1>
       <p className={s.lead}>
         Cadastro de contas com <strong>um ou mais perfis</strong> por pessoa. <strong>Administrador geral</strong> e{' '}
-        <strong>administrador da pelada</strong> acessam esta tela; o segundo só vê e cria usuários da própria pelada. O
-        perfil <strong>administrador geral</strong> não pode ser combinado com outros na mesma conta.
+        <strong>administrador da pelada</strong> acessam esta tela; o segundo só vê e cria usuários ligados à própria
+        pelada. O perfil <strong>administrador geral</strong> não pode ser combinado com outros na mesma conta. Contas{' '}
+        <strong>inativas</strong> continuam podendo entrar no sistema, mas ficam de fora das peladas até serem reativadas.
       </p>
 
       <section className={s.card} aria-labelledby="perm-matrix-title">
@@ -281,6 +383,7 @@ export function UsersAdminPage() {
                 <th scope="col">Admin pelada</th>
                 <th scope="col">Scout</th>
                 <th scope="col">Mídia</th>
+                <th scope="col">Financeiro</th>
                 <th scope="col">Jogador</th>
               </tr>
             </thead>
@@ -292,6 +395,7 @@ export function UsersAdminPage() {
                   <td>{cell(row.adminPelada)}</td>
                   <td>{cell(row.scout)}</td>
                   <td>{cell(row.media)}</td>
+                  <td>{cell(row.financeiro)}</td>
                   <td>{cell(row.player)}</td>
                 </tr>
               ))}
@@ -338,9 +442,16 @@ export function UsersAdminPage() {
               autoComplete="off"
             />
           </div>
-          <p className={s.lead} style={{ marginTop: 0 }}>
-            A senha inicial será <strong>123456</strong>; o usuário precisará definir uma nova senha no primeiro acesso.
-          </p>
+          <PasswordField
+            id="u-pass"
+            label="Senha inicial"
+            value={newPassword}
+            onChange={setNewPassword}
+            autoComplete="new-password"
+            required
+            minLength={6}
+            showStrengthMeter
+          />
           <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
             <legend className={s.fieldLabel}>
               Perfis (marque todos que esta pessoa exercerá)
@@ -413,6 +524,91 @@ export function UsersAdminPage() {
         </form>
       </section>
 
+      {editUser && (
+        <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="edit-user-title">
+          <h2 className={s.cardTitle} id="edit-user-title">
+            Editar — {editUser.email}
+          </h2>
+          <form className={s.form} onSubmit={(e) => void onSaveEdit(e)} style={{ maxWidth: '32rem' }}>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="eu-name">
+                Nome
+              </label>
+              <input
+                id="eu-name"
+                className={s.input}
+                value={editName}
+                onChange={(ev) => setEditName(ev.target.value)}
+                required
+              />
+            </div>
+            <label className={s.checkboxRow}>
+              <input type="checkbox" checked={editActive} onChange={(ev) => setEditActive(ev.target.checked)} />
+              <span>Conta ativa nas peladas</span>
+            </label>
+            <PasswordField
+              id="eu-pass"
+              label="Nova senha (opcional)"
+              value={editPassword}
+              onChange={setEditPassword}
+              autoComplete="new-password"
+              minLength={6}
+            />
+            <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend className={s.fieldLabel}>Perfis</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>
+                {roleOptionsForForm.map((o) => (
+                  <label key={o.value} className={s.checkboxRow}>
+                    <input
+                      type="checkbox"
+                      checked={editRoles.has(o.value)}
+                      onChange={(ev) => {
+                        setEditRoles((prev) => toggleRoleInSet(prev, o.value, ev.target.checked));
+                      }}
+                    />
+                    <span>
+                      <strong>{o.label}</strong>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {isAdminGeral(viewerRoles) && !editOnlyAdminGeral && (
+              <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <legend className={s.fieldLabel}>Peladas (membros)</legend>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {peladas.map((p) => (
+                    <label key={p.id} className={s.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={editPeladaIds.has(p.id)}
+                        onChange={(ev) => {
+                          setEditPeladaIds((prev) => {
+                            const n = new Set(prev);
+                            if (ev.target.checked) n.add(p.id);
+                            else n.delete(p.id);
+                            return n;
+                          });
+                        }}
+                      />
+                      <span>{p.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <button className={s.btnPrimary} type="submit" disabled={editSaving}>
+                {editSaving ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+              <button type="button" className={s.btn} onClick={() => setEditUser(null)}>
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
       <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="user-list-title">
         <h2 className={s.cardTitle} id="user-list-title">
           Usuários cadastrados
@@ -429,7 +625,9 @@ export function UsersAdminPage() {
                   <th>Nome</th>
                   <th>E-mail</th>
                   <th>Perfis</th>
-                  <th>Pelada</th>
+                  <th>Peladas</th>
+                  <th>Ativo</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -446,11 +644,12 @@ export function UsersAdminPage() {
                         ))}
                       </div>
                     </td>
+                    <td>{peladaLabelsForUser(u)}</td>
+                    <td>{u.accountActive === false ? 'Não' : 'Sim'}</td>
                     <td>
-                      {u.roles?.length === 1 && u.roles[0] === 'ADMIN_GERAL'
-                        ? '—'
-                        : u.peladaName?.trim() ||
-                          (u.peladaId != null ? `Pelada #${u.peladaId}` : '—')}
+                      <button type="button" className={s.btn} onClick={() => openEdit(u)}>
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 ))}

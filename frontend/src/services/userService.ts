@@ -8,14 +8,25 @@ export interface UserSummary {
   roles: Role[];
   peladaId?: number | null;
   peladaName?: string | null;
+  accountActive?: boolean;
+  peladaIds?: number[];
 }
 
 export interface CreateUserPayload {
   name: string;
   email: string;
   roles: Role[];
-  /** Obrigatório exceto quando o único perfil é ADMIN_GERAL. */
+  password: string;
   peladaId?: number | null;
+}
+
+export interface UserPatchPayload {
+  name?: string;
+  roles?: Role[];
+  peladaId?: number | null;
+  peladaIds?: number[];
+  accountActive?: boolean;
+  password?: string;
 }
 
 export async function listUsers(): Promise<UserSummary[]> {
@@ -25,5 +36,10 @@ export async function listUsers(): Promise<UserSummary[]> {
 
 export async function createUser(payload: CreateUserPayload): Promise<UserSummary> {
   const { data } = await api.post<UserSummary>('/users', payload);
+  return data;
+}
+
+export async function patchUser(id: number, body: UserPatchPayload): Promise<UserSummary> {
+  const { data } = await api.patch<UserSummary>(`/users/${id}`, body);
   return data;
 }

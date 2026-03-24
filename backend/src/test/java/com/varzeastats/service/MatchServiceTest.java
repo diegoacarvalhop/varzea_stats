@@ -18,7 +18,6 @@ import com.varzeastats.repository.TeamRepository;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,12 +47,6 @@ class MatchServiceTest {
 
     private final Pelada peladaRef = Pelada.builder().id(5L).name("P").build();
 
-    @BeforeEach
-    void stubs() {
-        when(peladaRepository.getReferenceById(5L)).thenReturn(peladaRef);
-        when(eventRepository.sumGoalsByTeamForMatch(anyLong())).thenReturn(Collections.emptyList());
-    }
-
     @Test
     void create_persistsMatchAndReturnsResponse() {
         Instant whenInstant = Instant.parse("2025-03-21T15:00:00Z");
@@ -61,6 +54,8 @@ class MatchServiceTest {
         req.setDate(whenInstant);
         req.setLocation("Campo X");
 
+        when(peladaRepository.getReferenceById(5L)).thenReturn(peladaRef);
+        when(eventRepository.sumGoalsByTeamForMatch(anyLong())).thenReturn(Collections.emptyList());
         when(matchRepository.save(any(Match.class)))
                 .thenAnswer(invocation -> {
                     Match m = invocation.getArgument(0);

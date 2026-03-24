@@ -28,8 +28,15 @@ export function formatPlayerDirectoryLabel(e: PlayerDirectoryEntry): string {
   return parts.join(' · ');
 }
 
-export async function listPlayersDirectory(): Promise<PlayerDirectoryEntry[]> {
-  const { data } = await api.get<PlayerDirectoryEntry[]>('/players');
+export async function listPlayersDirectory(opts?: {
+  /** Inclui usuários com vínculo em user_pelada (cadastro na pelada), ainda sem ficha em partida. */
+  includePeladaMembers?: boolean;
+}): Promise<PlayerDirectoryEntry[]> {
+  const { data } = await api.get<PlayerDirectoryEntry[]>('/players', {
+    params: {
+      includePeladaMembers: opts?.includePeladaMembers === true ? true : undefined,
+    },
+  });
   return data;
 }
 
@@ -49,13 +56,12 @@ export async function listPlayersByMatch(matchId: number): Promise<Player[]> {
 export async function createPlayerForMatch(
   matchId: number,
   teamId: number,
-  name: string,
-  goalkeeper = false,
+  payload: { directoryRef: number; goalkeeper?: boolean },
 ): Promise<Player> {
   const { data } = await api.post<Player>(`/matches/${matchId}/players`, {
     teamId,
-    name,
-    goalkeeper,
+    directoryRef: payload.directoryRef,
+    goalkeeper: payload.goalkeeper ?? false,
   });
   return data;
 }

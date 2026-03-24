@@ -48,6 +48,7 @@ public class BootstrapAdminRunner implements ApplicationRunner {
                 .email(email)
                 .password(passwordEncoder.encode(password))
                 .mustChangePassword(false)
+                .accountActive(true)
                 .roles(new LinkedHashSet<>(Set.of(Role.ADMIN_GERAL)))
                 .build();
         userRepository.save(user);

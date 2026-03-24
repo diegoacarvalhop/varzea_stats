@@ -7,5 +7,6 @@ public enum Role {
     ADMIN,
     SCOUT,
     PLAYER,
-    MEDIA
+    MEDIA,
+    FINANCEIRO
 }

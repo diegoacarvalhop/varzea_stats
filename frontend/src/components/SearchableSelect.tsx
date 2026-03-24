@@ -2,12 +2,14 @@ import {
   Fragment,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import pageShared from '@/styles/pageShared.module.scss';
 import cls from './SearchableSelect.module.scss';
 
@@ -70,8 +72,17 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const [dropdownPlacement, setDropdownPlacement] = useState<'down' | 'up'>('down');
+  const [listMaxHeight, setListMaxHeight] = useState(280);
 
   const filteredOptions = useMemo(() => {
     return options.filter((o) => matchesQuery(query, o.label, o.group));
@@ -84,7 +95,10 @@ export function SearchableSelect({
 
   useEffect(() => {
     function onDoc(ev: MouseEvent) {
-      if (!rootRef.current?.contains(ev.target as Node)) {
+      const target = ev.target as Node;
+      const clickedRoot = rootRef.current?.contains(target) ?? false;
+      const clickedDropdown = dropdownRef.current?.contains(target) ?? false;
+      if (!clickedRoot && !clickedDropdown) {
         setOpen(false);
         setQuery('');
       }
@@ -92,6 +106,34 @@ export function SearchableSelect({
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function updatePos() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      const openUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
+      const availableForList = Math.max(120, (openUpward ? spaceAbove : spaceBelow) - 56);
+      setDropdownPos({
+        top: openUpward ? rect.top - 4 : rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+      setDropdownPlacement(openUpward ? 'up' : 'down');
+      setListMaxHeight(Math.min(360, availableForList));
+    }
+    updatePos();
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+    };
+  }, [open]);
 
   const selectedLabel = useMemo(() => {
     if (emptyOption && value === emptyOption.value) {
@@ -120,6 +162,7 @@ export function SearchableSelect({
         <button
           type="button"
           id={id}
+          ref={triggerRef}
           className={`${pageShared.select} ${cls.trigger}`}
           role="combobox"
           aria-expanded={open}
@@ -140,70 +183,84 @@ export function SearchableSelect({
             ▼
           </span>
         </button>
-        {open && !disabled && (
-          <div className={cls.dropdown}>
-            <input
-              type="search"
-              className={cls.filter}
-              placeholder="Buscar…"
-              value={query}
-              autoComplete="off"
-              autoFocus
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setOpen(false);
-                  setQuery('');
-                }
+        {open &&
+          !disabled &&
+          createPortal(
+            <div
+              ref={dropdownRef}
+              className={cls.dropdown}
+              style={{
+                position: 'fixed',
+                left: dropdownPos.left,
+                width: dropdownPos.width,
+                zIndex: 9999,
+                top: dropdownPlacement === 'down' ? dropdownPos.top : undefined,
+                bottom: dropdownPlacement === 'up' ? window.innerHeight - dropdownPos.top : undefined,
               }}
-              aria-label="Filtrar opções"
-            />
-            <ul id={listId} role="listbox" className={cls.list}>
-              {showEmptyRow && emptyOption && (
-                <li key="__empty" role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    className={cls.option}
-                    aria-selected={value === emptyOption.value}
-                    onClick={() => handleSelect(emptyOption.value)}
-                  >
-                    {emptyOption.label}
-                  </button>
-                </li>
-              )}
-              {filteredOptions.map((o, idx) => {
-                const prev = filteredOptions[idx - 1];
-                const showGroupHeader = Boolean(o.group && o.group !== prev?.group);
-                return (
-                  <Fragment key={o.value}>
-                    {showGroupHeader && (
-                      <li className={cls.groupLabel} role="presentation">
-                        {o.group}
+            >
+              <input
+                type="search"
+                className={cls.filter}
+                placeholder="Buscar…"
+                value={query}
+                autoComplete="off"
+                autoFocus
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setOpen(false);
+                    setQuery('');
+                  }
+                }}
+                aria-label="Filtrar opções"
+              />
+              <ul id={listId} role="listbox" className={cls.list} style={{ maxHeight: `${listMaxHeight}px` }}>
+                {showEmptyRow && emptyOption && (
+                  <li key="__empty" role="presentation">
+                    <button
+                      type="button"
+                      role="option"
+                      className={cls.option}
+                      aria-selected={value === emptyOption.value}
+                      onClick={() => handleSelect(emptyOption.value)}
+                    >
+                      {emptyOption.label}
+                    </button>
+                  </li>
+                )}
+                {filteredOptions.map((o, idx) => {
+                  const prev = filteredOptions[idx - 1];
+                  const showGroupHeader = Boolean(o.group && o.group !== prev?.group);
+                  return (
+                    <Fragment key={o.value}>
+                      {showGroupHeader && (
+                        <li className={cls.groupLabel} role="presentation">
+                          {o.group}
+                        </li>
+                      )}
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          className={cls.option}
+                          aria-selected={value === o.value}
+                          onClick={() => handleSelect(o.value)}
+                        >
+                          {o.label}
+                        </button>
                       </li>
-                    )}
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="option"
-                        className={cls.option}
-                        aria-selected={value === o.value}
-                        onClick={() => handleSelect(o.value)}
-                      >
-                        {o.label}
-                      </button>
-                    </li>
-                  </Fragment>
-                );
-              })}
-              {!showEmptyRow && filteredOptions.length === 0 && (
-                <li className={cls.emptyHint} role="presentation">
-                  Nenhum resultado.
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
+                    </Fragment>
+                  );
+                })}
+                {!showEmptyRow && filteredOptions.length === 0 && (
+                  <li className={cls.emptyHint} role="presentation">
+                    Nenhum resultado.
+                  </li>
+                )}
+              </ul>
+            </div>,
+            document.body,
+          )}
       </div>
     </div>
   );
