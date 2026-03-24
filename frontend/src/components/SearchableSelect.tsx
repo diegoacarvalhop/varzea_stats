@@ -34,6 +34,8 @@ export type SearchableSelectProps = {
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
+  /** Nome do campo: inclui input hidden para o navegador validar formulário com `required`. */
+  formValueName?: string;
   className?: string;
   style?: CSSProperties;
   /** aria-label no combobox (quando não há label visível) */
@@ -66,6 +68,7 @@ export function SearchableSelect({
   placeholder,
   disabled = false,
   required = false,
+  formValueName,
   className,
   style,
   'aria-label': ariaLabel,
@@ -159,6 +162,9 @@ export function SearchableSelect({
         </label>
       )}
       <div className={cls.wrap}>
+        {formValueName != null && (
+          <input type="hidden" name={formValueName} value={value} required={required} tabIndex={-1} aria-hidden="true" />
+        )}
         <button
           type="button"
           id={id}

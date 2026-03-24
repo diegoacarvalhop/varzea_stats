@@ -7,6 +7,7 @@ import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
 import com.varzeastats.repository.PeladaPresenceRepository;
 import com.varzeastats.repository.PeladaRepository;
+import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.UserRepository;
 import com.varzeastats.security.AppUserDetails;
 import jakarta.validation.Valid;
@@ -34,6 +35,7 @@ public class PeladaPresenceController {
     private final PeladaPresenceRepository peladaPresenceRepository;
     private final PeladaRepository peladaRepository;
     private final UserRepository userRepository;
+    private final UserPeladaMembershipRepository userPeladaMembershipRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','FINANCEIRO')")
@@ -63,6 +65,9 @@ public class PeladaPresenceController {
         peladaPresenceRepository.deleteByPeladaIdAndPresenceDate(peladaId, body.getDate());
         List<Long> distinctUserIds = body.getPresentUserIds().stream().distinct().toList();
         for (Long uid : distinctUserIds) {
+            if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(uid, peladaId)) {
+                throw new IllegalArgumentException("Usuário não é membro desta pelada: " + uid);
+            }
             User u = userRepository
                     .findById(uid)
                     .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + uid));

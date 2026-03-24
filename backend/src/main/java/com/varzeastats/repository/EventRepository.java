@@ -106,6 +106,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                 COALESCE(SUM(CASE WHEN e.type = 'RED_CARD' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'BLUE_CARD' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'FOUL' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN e.type = 'PENALTY' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'OTHER' THEN 1 ELSE 0 END), 0)
             FROM events e
             INNER JOIN players p ON e.player_id = p.id

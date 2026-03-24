@@ -1,8 +1,12 @@
 package com.varzeastats.service;
 
+import com.varzeastats.dto.ApplyDraftRosterRequest;
+import com.varzeastats.dto.ApplyDraftSlotRequest;
+import com.varzeastats.dto.ApplyDraftTeamLineRequest;
 import com.varzeastats.dto.PlayerDirectoryEntryResponse;
 import com.varzeastats.dto.PlayerMatchCreateRequest;
 import com.varzeastats.dto.PlayerResponse;
+import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Player;
 import com.varzeastats.entity.Team;
@@ -15,8 +19,10 @@ import com.varzeastats.repository.UserPeladaMembershipRepository;
 import com.varzeastats.repository.VoteRepository;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -104,6 +110,38 @@ public class PlayerService {
         return toResponse(player);
     }
 
+    @Transactional
+    public void applyDraftRoster(Long matchId, ApplyDraftRosterRequest request, long peladaId) {
+        Match match = matchAccessHelper.requireInPelada(matchId, peladaId);
+        if (match.getFinishedAt() != null) {
+            throw new IllegalArgumentException("Partida encerrada: não é possível aplicar o sorteio no elenco.");
+        }
+        List<Team> teams = teamRepository.findByMatch_IdOrderByIdAsc(matchId);
+        Map<String, Team> byName = new LinkedHashMap<>();
+        for (Team t : teams) {
+            byName.putIfAbsent(t.getName(), t);
+        }
+        for (ApplyDraftTeamLineRequest line : request.getLines()) {
+            if (!byName.containsKey(line.getTeamName())) {
+                throw new IllegalArgumentException("Equipe não encontrada nesta partida: " + line.getTeamName());
+            }
+        }
+        List<Player> roster = playerRepository.findByTeam_Match_IdOrderByGoalkeeperDescTeam_IdAscIdAsc(matchId);
+        for (Player p : roster) {
+            removePlayerEntity(p);
+        }
+        for (ApplyDraftTeamLineRequest line : request.getLines()) {
+            Team team = byName.get(line.getTeamName());
+            for (ApplyDraftSlotRequest slot : line.getSlots()) {
+                PlayerMatchCreateRequest createReq = new PlayerMatchCreateRequest();
+                createReq.setTeamId(team.getId());
+                createReq.setDirectoryRef(-slot.getUserId());
+                createReq.setGoalkeeper(Boolean.TRUE.equals(slot.getGoalkeeper()));
+                createForMatch(matchId, createReq, peladaId);
+            }
+        }
+    }
+
     private String resolveNameFromDirectoryRef(long directoryRef, long peladaId) {
         if (directoryRef > 0) {
             Player source = playerRepository
@@ -136,9 +174,14 @@ public class PlayerService {
         if (player.getTeam() == null || !player.getTeam().getMatch().getId().equals(matchId)) {
             throw new IllegalArgumentException("Este jogador não pertence a esta partida");
         }
-        eventRepository.clearPlayerAsMain(playerId);
-        eventRepository.clearPlayerAsTarget(playerId);
-        voteRepository.deleteByPlayer_Id(playerId);
+        removePlayerEntity(player);
+    }
+
+    private void removePlayerEntity(Player player) {
+        Long pid = player.getId();
+        eventRepository.clearPlayerAsMain(pid);
+        eventRepository.clearPlayerAsTarget(pid);
+        voteRepository.deleteByPlayer_Id(pid);
         playerRepository.delete(player);
     }
 

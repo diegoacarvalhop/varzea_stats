@@ -156,6 +156,7 @@ export function StatsPage() {
       'RED_CARD',
       'BLUE_CARD',
       'FOUL',
+      'PENALTY',
       'FOULS_SUFFERED',
       'OTHER',
       'GOALS_CONCEDED',
@@ -359,6 +360,12 @@ export function StatsPage() {
                         </th>
                         <th>
                           <span className={s.colHintWrap}>
+                            Pên.
+                            <span className={s.colHintTooltip}>Pênaltis</span>
+                          </span>
+                        </th>
+                        <th>
+                          <span className={s.colHintWrap}>
                             FS
                             <span className={s.colHintTooltip}>Faltas sofridas</span>
                           </span>
@@ -384,6 +391,7 @@ export function StatsPage() {
                           <td>{m.redCards}</td>
                           <td>{m.blueCards}</td>
                           <td>{m.fouls}</td>
+                          <td>{m.penalties ?? 0}</td>
                           <td>{m.foulsSuffered}</td>
                           <td>{m.otherEvents}</td>
                         </tr>

@@ -32,40 +32,46 @@ export function PublicHomePage() {
       <div className={styles.bgGlow} aria-hidden />
       <div className={styles.fieldLines} aria-hidden />
       <div className={`${styles.card} ${grid.wideCard}`}>
-        <p className={styles.badge}>Peladas ativas</p>
-        <h1 className={styles.title}>VARzea Stats</h1>
-        <p className={styles.subtitle}>
-          Acompanhe partidas e estatísticas.{' '}
-          <Link to="/login">Entrar</Link>
-          {' · '}
-          <Link to="/cadastro">Cadastrar</Link>
-        </p>
+        <p className={`${styles.badge} ${grid.centerText}`}>Bem-vindo</p>
+        <h1 className={`${styles.title} ${grid.centerText}`}>VARzea Stats</h1>
+        <p className={`${styles.subtitle} ${grid.centerText}`}>Crie e acompanhe partidas e estatísticas da sua pelada.</p>
+        <div className={grid.actionsRow}>
+          <Link to="/login" className={grid.actionBtn}>
+            Entrar
+          </Link>
+          <Link to="/cadastro" className={grid.actionBtnSecondary}>
+            Cadastrar
+          </Link>
+        </div>
         {loading ? (
-          <p className={styles.subtitle}>Carregando…</p>
+          <p className={`${styles.subtitle} ${grid.centerText}`}>Carregando…</p>
         ) : cards.length === 0 ? (
-          <p className={styles.subtitle}>Nenhuma pelada ativa no momento.</p>
+          <p className={`${styles.subtitle} ${grid.centerText}`}>Nenhuma pelada ativa no momento.</p>
         ) : (
-          <ul className={grid.cardGrid}>
-            {cards.map((c) => (
-              <li key={c.id} className={grid.peladaCard}>
-                <h2 className={grid.cardTitle}>{c.name}</h2>
-                <dl className={grid.cardMeta}>
-                  <div>
-                    <dt>Jogadores</dt>
-                    <dd>{c.playerCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Local</dt>
-                    <dd>{c.location?.trim() || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Horário</dt>
-                    <dd>{c.scheduleLabel?.trim() || '—'}</dd>
-                  </div>
-                </dl>
-              </li>
-            ))}
-          </ul>
+          <>
+            <h2 className={grid.activeTitle}>Peladas ativas</h2>
+            <ul className={grid.cardGrid}>
+              {cards.map((c) => (
+                <li key={c.id} className={grid.peladaCard}>
+                  <h3 className={grid.cardTitle}>{c.name}</h3>
+                  <dl className={grid.cardMeta}>
+                    <div>
+                      <dt>Jogadores</dt>
+                      <dd>{c.playerCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Local</dt>
+                      <dd>{c.location?.trim() || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Horário</dt>
+                      <dd>{c.scheduleLabel?.trim() || '—'}</dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>

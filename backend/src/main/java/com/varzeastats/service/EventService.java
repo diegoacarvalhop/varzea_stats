@@ -3,6 +3,7 @@ package com.varzeastats.service;
 import com.varzeastats.dto.EventInMatchRequest;
 import com.varzeastats.dto.EventResponse;
 import com.varzeastats.entity.Event;
+import com.varzeastats.entity.EventType;
 import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Player;
 import com.varzeastats.repository.EventRepository;
@@ -33,6 +34,7 @@ public class EventService {
         Match match = matchAccessHelper.requireInPelada(matchId, peladaId);
         Player player = resolvePlayerInMatch(request.getPlayerId(), matchId);
         Player target = resolvePlayerInMatch(request.getTargetId(), matchId);
+        validateEventSemantics(request.getType(), player, target);
         Event event = Event.builder()
                 .type(request.getType())
                 .player(player)
@@ -60,6 +62,46 @@ public class EventService {
         }
         if (!p.getTeam().getMatch().getId().equals(matchId)) {
             throw new IllegalArgumentException("Jogador não pertence a esta partida");
+        }
+    }
+
+    private static void validateEventSemantics(EventType type, Player player, Player target) {
+        switch (type) {
+            case GOAL, ASSIST, OWN_GOAL, YELLOW_CARD, RED_CARD, BLUE_CARD -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o jogador principal para este tipo de lance.");
+                }
+                if (target != null) {
+                    throw new IllegalArgumentException("Este tipo de lance não utiliza jogador alvo.");
+                }
+            }
+            case FOUL -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o infrator da falta.");
+                }
+                if (target == null) {
+                    throw new IllegalArgumentException("Selecione quem sofreu a falta.");
+                }
+                if (player.getId().equals(target.getId())) {
+                    throw new IllegalArgumentException("Infrator e sofredor da falta não podem ser a mesma pessoa.");
+                }
+            }
+            case PENALTY -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o cobrador do pênalti.");
+                }
+                if (target != null && player.getId().equals(target.getId())) {
+                    throw new IllegalArgumentException("Cobrador e alvo do pênalti não podem ser a mesma pessoa.");
+                }
+            }
+            case SUBSTITUTION -> {
+                if (player == null || target == null) {
+                    throw new IllegalArgumentException("Substituição exige jogador que sai e jogador que entra.");
+                }
+            }
+            case OTHER -> {
+                // combinações livres (ex.: observação sem jogador vinculado)
+            }
         }
     }
 

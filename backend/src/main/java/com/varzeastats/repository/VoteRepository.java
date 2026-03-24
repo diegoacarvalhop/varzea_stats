@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface VoteRepository extends JpaRepository<Vote, Long> {
 
+    boolean existsByVoter_IdAndPlayer_IdAndType(Long voterId, Long playerId, VoteType type);
+
     long countByPlayerAndType(Player player, VoteType type);
 
     void deleteByPlayer_Id(Long playerId);

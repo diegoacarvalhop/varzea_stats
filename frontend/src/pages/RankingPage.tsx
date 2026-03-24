@@ -79,9 +79,14 @@ export function RankingPage() {
 
   async function vote(type: VoteType) {
     try {
-      const id = Number(playerId);
-      if (!Number.isFinite(id)) {
+      const raw = playerId.trim();
+      if (!raw) {
         appToast.warning('Escolha o jogador e a partida.');
+        return;
+      }
+      const id = Number(raw);
+      if (!Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
+        appToast.warning('Escolha uma partida válida na lista.');
         return;
       }
       const res = await submitVote(id, type);
@@ -213,6 +218,7 @@ export function RankingPage() {
             }}
             disabled={loading}
             required
+            formValueName="rankingVotePlayerNameKey"
           />
           <SearchableSelect
             id="rank-player-match-select"
@@ -229,6 +235,7 @@ export function RankingPage() {
             }}
             disabled={loading || !selectedPlayerNameKey}
             required
+            formValueName="rankingVotePlayerId"
           />
           <button className={s.btnVoteGood} type="submit">
             Bola cheia

@@ -69,3 +69,12 @@ export async function createPlayerForMatch(
 export async function deletePlayerFromMatch(matchId: number, playerId: number): Promise<void> {
   await api.delete(`/matches/${matchId}/players/${playerId}`);
 }
+
+export async function applyDraftToMatch(
+  matchId: number,
+  body: {
+    lines: { teamName: string; slots: { userId: number; goalkeeper: boolean }[] }[];
+  },
+): Promise<void> {
+  await api.post(`/matches/${matchId}/players/apply-draft`, body);
+}

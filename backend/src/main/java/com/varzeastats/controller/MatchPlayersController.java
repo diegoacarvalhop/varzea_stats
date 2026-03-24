@@ -1,5 +1,6 @@
 package com.varzeastats.controller;
 
+import com.varzeastats.dto.ApplyDraftRosterRequest;
 import com.varzeastats.dto.PlayerMatchCreateRequest;
 import com.varzeastats.dto.PlayerResponse;
 import com.varzeastats.security.PeladaResolver;
@@ -50,6 +51,16 @@ public class MatchPlayersController {
             @PathVariable Long playerId,
             @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
         playerService.deleteForMatch(matchId, playerId, peladaId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/apply-draft")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT')")
+    public ResponseEntity<Void> applyDraft(
+            @PathVariable Long matchId,
+            @Valid @RequestBody ApplyDraftRosterRequest request,
+            @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
+        playerService.applyDraftRoster(matchId, request, peladaId);
         return ResponseEntity.noContent().build();
     }
 }

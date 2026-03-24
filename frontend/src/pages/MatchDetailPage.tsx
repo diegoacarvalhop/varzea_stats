@@ -9,6 +9,7 @@ import {
 import { listMediaForMatch, type MatchMediaItem } from '@/services/mediaService';
 import { finishMatch, formatMatchPlacar, getMatch, type Match } from '@/services/matchService';
 import {
+  applyDraftToMatch,
   createPlayerForMatch,
   deletePlayerFromMatch,
   listPlayersByMatch,
@@ -297,6 +298,14 @@ export function MatchDetailPage() {
     if (!ok) setEventTargetId('');
   }, [eventTargetId, targetPlayerOptions]);
 
+  useEffect(() => {
+    if (!penaltyTargetId) return;
+    const tid = Number(penaltyTargetId);
+    if (!Number.isFinite(tid)) return;
+    const ok = penaltyTargetOptions.some((p) => p.id === tid);
+    if (!ok) setPenaltyTargetId('');
+  }, [penaltyTargetId, penaltyTargetOptions]);
+
   const directorySelectOptions = useMemo(() => {
     const out: SearchableSelectOption[] = [];
     for (const g of rosterGroupsForPicker) {
@@ -508,25 +517,14 @@ export function MatchDetailPage() {
           peladaForMatch?.teamCount != null && peladaForMatch.teamCount > 0 ? peladaForMatch.teamCount : undefined,
       });
       const draftLines = Array.isArray(res) ? res : [];
-      const teamIdsInMatch = new Set(teams.map((t) => t.id));
-      const teamIdByName = new Map(teams.map((t) => [t.name, t.id]));
-
-      // Aplica o sorteio de forma determinística: limpa equipes da partida e recria elenco completo.
-      const playersInMatchTeams = players.filter((p) => p.teamId != null && teamIdsInMatch.has(p.teamId));
-      for (const p of playersInMatchTeams) {
-        await deletePlayerFromMatch(matchId, p.id);
-      }
-
-      for (const line of draftLines) {
-        const teamId = teamIdByName.get(line.teamName);
-        if (teamId == null) continue;
-        for (const slot of line.players) {
-          await createPlayerForMatch(matchId, teamId, {
-            directoryRef: -slot.userId,
-            goalkeeper: currentGoalkeeperUserIds.has(slot.userId),
-          });
-        }
-      }
+      const linesPayload = draftLines.map((line) => ({
+        teamName: line.teamName,
+        slots: line.players.map((slot) => ({
+          userId: slot.userId,
+          goalkeeper: currentGoalkeeperUserIds.has(slot.userId),
+        })),
+      }));
+      await applyDraftToMatch(matchId, { lines: linesPayload });
 
       await refresh();
       appToast.success('Jogadores da linha foram sorteados e adicionados nas equipes.');

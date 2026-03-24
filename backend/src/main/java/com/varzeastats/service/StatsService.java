@@ -70,6 +70,7 @@ public class StatsService {
             "RED_CARD",
             "BLUE_CARD",
             "FOUL",
+            "PENALTY",
             "FOULS_SUFFERED",
             "OTHER",
             "GOALS_CONCEDED");
@@ -132,7 +133,8 @@ public class StatsService {
             slice.redCards = ((Number) row[7]).longValue();
             slice.blueCards = ((Number) row[8]).longValue();
             slice.fouls = ((Number) row[9]).longValue();
-            slice.otherEvents = ((Number) row[10]).longValue();
+            slice.penalties = ((Number) row[10]).longValue();
+            slice.otherEvents = ((Number) row[11]).longValue();
         }
         for (Object[] row : rowsGkConceded) {
             Long mid = ((Number) row[0]).longValue();
@@ -232,6 +234,7 @@ public class StatsService {
             case "RED_CARD" -> s.getRedCards();
             case "BLUE_CARD" -> s.getBlueCards();
             case "FOUL" -> s.getFouls();
+            case "PENALTY" -> s.getPenalties();
             case "FOULS_SUFFERED" -> s.getFoulsSuffered();
             case "OTHER" -> s.getOtherEvents();
             case "GOALS_CONCEDED" -> s.getGoalsConceded();
@@ -390,6 +393,7 @@ public class StatsService {
         private long redCards;
         private long blueCards;
         private long fouls;
+        private long penalties;
         private long foulsSuffered;
         private long otherEvents;
         private long goalsConceded;
@@ -406,6 +410,7 @@ public class StatsService {
                     .redCards(redCards)
                     .blueCards(blueCards)
                     .fouls(fouls)
+                    .penalties(penalties)
                     .foulsSuffered(foulsSuffered)
                     .otherEvents(otherEvents)
                     .goalsConceded(goalsConceded)

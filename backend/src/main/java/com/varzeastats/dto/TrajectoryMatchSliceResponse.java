@@ -22,6 +22,7 @@ public class TrajectoryMatchSliceResponse {
     private long redCards;
     private long blueCards;
     private long fouls;
+    private long penalties;
     private long foulsSuffered;
     private long otherEvents;
     private long goalsConceded;

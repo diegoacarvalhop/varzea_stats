@@ -34,6 +34,10 @@ public class Vote {
     @JoinColumn(name = "player_id", nullable = false)
     private Player player;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voter_id")
+    private User voter;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private VoteType type;

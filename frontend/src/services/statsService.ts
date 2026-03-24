@@ -29,6 +29,7 @@ export interface TrajectoryMatchSlice {
   redCards: number;
   blueCards: number;
   fouls: number;
+  penalties: number;
   foulsSuffered: number;
   otherEvents: number;
   goalsConceded: number;

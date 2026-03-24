@@ -78,10 +78,8 @@ public class DraftService {
         List<Long> gksShuffled = new ArrayList<>(gks);
         Collections.shuffle(gksShuffled, rnd);
         fieldIds = new ArrayList<>(fieldIds);
-        fieldIds.sort(
-                Comparator.<Long>comparingDouble(u -> scores.getOrDefault(u, 0d))
-                        .reversed()
-                        .thenComparing(u -> rnd.nextInt()));
+        fieldIds.sort(Comparator.<Long>comparingDouble(u -> scores.getOrDefault(u, 0d)).reversed());
+        fieldIds = shuffleEqualScoreRuns(fieldIds, scores, rnd);
         Integer linePlayersPerTeam = request.getLinePlayersPerTeam();
         if (linePlayersPerTeam != null && linePlayersPerTeam > 0) {
             int maxField = linePlayersPerTeam * teamCount;
@@ -236,6 +234,24 @@ public class DraftService {
             map.putIfAbsent(uid, 0d);
         }
         return map;
+    }
+
+    /** Desempate entre jogadores com a mesma nota: embaralhamento determinístico (RNG com seed fixa). */
+    private static List<Long> shuffleEqualScoreRuns(List<Long> ids, Map<Long, Double> scores, Random rnd) {
+        List<Long> result = new ArrayList<>(ids.size());
+        int i = 0;
+        while (i < ids.size()) {
+            int j = i + 1;
+            double s = scores.getOrDefault(ids.get(i), 0d);
+            while (j < ids.size() && Double.compare(scores.getOrDefault(ids.get(j), 0d), s) == 0) {
+                j++;
+            }
+            List<Long> run = new ArrayList<>(ids.subList(i, j));
+            Collections.shuffle(run, rnd);
+            result.addAll(run);
+            i = j;
+        }
+        return result;
     }
 
     private static List<List<Long>> snakeBuckets(List<Long> orderedPlayers, int teamCount) {

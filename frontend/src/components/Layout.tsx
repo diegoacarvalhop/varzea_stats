@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePeladaBranding } from '@/hooks/usePeladaBranding';
@@ -24,6 +24,7 @@ const DEFAULT_FAVICON = '/favicon.svg';
 const APP_TITLE = 'VARzea Stats';
 
 export function Layout() {
+  const peladaGearTooltipId = useId();
   const location = useLocation();
   const {
     name,
@@ -199,6 +200,7 @@ export function Layout() {
                   to="/pelada/config"
                   className={styles.peladaGearLink}
                   aria-label="Configurações da pelada"
+                  aria-describedby={peladaGearTooltipId}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={styles.peladaGearIcon}>
                     <path
@@ -206,7 +208,7 @@ export function Layout() {
                       fill="currentColor"
                     />
                   </svg>
-                  <span className={styles.peladaGearTooltip} role="tooltip">
+                  <span id={peladaGearTooltipId} className={styles.peladaGearTooltip} role="tooltip">
                     Configuração da pelada
                   </span>
                 </Link>

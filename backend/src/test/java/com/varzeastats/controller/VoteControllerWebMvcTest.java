@@ -9,7 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.varzeastats.dto.VoteRequest;
+import com.varzeastats.entity.Role;
+import com.varzeastats.entity.User;
 import com.varzeastats.entity.VoteType;
+import com.varzeastats.security.AppUserDetails;
 import com.varzeastats.security.CustomUserDetailsService;
 import com.varzeastats.security.JwtService;
 import com.varzeastats.security.PeladaResolver;
@@ -20,13 +23,17 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
+import java.util.Set;
 
 @WebMvcTest(controllers = VoteController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class VoteControllerWebMvcTest {
 
     private static final long PELADA_ID = 2L;
+    private static final long VOTER_USER_ID = 99L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -48,14 +55,28 @@ class VoteControllerWebMvcTest {
 
     @Test
     void vote_returnsCreatedWithId() throws Exception {
-        when(voteService.register(any(VoteRequest.class), eq(PELADA_ID))).thenReturn(55L);
+        when(voteService.register(any(VoteRequest.class), eq(PELADA_ID), eq(VOTER_USER_ID)))
+                .thenReturn(55L);
 
         VoteRequest req = new VoteRequest();
         req.setPlayerId(9L);
         req.setType(VoteType.BOLA_CHEIA);
 
+        User u = User.builder()
+                .id(VOTER_USER_ID)
+                .name("V")
+                .email("v@v.com")
+                .password("x")
+                .roles(Set.of(Role.PLAYER))
+                .accountActive(true)
+                .build();
+        AppUserDetails principal = new AppUserDetails(u);
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+
         mockMvc.perform(
                         post("/votes")
+                                .with(SecurityMockMvcRequestPostProcessors.authentication(auth))
                                 .requestAttr(PeladaResolver.REQUEST_ATTR_PELADA_ID, PELADA_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(req)))

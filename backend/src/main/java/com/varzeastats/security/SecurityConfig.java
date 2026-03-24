@@ -42,7 +42,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/cadastro").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/esqueci-senha").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/redefinir-senha").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/votes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/matches", "/matches/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/players", "/players/**")
