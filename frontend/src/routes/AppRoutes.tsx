@@ -13,6 +13,7 @@ import { InactiveAccountPage } from '@/pages/InactiveAccountPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MembershipPage } from '@/pages/MembershipPage';
 import { PeladaSettingsPage } from '@/pages/PeladaSettingsPage';
+import { ProfilePage } from '@/pages/ProfilePage';
 import { PublicHomePage } from '@/pages/PublicHomePage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { RedefinirSenhaPage } from '@/pages/RedefinirSenhaPage';
@@ -52,6 +53,7 @@ export function AppRoutes() {
                 <Route path="/matches/:matchId" element={<MatchDetailPage />} />
                 <Route path="/stats" element={<StatsPage />} />
                 <Route path="/ranking" element={<RankingPage />} />
+                <Route path="/perfil" element={<ProfilePage />} />
                 <Route
                   path="/media"
                   element={

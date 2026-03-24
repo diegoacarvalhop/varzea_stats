@@ -554,6 +554,9 @@ export function UsersAdminPage() {
               autoComplete="new-password"
               minLength={6}
             />
+            <span className={s.statsDetailMeta}>
+              Para editar nome, perfis, status e peladas deste usuário, não é necessário informar senha.
+            </span>
             <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
               <legend className={s.fieldLabel}>Perfis</legend>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>

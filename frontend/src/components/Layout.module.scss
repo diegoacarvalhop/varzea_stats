@@ -196,6 +196,27 @@
   }
 }
 
+.btnProfile {
+  @include btn-base;
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+  color: $text-muted;
+  border: 1px solid $border-subtle;
+  text-decoration: none;
+  background: transparent;
+
+  &:hover {
+    color: $accent-bright;
+    border-color: rgba(105, 240, 174, 0.45);
+  }
+}
+
+.btnProfileActive {
+  color: $accent-bright;
+  border-color: rgba(0, 255, 200, 0.35);
+  background: rgba(0, 230, 118, 0.1);
+}
+
 .btnLogin {
   @include btn-base;
   padding: 0.5rem 1.15rem;

@@ -186,6 +186,9 @@ export function Layout() {
                 ))}
               </span>
             )}
+            <NavLink to="/perfil" className={({ isActive }) => (isActive ? `${styles.btnProfile} ${styles.btnProfileActive}` : styles.btnProfile)}>
+              Perfil
+            </NavLink>
             <button type="button" className={styles.btnLogout} onClick={logout}>
               Sair
             </button>
