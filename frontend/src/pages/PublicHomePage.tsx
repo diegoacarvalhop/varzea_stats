@@ -70,7 +70,8 @@ export function PublicHomePage() {
                   </dl>
                   <div style={{ marginTop: '0.75rem' }}>
                     <Link to={`/cadastro?peladaId=${c.id}`} className={grid.actionBtnSecondary}>
-                      Entrar nesta pelada (cadastro de jogador)
+                      Cadastrar-se nesta pelada <br />
+                      (JOGADOR)
                     </Link>
                   </div>
                 </li>
