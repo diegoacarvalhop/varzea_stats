@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,6 +27,7 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
+    @Async
     public void enviarEmailRedefinicaoSenha(String destinatario, String linkRedefinicao) {
         String assunto = "VARzea Stats — Redefinição de senha";
         String texto =
@@ -46,10 +48,14 @@ public class EmailService {
                 log.info("Link de redefinição para {}: {}", destinatario, linkRedefinicao);
             }
         } else {
-            log.info("SMTP não configurado. Link de redefinição para {}: {}", destinatario, linkRedefinicao);
+            log.warn(
+                    "SMTP não configurado (defina SPRING_MAIL_HOST etc.). Link de redefinição para {}: {}",
+                    destinatario,
+                    linkRedefinicao);
         }
     }
 
+    @Async
     public void enviarEmailCobrancaMensalidade(
             String destinatario,
             String nomeJogador,
@@ -96,7 +102,11 @@ public class EmailService {
                 log.info("E-mail para {} | Assunto: {} | Texto: {}", destinatario, assunto, texto);
             }
         } else {
-            log.info("SMTP não configurado. E-mail para {} | Assunto: {} | Texto: {}", destinatario, assunto, texto);
+            log.warn(
+                    "SMTP não configurado (defina SPRING_MAIL_HOST etc.). E-mail não enviado para {} | Assunto: {}",
+                    destinatario,
+                    assunto);
+            log.debug("Corpo do e-mail (não enviado): {}", texto);
         }
     }
 }

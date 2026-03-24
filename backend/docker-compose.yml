@@ -45,6 +45,12 @@ services:
       # Opcional em produção:
       # JWT_SECRET: ...
       # FRONTEND_URL: https://seu-frontend.com
+      # E-mail (redefinição de senha + cobrança): sem isto, nada é enviado.
+      # SPRING_MAIL_HOST: smtp.seuprovedor.com
+      # SPRING_MAIL_PORT: "587"
+      # SPRING_MAIL_USERNAME: ...
+      # SPRING_MAIL_PASSWORD: ...
+      # VARZEA_MAIL_FROM: noreply@seudominio.com
     volumes:
       - varzea_pelada_logos:/app/data/pelada-logos
 
