@@ -67,6 +67,7 @@ export function MatchesPage() {
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
   const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
   const [goalkeeperPickByTeam, setGoalkeeperPickByTeam] = useState<Record<string, string>>({});
+  const [playerPickByTeam, setPlayerPickByTeam] = useState<Record<string, string>>({});
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
   const [pregameHydrated, setPregameHydrated] = useState(false);
@@ -184,16 +185,17 @@ export function MatchesPage() {
     return `pregame:${peladaId}`;
   }, [peladaId]);
 
-  const draftedPlayersByTeam = useMemo(() => {
-    const map = new Map<string, string[]>();
+  const draftedPlayerIds = useMemo(() => {
+    const ids = new Set<number>();
     for (const line of draftLines) {
-      map.set(
-        line.teamName,
-        line.players.filter((p) => p.goalkeeper !== true).map((p) => p.userName),
-      );
+      for (const p of line.players) ids.add(p.userId);
     }
-    return map;
+    return ids;
   }, [draftLines]);
+
+  const undraftedPresentFieldPlayers = useMemo(() => {
+    return presentUsersSorted.filter((u) => !u.goalkeeper && !draftedPlayerIds.has(u.id));
+  }, [presentUsersSorted, draftedPlayerIds]);
 
   const loadPregame = useCallback(async () => {
     if (!canCreate || peladaId == null) return;
@@ -272,11 +274,15 @@ export function MatchesPage() {
         date?: string;
         teams?: string[];
         goalkeeperByTeam?: Record<string, number>;
+        draftLines?: DraftTeamLine[];
       };
       if (typeof parsed.date === 'string' && parsed.date.trim()) setDate(parsed.date);
       if (Array.isArray(parsed.teams)) setPregameTeams(parsed.teams);
       if (parsed.goalkeeperByTeam && typeof parsed.goalkeeperByTeam === 'object') {
         setGoalkeeperByTeam(parsed.goalkeeperByTeam);
+      }
+      if (Array.isArray(parsed.draftLines)) {
+        setDraftLines(parsed.draftLines);
       }
     } catch {
       // no-op
@@ -295,12 +301,13 @@ export function MatchesPage() {
           date,
           teams: pregameTeams,
           goalkeeperByTeam,
+          draftLines,
         }),
       );
     } catch {
       // no-op
     }
-  }, [pregameStorageKey, pregameHydrated, date, pregameTeams, goalkeeperByTeam]);
+  }, [pregameStorageKey, pregameHydrated, date, pregameTeams, goalkeeperByTeam, draftLines]);
 
   useEffect(() => {
     setGoalkeeperByTeam((prev) => {
@@ -311,6 +318,10 @@ export function MatchesPage() {
       }
       return out;
     });
+  }, [pregameTeams]);
+
+  useEffect(() => {
+    setDraftLines((prev) => prev.filter((line) => pregameTeams.includes(line.teamName)));
   }, [pregameTeams]);
 
   async function onCreateMatch(e: FormEvent) {
@@ -331,14 +342,25 @@ export function MatchesPage() {
     try {
       const instant = fromDatetimeLocalToUtcIso(date);
       const created = await createMatch({ date: instant, location: location.trim() });
+      const draftByTeam = new Map(draftLines.map((line) => [line.teamName, line]));
       for (const teamName of pregameTeams) {
         await createTeamForMatch(created.id, teamName);
       }
       await applyDraftToMatch(created.id, {
-        lines: draftLines.map((line) => ({
-          teamName: line.teamName,
-          slots: line.players.map((slot) => ({ userId: slot.userId, goalkeeper: slot.goalkeeper === true })),
-        })),
+        lines: pregameTeams.map((teamName, idx) => {
+          const line = draftByTeam.get(teamName);
+          const gkId = goalkeeperByTeam[teamName];
+          const slots = [...(line?.players ?? [])];
+          if (gkId && !slots.some((s) => s.userId === gkId)) {
+            const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? `Jogador ${gkId}`;
+            slots.unshift({ userId: gkId, userName: gkName, skillScore: 0, goalkeeper: true });
+          }
+          return {
+            teamName,
+            teamIndex: line?.teamIndex ?? idx,
+            slots: slots.map((slot) => ({ userId: slot.userId, goalkeeper: slot.goalkeeper === true })),
+          };
+        }),
       });
       setLocation('');
       setDate(toDatetimeLocalString());
@@ -366,7 +388,6 @@ export function MatchesPage() {
     if (!name) return;
     setPregameTeams((prev) => (prev.includes(name) ? prev : [...prev, name]));
     setTeamNameToAdd('');
-    setDraftLines([]);
   }
 
   function removeTeamFromPregame(name: string) {
@@ -381,7 +402,12 @@ export function MatchesPage() {
       delete out[name];
       return out;
     });
-    setDraftLines([]);
+    setPlayerPickByTeam((prev) => {
+      const out = { ...prev };
+      delete out[name];
+      return out;
+    });
+    setDraftLines((prev) => prev.filter((line) => line.teamName !== name));
   }
 
   function defineGoalkeeperForTeam(teamName: string) {
@@ -400,6 +426,26 @@ export function MatchesPage() {
       return;
     }
     setGoalkeeperByTeam((prev) => ({ ...prev, [teamName]: pick }));
+    setDraftLines((prev) => {
+      const existing = prev.find((line) => line.teamName === teamName);
+      const userName = draftPeladaUsers.find((u) => u.id === pick)?.name ?? `Jogador ${pick}`;
+      const nextPlayer = { userId: pick, userName, skillScore: 0, goalkeeper: true };
+      if (!existing) {
+        return [
+          ...prev,
+          {
+            teamIndex: pregameTeams.findIndex((t) => t === teamName),
+            teamName,
+            players: [nextPlayer],
+          },
+        ];
+      }
+      const filtered = existing.players
+        .filter((p) => p.userId !== pick)
+        .map((p) => ({ ...p, goalkeeper: false }));
+      const updated = { ...existing, players: [nextPlayer, ...filtered] };
+      return prev.map((line) => (line.teamName === teamName ? updated : line));
+    });
     appToast.success('Goleiro definido para a equipe.');
   }
 
@@ -409,7 +455,60 @@ export function MatchesPage() {
       delete out[teamName];
       return out;
     });
-    setDraftLines([]);
+    setDraftLines((prev) =>
+      prev.map((line) =>
+        line.teamName !== teamName
+          ? line
+          : {
+              ...line,
+              players: line.players.filter((p) => p.goalkeeper !== true),
+            },
+      ),
+    );
+  }
+
+  function addFieldPlayerToTeam(teamName: string) {
+    const pick = Number(playerPickByTeam[teamName] ?? '');
+    if (!Number.isFinite(pick) || pick <= 0) {
+      appToast.warning('Selecione um jogador de linha para adicionar.');
+      return;
+    }
+    const selected = undraftedPresentFieldPlayers.find((u) => u.id === pick);
+    if (!selected) {
+      appToast.warning('Esse jogador não está disponível para inclusão.');
+      return;
+    }
+    setDraftLines((prev) => {
+      const existing = prev.find((line) => line.teamName === teamName);
+      const slot = { userId: selected.id, userName: selected.name, skillScore: 0, goalkeeper: false };
+      if (!existing) {
+        return [
+          ...prev,
+          {
+            teamIndex: pregameTeams.findIndex((t) => t === teamName),
+            teamName,
+            players: [slot],
+          },
+        ];
+      }
+      if (existing.players.some((p) => p.userId === selected.id)) return prev;
+      const updated = { ...existing, players: [...existing.players, slot] };
+      return prev.map((line) => (line.teamName === teamName ? updated : line));
+    });
+    setPlayerPickByTeam((prev) => ({ ...prev, [teamName]: '' }));
+  }
+
+  function removeFieldPlayerFromTeam(teamName: string, userId: number) {
+    setDraftLines((prev) =>
+      prev.map((line) =>
+        line.teamName !== teamName
+          ? line
+          : {
+              ...line,
+              players: line.players.filter((p) => p.userId !== userId || p.goalkeeper === true),
+            },
+      ),
+    );
   }
 
   async function onRunDraft() {
@@ -550,7 +649,7 @@ export function MatchesPage() {
                       const persistedGoalkeeper = line?.players.find((p) => p.goalkeeper === true);
                       const gkId = persistedGoalkeeper?.userId ?? goalkeeperByTeam[name];
                       const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
-                      const drafted = draftedPlayersByTeam.get(name) ?? [];
+                      const draftedSlots = (line?.players ?? []).filter((p) => p.goalkeeper !== true);
                       return (
                         <div key={name} className={s.teamCard}>
                           <h3 className={s.teamTitle}>{name}</h3>
@@ -571,9 +670,17 @@ export function MatchesPage() {
                                 </button>
                               )}
                             </li>
-                            {drafted.map((playerName) => (
-                              <li key={`${name}-${playerName}`} className={s.rosterRow}>
-                                <span className={s.rosterName}>{playerName}</span>
+                            {draftedSlots.map((slot) => (
+                              <li key={`${name}-${slot.userId}`} className={s.rosterRow}>
+                                <span className={s.rosterName}>{slot.userName}</span>
+                                <button
+                                  type="button"
+                                  className={s.btnRemove}
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                                  onClick={() => removeFieldPlayerFromTeam(name, slot.userId)}
+                                >
+                                  Excluir
+                                </button>
                               </li>
                             ))}
                           </ul>
@@ -597,6 +704,24 @@ export function MatchesPage() {
                             </div>
                             <button type="button" className={s.btn} onClick={() => defineGoalkeeperForTeam(name)}>
                               Definir goleiro
+                            </button>
+                            <div className={s.field}>
+                              <label className={s.fieldLabel}>Adicionar jogador de linha</label>
+                              <select
+                                className={`${s.input} ${s.select}`}
+                                value={playerPickByTeam[name] ?? ''}
+                                onChange={(ev) => setPlayerPickByTeam((prev) => ({ ...prev, [name]: ev.target.value }))}
+                              >
+                                <option value="">— Selecione —</option>
+                                {undraftedPresentFieldPlayers.map((u) => (
+                                  <option key={`${name}-line-${u.id}`} value={u.id}>
+                                    {u.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <button type="button" className={s.btn} onClick={() => addFieldPlayerToTeam(name)}>
+                              Adicionar jogador
                             </button>
                           </div>
                           <button

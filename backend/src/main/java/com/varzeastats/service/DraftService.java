@@ -69,6 +69,10 @@ public class DraftService {
         }
         Map<Long, Double> scores = loadSkillScores(peladaId, presentUserIds);
         Set<Long> presentSet = new HashSet<>(presentUserIds);
+        List<PeladaDraftSlot> existingSlots =
+                peladaDraftSlotRepository.findByPelada_IdAndDraftDateOrderByTeamIndexAscIdAsc(peladaId, date);
+        Map<String, List<PeladaDraftSlot>> existingByTeamName = existingSlots.stream()
+                .collect(Collectors.groupingBy(PeladaDraftSlot::getTeamName, LinkedHashMap::new, Collectors.toList()));
         Map<String, Long> goalkeeperByTeamReq = request.getGoalkeeperByTeam() == null
                 ? Map.of()
                 : request.getGoalkeeperByTeam();
@@ -103,7 +107,29 @@ public class DraftService {
                 throw new IllegalArgumentException("Todo goleiro deve estar na lista de presença do dia.");
             }
         }
-        List<Long> fieldIds = presentUserIds.stream().filter(id -> !gkSet.contains(id)).toList();
+        for (int idx = 0; idx < teamCount; idx++) {
+            String teamName = names.get(idx);
+            if (assignedGoalkeeperByTeamIndex.containsKey(idx)) {
+                continue;
+            }
+            List<PeladaDraftSlot> prev = existingByTeamName.getOrDefault(teamName, List.of());
+            PeladaDraftSlot prevGk = prev.stream().filter(PeladaDraftSlot::isGoalkeeper).findFirst().orElse(null);
+            if (prevGk != null) {
+                Long uid = prevGk.getUser().getId();
+                if (presentSet.contains(uid)) {
+                    assignedGoalkeeperByTeamIndex.put(idx, uid);
+                    gkSet.add(uid);
+                }
+            }
+        }
+        Set<Long> alreadyDraftedIds = existingSlots.stream()
+                .map(s -> s.getUser().getId())
+                .filter(presentSet::contains)
+                .collect(Collectors.toCollection(HashSet::new));
+        List<Long> fieldIds = presentUserIds.stream()
+                .filter(id -> !gkSet.contains(id))
+                .filter(id -> !alreadyDraftedIds.contains(id))
+                .toList();
         Random rnd = new Random(peladaId * 31L + date.toEpochDay());
         fieldIds = new ArrayList<>(fieldIds);
         fieldIds.sort(Comparator.<Long>comparingDouble(u -> scores.getOrDefault(u, 0d)).reversed());
@@ -117,8 +143,24 @@ public class DraftService {
         }
         List<List<Long>> teams =
                 IntStream.range(0, teamCount).mapToObj(i -> new ArrayList<Long>()).collect(Collectors.toList());
+        for (int idx = 0; idx < teamCount; idx++) {
+            String teamName = names.get(idx);
+            List<PeladaDraftSlot> prev = existingByTeamName.getOrDefault(teamName, List.of());
+            for (PeladaDraftSlot slot : prev) {
+                Long uid = slot.getUser().getId();
+                if (!presentSet.contains(uid)) {
+                    continue;
+                }
+                if (assignedGoalkeeperByTeamIndex.getOrDefault(idx, -1L).equals(uid)) {
+                    continue;
+                }
+                if (!slot.isGoalkeeper()) {
+                    teams.get(idx).add(uid);
+                }
+            }
+        }
         for (Map.Entry<Integer, Long> e : assignedGoalkeeperByTeamIndex.entrySet()) {
-            teams.get(e.getKey()).add(e.getValue());
+            teams.get(e.getKey()).add(0, e.getValue());
         }
         List<List<Long>> distributedField = snakeBuckets(fieldIds, teamCount);
         for (int i = 0; i < teamCount; i++) {

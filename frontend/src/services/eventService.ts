@@ -8,6 +8,7 @@ export type EventType =
   | 'RED_CARD'
   | 'BLUE_CARD'
   | 'FOUL'
+  | 'PENALTY_PLAY'
   | 'PENALTY'
   | 'SUBSTITUTION'
   | 'OTHER';

@@ -28,13 +28,13 @@ import s from '@/styles/pageShared.module.scss';
 
 const EVENT_TYPES: { value: EventType; label: string }[] = [
   { value: 'GOAL', label: 'Gol' },
+  { value: 'PENALTY_PLAY', label: 'Pênalti (durante jogo)' },
   { value: 'OWN_GOAL', label: 'Gol contra' },
   { value: 'ASSIST', label: 'Assistência' },
   { value: 'YELLOW_CARD', label: 'Cartão amarelo' },
   { value: 'RED_CARD', label: 'Cartão vermelho' },
   { value: 'BLUE_CARD', label: 'Cartão azul' },
   { value: 'FOUL', label: 'Falta' },
-  { value: 'PENALTY', label: 'Pênalti' },
   { value: 'OTHER', label: 'Outro' },
 ];
 
@@ -249,7 +249,11 @@ export function MatchDetailPage() {
 
   useEffect(() => {
     const acceptsTarget =
-      eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL';
+      eventType === 'FOUL' ||
+      eventType === 'SUBSTITUTION' ||
+      eventType === 'GOAL' ||
+      eventType === 'OWN_GOAL' ||
+      eventType === 'PENALTY_PLAY';
     if (!acceptsTarget && eventTargetId) {
       setEventTargetId('');
     }
@@ -448,11 +452,11 @@ export function MatchDetailPage() {
       appToast.warning('Cadastre jogadores nas equipes antes de registrar lances.');
       return;
     }
-    if ((eventType === 'GOAL' || eventType === 'ASSIST') && !eventPlayerId) {
-      appToast.warning('Selecione o jogador principal para registrar gol ou assistência.');
+    if ((eventType === 'GOAL' || eventType === 'ASSIST' || eventType === 'PENALTY_PLAY') && !eventPlayerId) {
+      appToast.warning('Selecione o jogador principal para registrar este lance.');
       return;
     }
-    if ((eventType === 'GOAL' || eventType === 'OWN_GOAL') && !eventTargetId) {
+    if ((eventType === 'GOAL' || eventType === 'OWN_GOAL' || eventType === 'PENALTY_PLAY') && !eventTargetId) {
       appToast.warning('Selecione o goleiro/alvo para este lance.');
       return;
     }
@@ -463,7 +467,11 @@ export function MatchDetailPage() {
     try {
       const pid = eventPlayerId ? Number(eventPlayerId) : null;
       const acceptsTarget =
-        eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL';
+        eventType === 'FOUL' ||
+        eventType === 'SUBSTITUTION' ||
+        eventType === 'GOAL' ||
+        eventType === 'OWN_GOAL' ||
+        eventType === 'PENALTY_PLAY';
       const tid = acceptsTarget && eventTargetId ? Number(eventTargetId) : null;
       await createEventForMatch(matchId, {
         type: eventType,

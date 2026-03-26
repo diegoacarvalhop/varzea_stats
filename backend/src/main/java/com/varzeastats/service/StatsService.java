@@ -42,35 +42,35 @@ public class StatsService {
 
     private static final List<EventType> LANCE_RANKING_ORDER = List.of(
             EventType.GOAL,
+            EventType.PENALTY_PLAY,
             EventType.OWN_GOAL,
             EventType.ASSIST,
             EventType.YELLOW_CARD,
             EventType.RED_CARD,
             EventType.BLUE_CARD,
             EventType.FOUL,
-            EventType.PENALTY,
             EventType.OTHER);
 
     private static final List<EventType> COUNTED_PLAYER_STATS_TYPES = List.of(
             EventType.GOAL,
+            EventType.PENALTY_PLAY,
             EventType.OWN_GOAL,
             EventType.ASSIST,
             EventType.YELLOW_CARD,
             EventType.RED_CARD,
             EventType.BLUE_CARD,
             EventType.FOUL,
-            EventType.PENALTY,
             EventType.OTHER);
 
     private static final List<String> FORECAST_EVENT_KEYS = List.of(
             "GOAL",
+            "PENALTY_PLAY",
             "OWN_GOAL",
             "ASSIST",
             "YELLOW_CARD",
             "RED_CARD",
             "BLUE_CARD",
             "FOUL",
-            "PENALTY",
             "FOULS_SUFFERED",
             "OTHER",
             "GOALS_CONCEDED");
@@ -234,7 +234,7 @@ public class StatsService {
             case "RED_CARD" -> s.getRedCards();
             case "BLUE_CARD" -> s.getBlueCards();
             case "FOUL" -> s.getFouls();
-            case "PENALTY" -> s.getPenalties();
+            case "PENALTY_PLAY" -> s.getPenalties();
             case "FOULS_SUFFERED" -> s.getFoulsSuffered();
             case "OTHER" -> s.getOtherEvents();
             case "GOALS_CONCEDED" -> s.getGoalsConceded();
@@ -361,7 +361,8 @@ public class StatsService {
             case RED_CARD -> "Cartões vermelhos";
             case BLUE_CARD -> "Cartões azuis";
             case FOUL -> "Faltas";
-            case PENALTY -> "Pênaltis";
+            case PENALTY_PLAY -> "Pênaltis (durante jogo)";
+            case PENALTY -> "Pênaltis (desempate)";
             case OTHER -> "Outros lances";
             case SUBSTITUTION -> "Substituições";
         };

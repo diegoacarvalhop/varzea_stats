@@ -18,7 +18,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             SELECT t.id, t.name, COALESCE(COUNT(e.id), 0)
             FROM teams t
             LEFT JOIN players p ON p.team_id = t.id
-            LEFT JOIN events e ON e.player_id = p.id AND e.match_id = :matchId AND e.type = 'GOAL'
+            LEFT JOIN events e ON e.player_id = p.id AND e.match_id = :matchId AND e.type IN ('GOAL', 'PENALTY_PLAY')
             WHERE t.match_id = :matchId
             GROUP BY t.id, t.name
             ORDER BY t.id
@@ -64,32 +64,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query(
             value =
                     """
-            SELECT gk.id, gk.name,
-                COALESCE(SUM(
-                    CASE
-                        WHEN e.type = 'GOAL' AND p_main.team_id <> gk.team_id THEN 1
-                        WHEN e.type = 'OWN_GOAL' AND p_main.team_id = gk.team_id THEN 1
-                        ELSE 0
-                    END
-                ), 0) AS conceded
+            SELECT gk.id, gk.name, COALESCE(COUNT(e.id), 0) AS conceded
             FROM players gk
             JOIN teams t ON t.id = gk.team_id
             JOIN matches m ON m.id = t.match_id
-            LEFT JOIN events e
-                ON e.match_id = m.id
-               AND e.player_id IS NOT NULL
-               AND e.type IN ('GOAL', 'OWN_GOAL')
-            LEFT JOIN players p_main ON p_main.id = e.player_id
+            LEFT JOIN events e ON e.target_id = gk.id AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
             WHERE m.pelada_id = :peladaId
               AND gk.goalkeeper = true
             GROUP BY gk.id, gk.name
-            HAVING COALESCE(SUM(
-                    CASE
-                        WHEN e.type = 'GOAL' AND p_main.team_id <> gk.team_id THEN 1
-                        WHEN e.type = 'OWN_GOAL' AND p_main.team_id = gk.team_id THEN 1
-                        ELSE 0
-                    END
-                ), 0) > 0
+            HAVING COALESCE(COUNT(e.id), 0) > 0
             ORDER BY conceded DESC, gk.name ASC
             """,
             nativeQuery = true)
@@ -106,7 +89,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                 COALESCE(SUM(CASE WHEN e.type = 'RED_CARD' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'BLUE_CARD' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'FOUL' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN e.type = 'PENALTY' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN e.type = 'PENALTY_PLAY' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN e.type = 'OTHER' THEN 1 ELSE 0 END), 0)
             FROM events e
             INNER JOIN players p ON e.player_id = p.id
@@ -139,29 +122,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query(
             value =
                     """
-            SELECT m.id, m.date, m.location,
-                COALESCE(SUM(
-                    CASE
-                        WHEN e.type = 'GOAL' AND p_main.team_id <> t_gk.id THEN 1
-                        WHEN e.type = 'OWN_GOAL' AND p_main.team_id = t_gk.id THEN 1
-                        ELSE 0
-                    END
-                ), 0) AS conceded
+            SELECT m.id, m.date, m.location, COALESCE(COUNT(e.id), 0) AS conceded
             FROM matches m
             JOIN teams t_gk ON t_gk.match_id = m.id
             JOIN players p_gk ON p_gk.team_id = t_gk.id AND p_gk.goalkeeper = true
-            LEFT JOIN events e ON e.match_id = m.id AND e.type IN ('GOAL', 'OWN_GOAL') AND e.player_id IS NOT NULL
-            LEFT JOIN players p_main ON p_main.id = e.player_id
+            LEFT JOIN events e ON e.target_id = p_gk.id AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
             WHERE m.pelada_id = :peladaId
               AND LOWER(TRIM(p_gk.name)) = LOWER(TRIM(:playerName))
             GROUP BY m.id, m.date, m.location
-            HAVING COALESCE(SUM(
-                    CASE
-                        WHEN e.type = 'GOAL' AND p_main.team_id <> t_gk.id THEN 1
-                        WHEN e.type = 'OWN_GOAL' AND p_main.team_id = t_gk.id THEN 1
-                        ELSE 0
-                    END
-                ), 0) > 0
+            HAVING COALESCE(COUNT(e.id), 0) > 0
             ORDER BY m.date ASC
             """,
             nativeQuery = true)
@@ -174,29 +143,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             SELECT COALESCE(COUNT(e.id), 0)
             FROM events e
             JOIN matches m ON e.match_id = m.id
-            JOIN players p_main ON e.player_id = p_main.id
+            JOIN players p_target ON e.target_id = p_target.id
             WHERE m.pelada_id = :peladaId
-              AND (
-                    (e.type = 'GOAL' AND EXISTS (
-                        SELECT 1
-                        FROM teams t_gk
-                        JOIN players p_gk ON p_gk.team_id = t_gk.id
-                        WHERE t_gk.match_id = m.id
-                          AND p_gk.goalkeeper = true
-                          AND LOWER(TRIM(p_gk.name)) = LOWER(TRIM(:playerName))
-                          AND p_main.team_id <> t_gk.id
-                    ))
-                    OR
-                    (e.type = 'OWN_GOAL' AND EXISTS (
-                        SELECT 1
-                        FROM teams t_gk
-                        JOIN players p_gk ON p_gk.team_id = t_gk.id
-                        WHERE t_gk.match_id = m.id
-                          AND p_gk.goalkeeper = true
-                          AND LOWER(TRIM(p_gk.name)) = LOWER(TRIM(:playerName))
-                          AND p_main.team_id = t_gk.id
-                    ))
-              )
+              AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
+              AND LOWER(TRIM(p_target.name)) = LOWER(TRIM(:playerName))
             """,
             nativeQuery = true)
     long countGoalsConcededByGoalkeeperNameInPelada(

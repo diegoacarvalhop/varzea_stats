@@ -97,6 +97,17 @@ public class EventService {
                     throw new IllegalArgumentException("Infrator e sofredor da falta não podem ser a mesma pessoa.");
                 }
             }
+            case PENALTY_PLAY -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o cobrador do pênalti em jogo.");
+                }
+                if (target == null) {
+                    throw new IllegalArgumentException("Selecione o goleiro/alvo do pênalti em jogo.");
+                }
+                if (player.getId().equals(target.getId())) {
+                    throw new IllegalArgumentException("Cobrador e alvo do pênalti em jogo não podem ser a mesma pessoa.");
+                }
+            }
             case PENALTY -> {
                 if (player == null) {
                     throw new IllegalArgumentException("Selecione o cobrador do pênalti.");
