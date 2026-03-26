@@ -10,7 +10,6 @@ import {
   listMyMonthlyPayments,
   listMonthlyPaymentsByUser,
   listReceiptsByUser,
-  receiptFileUrl,
   rejectReceipt,
   listDelinquent,
   recordPayment,
@@ -99,6 +98,8 @@ export function FinancePage() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [receiptPreviewType, setReceiptPreviewType] = useState<string>('');
   const [receiptPreviewLoading, setReceiptPreviewLoading] = useState(false);
+  const [receiptModalTitle, setReceiptModalTitle] = useState('Comprovante');
+  const [canReviewActiveReceipt, setCanReviewActiveReceipt] = useState(false);
   const [financePaidAt, setFinancePaidAt] = useState(todayIso());
 
   const load = useCallback(async () => {
@@ -273,26 +274,18 @@ export function FinancePage() {
     setReceiptMonths((prev) => prev.filter((m) => m !== month));
   }
 
-  async function openReceiptModal(row: FinanceDelinquentRow) {
-    if (!row.pendingReceiptId) return;
+  async function openReceiptPreview(
+    receiptId: number,
+    options?: { title?: string; canReview?: boolean; receiptMeta?: FinanceReceipt | null },
+  ) {
     setReceiptModalOpen(true);
     setReceiptPreviewLoading(true);
+    setReceiptModalTitle(options?.title ?? 'Comprovante');
+    setCanReviewActiveReceipt(Boolean(options?.canReview));
     setFinancePaidAt(todayIso());
-    const receiptMeta: FinanceReceipt = {
-      id: row.pendingReceiptId,
-      userId: row.userId,
-      userName: row.userName,
-      peladaId: row.peladaId,
-      referenceMonths: (row.overdueMonths ?? []).map((m) => m.slice(0, 7)),
-      status: 'PENDING',
-      originalFilename: 'comprovante',
-      contentType: '',
-      fileSizeBytes: 0,
-      submittedAt: '',
-    };
-    setActiveReceipt(receiptMeta);
+    setActiveReceipt(options?.receiptMeta ?? null);
     try {
-      const blob = await fetchReceiptBlob(row.pendingReceiptId);
+      const blob = await fetchReceiptBlob(receiptId);
       if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
       const nextUrl = URL.createObjectURL(blob);
       setReceiptPreviewUrl(nextUrl);
@@ -306,9 +299,32 @@ export function FinancePage() {
     }
   }
 
+  async function openReceiptModal(row: FinanceDelinquentRow) {
+    if (!row.pendingReceiptId) return;
+    const receiptMeta: FinanceReceipt = {
+      id: row.pendingReceiptId,
+      userId: row.userId,
+      userName: row.userName,
+      peladaId: row.peladaId,
+      referenceMonths: (row.overdueMonths ?? []).map((m) => m.slice(0, 7)),
+      status: 'PENDING',
+      originalFilename: 'comprovante',
+      contentType: '',
+      fileSizeBytes: 0,
+      submittedAt: '',
+    };
+    await openReceiptPreview(row.pendingReceiptId, {
+      title: 'Comprovante pendente',
+      canReview: true,
+      receiptMeta,
+    });
+  }
+
   function closeReceiptModal() {
     setReceiptModalOpen(false);
     setActiveReceipt(null);
+    setCanReviewActiveReceipt(false);
+    setReceiptModalTitle('Comprovante');
     if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
     setReceiptPreviewUrl(null);
     setReceiptPreviewType('');
@@ -630,22 +646,35 @@ export function FinancePage() {
                           </td>
                           <td>
                             {row.receiptId ? (
-                              <a className={s.btn} href={receiptFileUrl(row.receiptId)} target="_blank" rel="noreferrer">
+                              <button
+                                type="button"
+                                className={s.btn}
+                                onClick={() =>
+                                  void openReceiptPreview(row.receiptId as number, {
+                                    title: 'Comprovante de pagamento',
+                                    canReview: false,
+                                  })
+                                }
+                              >
                                 Ver comprovante
-                              </a>
+                              </button>
                             ) : (
                               (() => {
                                 const fromReceipt = receiptByMonth.get(row.referenceMonth);
                                 if (!fromReceipt) return <span className={s.statsDetailMeta}>—</span>;
                                 return (
-                                  <a
+                                  <button
+                                    type="button"
                                     className={s.btn}
-                                    href={receiptFileUrl(fromReceipt.id)}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                    onClick={() =>
+                                      void openReceiptPreview(fromReceipt.id, {
+                                        title: 'Comprovante de pagamento',
+                                        canReview: false,
+                                      })
+                                    }
                                   >
                                     Ver comprovante
-                                  </a>
+                                  </button>
                                 );
                               })()
                             )}
@@ -660,7 +689,7 @@ export function FinancePage() {
           </section>
         </>
       )}
-      <FormModal open={receiptModalOpen} onClose={closeReceiptModal} title="Comprovante pendente">
+      <FormModal open={receiptModalOpen} onClose={closeReceiptModal} title={receiptModalTitle}>
         {receiptPreviewLoading ? (
           <p className={s.lead}>Carregando comprovante…</p>
         ) : receiptPreviewUrl ? (
@@ -670,37 +699,41 @@ export function FinancePage() {
             ) : (
               <iframe title="Comprovante" src={receiptPreviewUrl} style={{ width: '100%', height: 520, border: 'none' }} />
             )}
-            <div className={s.field}>
-              <label className={s.fieldLabel} htmlFor="modal-paid-at">
-                Data do pagamento (baixa financeira)
-              </label>
-              <input
-                id="modal-paid-at"
-                className={s.input}
-                type="date"
-                value={financePaidAt}
-                onChange={(ev) => setFinancePaidAt(ev.target.value)}
-                required
-              />
-            </div>
-            <div className={s.financeActionRow}>
-              <button
-                type="button"
-                className={s.btnPrimary}
-                disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
-                onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'approve')}
-              >
-                Aprovar
-              </button>
-              <button
-                type="button"
-                className={s.btn}
-                disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
-                onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'reject')}
-              >
-                Recusar
-              </button>
-            </div>
+            {canReviewActiveReceipt && activeReceipt ? (
+              <>
+                <div className={s.field}>
+                  <label className={s.fieldLabel} htmlFor="modal-paid-at">
+                    Data do pagamento (baixa financeira)
+                  </label>
+                  <input
+                    id="modal-paid-at"
+                    className={s.input}
+                    type="date"
+                    value={financePaidAt}
+                    onChange={(ev) => setFinancePaidAt(ev.target.value)}
+                    required
+                  />
+                </div>
+                <div className={s.financeActionRow}>
+                  <button
+                    type="button"
+                    className={s.btnPrimary}
+                    disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
+                    onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'approve')}
+                  >
+                    Aprovar
+                  </button>
+                  <button
+                    type="button"
+                    className={s.btn}
+                    disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
+                    onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'reject')}
+                  >
+                    Recusar
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         ) : (
           <p className={s.lead}>Não foi possível exibir o comprovante.</p>
