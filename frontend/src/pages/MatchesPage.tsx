@@ -43,7 +43,6 @@ export function MatchesPage() {
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
   const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
   const [goalkeeperPickByTeam, setGoalkeeperPickByTeam] = useState<Record<string, string>>({});
-  const [goalkeeperCheckByTeam, setGoalkeeperCheckByTeam] = useState<Record<string, boolean>>({});
   const [matchTeamA, setMatchTeamA] = useState('');
   const [matchTeamB, setMatchTeamB] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
@@ -276,11 +275,6 @@ export function MatchesPage() {
       delete out[name];
       return out;
     });
-    setGoalkeeperCheckByTeam((prev) => {
-      const out = { ...prev };
-      delete out[name];
-      return out;
-    });
     setMatchTeamA((prev) => (prev === name ? '' : prev));
     setMatchTeamB((prev) => (prev === name ? '' : prev));
     setDraftLines([]);
@@ -288,11 +282,6 @@ export function MatchesPage() {
 
   function defineGoalkeeperForTeam(teamName: string) {
     const pick = Number(goalkeeperPickByTeam[teamName] ?? '');
-    const checked = goalkeeperCheckByTeam[teamName] === true;
-    if (!checked) {
-      appToast.warning('Marque a opção "É o goleiro desta equipe".');
-      return;
-    }
     if (!Number.isFinite(pick) || pick <= 0) {
       appToast.warning('Selecione o jogador goleiro para a equipe.');
       return;
@@ -303,6 +292,15 @@ export function MatchesPage() {
     }
     setGoalkeeperByTeam((prev) => ({ ...prev, [teamName]: pick }));
     appToast.success('Goleiro definido para a equipe.');
+  }
+
+  function clearGoalkeeperForTeam(teamName: string) {
+    setGoalkeeperByTeam((prev) => {
+      const out = { ...prev };
+      delete out[teamName];
+      return out;
+    });
+    setDraftLines([]);
   }
 
   async function onRunDraft() {
@@ -461,7 +459,10 @@ export function MatchesPage() {
                   </button>
                 </div>
                 {pregameTeams.length > 0 ? (
-                  <div className={s.teamGrid} style={{ marginTop: '0.75rem' }}>
+                  <div
+                    className={s.teamGrid}
+                    style={{ marginTop: '0.75rem', gridTemplateColumns: 'repeat(2, minmax(18rem, 1fr))' }}
+                  >
                     {pregameTeams.map((name) => {
                       const gkId = goalkeeperByTeam[name];
                       const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
@@ -500,22 +501,20 @@ export function MatchesPage() {
                                 ))}
                               </select>
                             </div>
-                            <label className={s.checkboxRow}>
-                              <input
-                                type="checkbox"
-                                checked={goalkeeperCheckByTeam[name] === true}
-                                onChange={(ev) =>
-                                  setGoalkeeperCheckByTeam((prev) => ({ ...prev, [name]: ev.target.checked }))
-                                }
-                              />
-                              <span>É o goleiro desta equipe</span>
-                            </label>
                             <button type="button" className={s.btn} onClick={() => defineGoalkeeperForTeam(name)}>
                               Definir goleiro
                             </button>
+                            <button type="button" className={s.btn} onClick={() => clearGoalkeeperForTeam(name)}>
+                              Excluir goleiro
+                            </button>
                           </div>
-                          <button type="button" className={s.btnRemove} onClick={() => removeTeamFromPregame(name)}>
-                            Remover
+                          <button
+                            type="button"
+                            className={s.btnRemove}
+                            style={{ marginTop: '0.6rem' }}
+                            onClick={() => removeTeamFromPregame(name)}
+                          >
+                            Excluir time
                           </button>
                         </div>
                       );
