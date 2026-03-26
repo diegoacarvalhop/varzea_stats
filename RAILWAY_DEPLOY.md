@@ -27,6 +27,29 @@ JWT_SECRET=troque-por-um-segredo-forte-com-32+-caracteres
 FRONTEND_URL=https://${{varzea-frontend.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
+### Ajustes para Railway gratuito (evitar OOM)
+
+No `varzea-backend`, adicione também:
+
+```env
+# JVM enxuta para container pequeno
+JAVA_OPTS=-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=25 -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+
+# Pool de conexão menor (menos memória)
+SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=4
+SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=1
+SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS=120000
+SPRING_DATASOURCE_HIKARI_MAX_LIFETIME_MS=900000
+
+# Opcional: desligar OpenAPI em produção para reduzir consumo
+SPRINGDOC_API_DOCS_ENABLED=false
+SPRINGDOC_SWAGGER_UI_ENABLED=false
+```
+
+Observação:
+- Se precisar usar Swagger em produção, mantenha `SPRINGDOC_*` como `true`.
+- Se ainda houver pressão de memória, reduza `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` para `2` ou `3`.
+
 ### Bootstrap de usuário inicial (ADMIN_GERAL)
 
 Se quiser criar o primeiro usuário automaticamente em produção, defina:
