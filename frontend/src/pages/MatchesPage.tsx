@@ -127,8 +127,8 @@ export function MatchesPage() {
 
   const pregameStorageKey = useMemo(() => {
     if (peladaId == null) return '';
-    return `pregame:${peladaId}:${presenceDateForDraft}`;
-  }, [peladaId, presenceDateForDraft]);
+    return `pregame:${peladaId}`;
+  }, [peladaId]);
 
   const draftedPlayersByTeam = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -206,7 +206,12 @@ export function MatchesPage() {
     try {
       const raw = window.localStorage.getItem(pregameStorageKey);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { teams?: string[]; goalkeeperByTeam?: Record<string, number> };
+      const parsed = JSON.parse(raw) as {
+        date?: string;
+        teams?: string[];
+        goalkeeperByTeam?: Record<string, number>;
+      };
+      if (typeof parsed.date === 'string' && parsed.date.trim()) setDate(parsed.date);
       if (Array.isArray(parsed.teams)) setPregameTeams(parsed.teams);
       if (parsed.goalkeeperByTeam && typeof parsed.goalkeeperByTeam === 'object') {
         setGoalkeeperByTeam(parsed.goalkeeperByTeam);
@@ -222,6 +227,7 @@ export function MatchesPage() {
       window.localStorage.setItem(
         pregameStorageKey,
         JSON.stringify({
+          date,
           teams: pregameTeams,
           goalkeeperByTeam,
         }),
@@ -229,7 +235,7 @@ export function MatchesPage() {
     } catch {
       // no-op
     }
-  }, [pregameStorageKey, pregameTeams, goalkeeperByTeam]);
+  }, [pregameStorageKey, date, pregameTeams, goalkeeperByTeam]);
 
   useEffect(() => {
     if (selectedGoalkeeperIds.length === 0) return;
@@ -277,7 +283,9 @@ export function MatchesPage() {
               userId: goalkeeperByTeam[line.teamName],
               goalkeeper: true,
             },
-            ...line.players.map((slot) => ({ userId: slot.userId, goalkeeper: false })),
+            ...line.players
+              .filter((slot) => !selectedGoalkeeperIds.includes(slot.userId))
+              .map((slot) => ({ userId: slot.userId, goalkeeper: false })),
           ],
         })),
       });

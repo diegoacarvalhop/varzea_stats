@@ -154,16 +154,21 @@ export function MatchDetailPage() {
   }, [players, activeTeamIds, activeTeams.length]);
 
   const selectedPlacar = useMemo(() => {
-    if (!match?.teamScores || match.teamScores.length === 0) return 'Sem equipes ou placar ainda';
-    if (activeTeams.length === 0) return formatMatchPlacar(match.teamScores);
+    if (!match?.teamScores || match.teamScores.length === 0) return '';
+    if (!selectedPairValid) return '';
     const scoreByName = new Map<string, TeamScore>();
     for (const s of match.teamScores) scoreByName.set(s.teamName, s);
     const filtered = activeTeams
       .map((t) => scoreByName.get(t.name))
       .filter((s): s is TeamScore => s != null);
-    if (filtered.length === 0) return 'Sem placar para os times selecionados';
+    if (filtered.length === 0) return '';
     return formatMatchPlacar(filtered);
-  }, [match?.teamScores, activeTeams]);
+  }, [match?.teamScores, activeTeams, selectedPairValid]);
+
+  const selectedTeamsStorageKey = useMemo(() => {
+    if (!Number.isFinite(matchId)) return '';
+    return `match:selected-teams:${matchId}`;
+  }, [matchId]);
 
   const eventMainPlayer = useMemo(() => {
     if (!eventPlayerId) return null;
@@ -284,9 +289,34 @@ export function MatchDetailPage() {
   }, [matchId, refresh]);
 
   useEffect(() => {
+    if (!selectedTeamsStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(selectedTeamsStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { teamA?: string; teamB?: string };
+      if (typeof parsed.teamA === 'string') setStartingTeamA(parsed.teamA);
+      if (typeof parsed.teamB === 'string') setStartingTeamB(parsed.teamB);
+    } catch {
+      // no-op
+    }
+  }, [selectedTeamsStorageKey]);
+
+  useEffect(() => {
     if (startingTeamA && !teams.some((t) => t.name === startingTeamA)) setStartingTeamA('');
     if (startingTeamB && !teams.some((t) => t.name === startingTeamB)) setStartingTeamB('');
   }, [teams, startingTeamA, startingTeamB]);
+
+  useEffect(() => {
+    if (!selectedTeamsStorageKey) return;
+    try {
+      window.localStorage.setItem(
+        selectedTeamsStorageKey,
+        JSON.stringify({ teamA: startingTeamA, teamB: startingTeamB }),
+      );
+    } catch {
+      // no-op
+    }
+  }, [selectedTeamsStorageKey, startingTeamA, startingTeamB]);
 
   useEffect(() => {
     if (!timerConfigured) {
@@ -517,14 +547,14 @@ export function MatchDetailPage() {
               ? `${startingTeamA} x ${startingTeamB}`
               : 'Selecione os 2 times desta partida na seção de equipes.'}
           </p>
-          <p className={s.placarHighlight}>{selectedPlacar}</p>
+          {selectedPlacar && <p className={s.placarHighlight}>{selectedPlacar}</p>}
         </>
       )}
 
       {matchFinished && match?.finishedAt && (
         <p className={s.finishedBanner}>
           Partida encerrada em {new Date(match.finishedAt).toLocaleString('pt-BR')}. Resultado registrado:{' '}
-          <strong>{selectedPlacar}</strong>. Escalação e novos lances estão bloqueados.
+          <strong>{selectedPlacar || '—'}</strong>. Escalação e novos lances estão bloqueados.
         </p>
       )}
 
