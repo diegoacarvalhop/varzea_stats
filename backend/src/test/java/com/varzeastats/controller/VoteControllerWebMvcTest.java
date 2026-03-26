@@ -24,7 +24,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
 import java.util.Set;
 
@@ -76,7 +75,7 @@ class VoteControllerWebMvcTest {
 
         mockMvc.perform(
                         post("/votes")
-                                .with(SecurityMockMvcRequestPostProcessors.authentication(auth))
+                                .principal(auth)
                                 .requestAttr(PeladaResolver.REQUEST_ATTR_PELADA_ID, PELADA_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(req)))

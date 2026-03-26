@@ -285,11 +285,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (res.roles.includes('ADMIN_GERAL')) {
-      if (res.peladaId == null) {
-        clearPeladaContext();
-      } else if (res.peladaName) {
+      if (res.peladaId != null && res.peladaName) {
         setPeladaContext(res.peladaId, res.peladaName, Boolean(res.peladaHasLogo));
+        return;
       }
+      const ctxId = getPeladaId();
+      const ctxName = getPeladaName();
+      if (ctxId != null && ctxName != null && ctxId.length > 0) {
+        const n = Number(ctxId);
+        if (Number.isFinite(n)) {
+          const hasLogo = getPeladaHasLogo();
+          setState((prev) => ({
+            ...prev,
+            peladaId: n,
+            peladaName: ctxName,
+            peladaHasLogo: hasLogo,
+            peladaMonthlyDueDay: prev.peladaMonthlyDueDay ?? 15,
+          }));
+          const raw = localStorage.getItem(USER_KEY);
+          if (raw) {
+            try {
+              const u = JSON.parse(raw) as Record<string, unknown>;
+              u.peladaId = n;
+              u.peladaName = ctxName;
+              u.peladaHasLogo = hasLogo;
+              if (u.peladaMonthlyDueDay == null) {
+                u.peladaMonthlyDueDay = 15;
+              }
+              localStorage.setItem(USER_KEY, JSON.stringify(u));
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+      }
+      clearPeladaContext();
       return;
     }
     if (res.peladaId != null && res.peladaName) {

@@ -126,7 +126,7 @@ export function Layout() {
 
   /** Não exige hasRole(PLAYER): o /me só inclui a pelada em monthlyDelinquentPeladaIds para quem o backend trata como jogador na cobrança. */
   const showFinanceDelinquentBanner = useMemo(() => {
-    if (numericPeladaId == null || !roles || !isMensalistaNaPeladaAtual) {
+    if (numericPeladaId == null || !roles || isAdminGeral(roles) || !isMensalistaNaPeladaAtual) {
       return false;
     }
     const today = new Date();
@@ -143,7 +143,7 @@ export function Layout() {
 
   /** Atualiza /me após o vencimento (sem depender da lista de inadimplência no array de deps — evita corrida com Strict Mode e mantém sessão alinhada ao financeiro). */
   useEffect(() => {
-    if (numericPeladaId == null || !roles || !isMensalistaNaPeladaAtual) {
+    if (numericPeladaId == null || !roles || isAdminGeral(roles) || !isMensalistaNaPeladaAtual) {
       return;
     }
     const today = new Date();

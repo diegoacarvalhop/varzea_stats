@@ -67,7 +67,7 @@ Para não perder imagens de logo a cada deploy:
 3. Adicione a variável:
 
 ```env
-VARZEA_PELADA_LOGO_DIR=/app/data/pelada-logos
+VARZEA_PELADA_LOGO_DIR=image.png
 ```
 
 O backend já cria e usa esse diretório dentro do container.

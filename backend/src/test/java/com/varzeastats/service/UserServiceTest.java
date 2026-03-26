@@ -165,8 +165,12 @@ class UserServiceTest {
         req.setName("  João  ");
         req.setEmail("  joao@pelada.com ");
         req.setPassword("minhasenha");
+        req.setPeladaId(5L);
+        req.setBillingMonthly(true);
 
         when(userRepository.existsByEmail("joao@pelada.com")).thenReturn(false);
+        Pelada pelada = Pelada.builder().id(5L).name("Pelada Teste").build();
+        when(peladaRepository.findById(5L)).thenReturn(Optional.of(pelada));
         when(passwordEncoder.encode("minhasenha")).thenReturn("{bcrypt}hash");
         when(userRepository.save(any(User.class)))
                 .thenAnswer(inv -> {
@@ -179,7 +183,7 @@ class UserServiceTest {
         UserResponse out = userService.registerPublic(req);
 
         assertThat(out.getEmail()).isEqualTo("joao@pelada.com");
-        assertThat(out.getPeladaId()).isNull();
+        assertThat(out.getPeladaId()).isEqualTo(5L);
         assertThat(out.getRoles()).containsExactly(Role.PLAYER);
         verify(userRepository).save(any(User.class));
     }
