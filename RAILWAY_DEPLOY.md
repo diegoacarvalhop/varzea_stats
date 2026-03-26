@@ -32,8 +32,8 @@ FRONTEND_URL=https://${{varzea-frontend.RAILWAY_PUBLIC_DOMAIN}}
 No `varzea-backend`, adicione também:
 
 ```env
-# JVM enxuta para container pequeno
-JAVA_OPTS=-XX:MaxRAMPercentage=60 -XX:InitialRAMPercentage=15 -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+# JVM enxuta para container pequeno (Railway free costuma estourar após Hibernate/JPA)
+JAVA_OPTS=-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=80m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Xss256k
 
 # Pool de conexão menor (menos memória)
 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2
@@ -47,11 +47,14 @@ SPRINGDOC_SWAGGER_UI_ENABLED=false
 
 # Se SMTP não estiver configurado, evita falha no healthcheck
 MANAGEMENT_HEALTH_MAIL_ENABLED=false
+
+# Atrasa criação de beans até o primeiro uso; reduz pico de RAM no startup (recomendado no free tier)
+SPRING_MAIN_LAZY_INITIALIZATION=true
 ```
 
 Observação:
 - Se precisar usar Swagger em produção, mantenha `SPRINGDOC_*` como `true`.
-- Se ainda houver pressão de memória, reduza `-XX:MaxRAMPercentage` para `50`.
+- Se ainda houver `Killed` no log, reduza `-XX:MaxRAMPercentage` para `45` ou aumente o plano do Railway.
 
 ### Bootstrap de usuário inicial (ADMIN_GERAL)
 
@@ -148,9 +151,11 @@ Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runti
 
 ## 6) Troubleshooting rápido (OOM)
 
-- Se aparecer `Killed` durante startup:
-  - Ajuste `JAVA_OPTS` para `-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`.
+- Se aparecer `Killed` logo após `QueryEnhancerFactory` / `Initialized JPA EntityManagerFactory`:
+  - Confirme `SPRING_MAIN_LAZY_INITIALIZATION=true` e redeploy.
+  - Ajuste `JAVA_OPTS` para `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=8 -XX:MaxMetaspaceSize=80m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Xss256k`.
   - Confirme `SPRINGDOC_API_DOCS_ENABLED=false` e `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
   - Mantenha `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2` e `SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0`.
 - Se o backend ficar estável após ajuste, faça novo redeploy para consolidar as variáveis.
+- Se continuar `Killed`, o limite do plano gratuito pode ser insuficiente para Spring Boot + Hibernate; considere upgrade de memória no Railway.
 
