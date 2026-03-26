@@ -322,48 +322,6 @@ export function MatchesPage() {
         lances desta pelada. Os stats só fazem sentido no contexto de cada jogo.
       </p>
       {canCreate && (
-        <div className={s.card} id="nova-partida">
-          <h2 className={s.cardTitle}>Nova partida</h2>
-          <form className={s.form} onSubmit={onCreateMatch}>
-            <div className={s.field}>
-              <label className={s.fieldLabel} htmlFor="match-datetime">
-                Data e hora
-                <span className={s.requiredMark} aria-hidden>
-                  *
-                </span>
-              </label>
-              <input
-                id="match-datetime"
-                className={s.input}
-                type="datetime-local"
-                value={date}
-                onChange={(ev) => setDate(ev.target.value)}
-                required
-              />
-            </div>
-            <div className={s.field}>
-              <label className={s.fieldLabel} htmlFor="match-location">
-                Local / campo
-                <span className={s.requiredMark} aria-hidden>
-                  *
-                </span>
-              </label>
-              <input
-                id="match-location"
-                className={s.input}
-                value={location}
-                onChange={(ev) => setLocation(ev.target.value)}
-                required
-                placeholder="Ex.: Campo do Juqueri"
-              />
-            </div>
-            <button className={s.btnPrimary} type="submit">
-              {creatingMatch ? 'Criando…' : 'Criar e ir para a partida'}
-            </button>
-          </form>
-        </div>
-      )}
-      {canCreate && (
         <div className={s.card} style={{ marginTop: '1.25rem' }}>
           <h2 className={s.cardTitle}>Pré-jogo (presença, times e sorteio)</h2>
           <p className={s.lead}>Prepare o dia aqui. A nova partida já será criada com os times sorteados.</p>
@@ -515,6 +473,48 @@ export function MatchesPage() {
 
             </>
           )}
+        </div>
+      )}
+      {canCreate && (
+        <div className={s.card} id="nova-partida">
+          <h2 className={s.cardTitle}>Nova partida</h2>
+          <form className={s.form} onSubmit={onCreateMatch}>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="match-datetime">
+                Data e hora
+                <span className={s.requiredMark} aria-hidden>
+                  *
+                </span>
+              </label>
+              <input
+                id="match-datetime"
+                className={s.input}
+                type="datetime-local"
+                value={date}
+                onChange={(ev) => setDate(ev.target.value)}
+                required
+              />
+            </div>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="match-location">
+                Local / campo
+                <span className={s.requiredMark} aria-hidden>
+                  *
+                </span>
+              </label>
+              <input
+                id="match-location"
+                className={s.input}
+                value={location}
+                onChange={(ev) => setLocation(ev.target.value)}
+                required
+                placeholder="Ex.: Campo do Juqueri"
+              />
+            </div>
+            <button className={s.btnPrimary} type="submit">
+              {creatingMatch ? 'Criando…' : 'Criar e ir para a partida'}
+            </button>
+          </form>
         </div>
       )}
 
