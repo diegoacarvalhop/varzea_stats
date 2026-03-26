@@ -144,7 +144,12 @@ export function MatchesPage() {
       ]);
       const memberIds = new Set(
         users
-          .filter((u) => u.peladaId === peladaId || (Array.isArray(u.peladaIds) && u.peladaIds.includes(peladaId)))
+          .filter(
+            (u) =>
+              (u.peladaId === peladaId || (Array.isArray(u.peladaIds) && u.peladaIds.includes(peladaId))) &&
+              Array.isArray(u.roles) &&
+              u.roles.includes('PLAYER'),
+          )
           .map((u) => u.id),
       );
       const members = users.filter((u) => memberIds.has(u.id));
