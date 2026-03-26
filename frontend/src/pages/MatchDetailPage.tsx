@@ -125,13 +125,17 @@ export function MatchDetailPage() {
   const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
   const timerConfigured = configuredDurationMinutes > 0;
   const timerEnded = timerConfigured && countdownSeconds === 0;
-  const selectedPairValid = Boolean(startingTeamA && startingTeamB && startingTeamA !== startingTeamB);
+  const selectedTeamNames = useMemo(() => {
+    const names = [startingTeamA, startingTeamB].filter((x): x is string => Boolean(x));
+    return Array.from(new Set(names));
+  }, [startingTeamA, startingTeamB]);
+  const selectedPairValid = selectedTeamNames.length === 2;
 
   const activeTeams = useMemo(() => {
-    if (!selectedPairValid) return [];
-    const selected = new Set([startingTeamA, startingTeamB]);
+    if (selectedTeamNames.length === 0) return [];
+    const selected = new Set(selectedTeamNames);
     return teams.filter((t) => selected.has(t.name));
-  }, [teams, startingTeamA, startingTeamB, selectedPairValid]);
+  }, [teams, selectedTeamNames]);
 
   const activeTeamIds = useMemo(() => new Set(activeTeams.map((t) => t.id)), [activeTeams]);
 
@@ -179,6 +183,26 @@ export function MatchDetailPage() {
     const ok = penaltyTargetOptions.some((p) => p.id === tid);
     if (!ok) setPenaltyTargetId('');
   }, [penaltyTargetId, penaltyTargetOptions]);
+
+  useEffect(() => {
+    if (!eventPlayerId) return;
+    const pid = Number(eventPlayerId);
+    if (!Number.isFinite(pid)) return;
+    if (!activePlayers.some((p) => p.id === pid)) {
+      setEventPlayerId('');
+      setEventTargetId('');
+    }
+  }, [eventPlayerId, activePlayers]);
+
+  useEffect(() => {
+    if (!penaltyPlayerId) return;
+    const pid = Number(penaltyPlayerId);
+    if (!Number.isFinite(pid)) return;
+    if (!activePlayers.some((p) => p.id === pid)) {
+      setPenaltyPlayerId('');
+      setPenaltyTargetId('');
+    }
+  }, [penaltyPlayerId, activePlayers]);
 
   const eventTypeSelectOptions = useMemo(
     () => EVENT_TYPES.map((x) => ({ value: x.value, label: x.label })),
