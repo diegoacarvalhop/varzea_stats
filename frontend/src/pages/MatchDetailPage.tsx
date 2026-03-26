@@ -371,6 +371,7 @@ export function MatchDetailPage() {
 
   useEffect(() => {
     if (!timerStorageKey) return;
+    if (peladaForMatch === undefined) return;
     if (!timerConfigured) {
       setCountdownRunning(false);
       setCountdownSeconds(0);
@@ -387,10 +388,11 @@ export function MatchDetailPage() {
     }
     setExtraMinutesInput('0');
     setTimerHydrated(true);
-  }, [timerStorageKey, timerConfigured, configuredDurationMinutes]);
+  }, [timerStorageKey, timerConfigured, configuredDurationMinutes, peladaForMatch]);
 
   useEffect(() => {
     if (!timerStorageKey || !timerHydrated) return;
+    if (peladaForMatch === undefined) return;
     try {
       const payload: PersistedMatchTimer = {
         remainingSeconds: Math.max(0, Math.floor(countdownSeconds)),
@@ -401,7 +403,7 @@ export function MatchDetailPage() {
     } catch {
       // no-op
     }
-  }, [timerStorageKey, timerHydrated, countdownSeconds, countdownRunning]);
+  }, [timerStorageKey, timerHydrated, countdownSeconds, countdownRunning, peladaForMatch]);
 
   useEffect(() => {
     if (!countdownRunning || countdownSeconds <= 0) return;
