@@ -44,9 +44,20 @@ export function FormModal({ open, title, onClose, closeDisabled = false, childre
         aria-labelledby={TITLE_ID}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id={TITLE_ID} className={styles.title}>
-          {title}
-        </h2>
+        <div className={styles.header}>
+          <h2 id={TITLE_ID} className={styles.title}>
+            {title}
+          </h2>
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={() => !closeDisabled && onClose()}
+            disabled={closeDisabled}
+            aria-label="Fechar modal"
+          >
+            Fechar
+          </button>
+        </div>
         <div className={styles.body}>{children}</div>
       </div>
     </div>,
