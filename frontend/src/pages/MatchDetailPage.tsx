@@ -7,7 +7,7 @@ import {
   type MatchEvent,
 } from '@/services/eventService';
 import { listMediaForMatch, type MatchMediaItem } from '@/services/mediaService';
-import { finishMatch, formatMatchPlacar, getMatch, type Match } from '@/services/matchService';
+import { finishMatch, formatMatchPlacar, getMatch, type Match, type TeamScore } from '@/services/matchService';
 import {
   listPlayersByMatch,
   type Player,
@@ -125,24 +125,45 @@ export function MatchDetailPage() {
   const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
   const timerConfigured = configuredDurationMinutes > 0;
   const timerEnded = timerConfigured && countdownSeconds === 0;
-  const selectedTeamNames = useMemo(() => {
-    const names = [startingTeamA, startingTeamB].filter((x): x is string => Boolean(x));
-    return Array.from(new Set(names));
-  }, [startingTeamA, startingTeamB]);
-  const selectedPairValid = selectedTeamNames.length === 2;
+  const teamsByName = useMemo(() => {
+    const map = new Map<string, Team>();
+    for (const t of teams) map.set(t.name, t);
+    return map;
+  }, [teams]);
 
   const activeTeams = useMemo(() => {
-    if (selectedTeamNames.length === 0) return [];
-    const selected = new Set(selectedTeamNames);
-    return teams.filter((t) => selected.has(t.name));
-  }, [teams, selectedTeamNames]);
+    const out: Team[] = [];
+    if (startingTeamA) {
+      const a = teamsByName.get(startingTeamA);
+      if (a) out.push(a);
+    }
+    if (startingTeamB && startingTeamB !== startingTeamA) {
+      const b = teamsByName.get(startingTeamB);
+      if (b) out.push(b);
+    }
+    return out;
+  }, [startingTeamA, startingTeamB, teamsByName]);
+
+  const selectedPairValid = activeTeams.length === 2;
 
   const activeTeamIds = useMemo(() => new Set(activeTeams.map((t) => t.id)), [activeTeams]);
 
   const activePlayers = useMemo(() => {
-    if (!selectedPairValid) return [];
+    if (activeTeams.length === 0) return [];
     return players.filter((p) => p.teamId != null && activeTeamIds.has(p.teamId));
-  }, [players, activeTeamIds, selectedPairValid]);
+  }, [players, activeTeamIds, activeTeams.length]);
+
+  const selectedPlacar = useMemo(() => {
+    if (!match?.teamScores || match.teamScores.length === 0) return 'Sem equipes ou placar ainda';
+    if (activeTeams.length === 0) return formatMatchPlacar(match.teamScores);
+    const scoreByName = new Map<string, TeamScore>();
+    for (const s of match.teamScores) scoreByName.set(s.teamName, s);
+    const filtered = activeTeams
+      .map((t) => scoreByName.get(t.name))
+      .filter((s): s is TeamScore => s != null);
+    if (filtered.length === 0) return 'Sem placar para os times selecionados';
+    return formatMatchPlacar(filtered);
+  }, [match?.teamScores, activeTeams]);
 
   const eventMainPlayer = useMemo(() => {
     if (!eventPlayerId) return null;
@@ -496,14 +517,14 @@ export function MatchDetailPage() {
               ? `${startingTeamA} x ${startingTeamB}`
               : 'Selecione os 2 times desta partida na seção de equipes.'}
           </p>
-          <p className={s.placarHighlight}>{formatMatchPlacar(match.teamScores)}</p>
+          <p className={s.placarHighlight}>{selectedPlacar}</p>
         </>
       )}
 
       {matchFinished && match?.finishedAt && (
         <p className={s.finishedBanner}>
           Partida encerrada em {new Date(match.finishedAt).toLocaleString('pt-BR')}. Resultado registrado:{' '}
-          <strong>{formatMatchPlacar(match.teamScores)}</strong>. Escalação e novos lances estão bloqueados.
+          <strong>{selectedPlacar}</strong>. Escalação e novos lances estão bloqueados.
         </p>
       )}
 
