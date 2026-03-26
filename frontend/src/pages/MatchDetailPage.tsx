@@ -204,7 +204,8 @@ export function MatchDetailPage() {
   }, [eventTargetId, targetPlayerOptions]);
 
   useEffect(() => {
-    const acceptsTarget = eventType === 'FOUL' || eventType === 'SUBSTITUTION';
+    const acceptsTarget =
+      eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL';
     if (!acceptsTarget && eventTargetId) {
       setEventTargetId('');
     }
@@ -381,13 +382,18 @@ export function MatchDetailPage() {
       appToast.warning('Selecione o jogador principal para registrar gol ou assistência.');
       return;
     }
+    if ((eventType === 'GOAL' || eventType === 'OWN_GOAL') && !eventTargetId) {
+      appToast.warning('Selecione o goleiro/alvo para este lance.');
+      return;
+    }
     if (eventType === 'FOUL' && eventTargetId && !eventPlayerId) {
       appToast.warning('Para indicar quem sofreu a falta, selecione antes o infrator.');
       return;
     }
     try {
       const pid = eventPlayerId ? Number(eventPlayerId) : null;
-      const acceptsTarget = eventType === 'FOUL' || eventType === 'SUBSTITUTION';
+      const acceptsTarget =
+        eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL';
       const tid = acceptsTarget && eventTargetId ? Number(eventTargetId) : null;
       await createEventForMatch(matchId, {
         type: eventType,
@@ -421,11 +427,15 @@ export function MatchDetailPage() {
       appToast.warning('Selecione o cobrador do pênalti.');
       return;
     }
+    if (!penaltyTargetId) {
+      appToast.warning('Selecione o goleiro/alvo do pênalti.');
+      return;
+    }
     try {
       await createEventForMatch(matchId, {
         type: 'PENALTY',
         playerId: Number(penaltyPlayerId),
-        targetId: penaltyTargetId ? Number(penaltyTargetId) : null,
+        targetId: Number(penaltyTargetId),
       });
       setPenaltyPlayerId('');
       setPenaltyTargetId('');
@@ -774,11 +784,15 @@ export function MatchDetailPage() {
               value={eventTargetId}
               onChange={setEventTargetId}
               options={targetPlayerSelectOptions}
-              disabled={!eventMainPlayer || !(eventType === 'FOUL' || eventType === 'SUBSTITUTION')}
+              disabled={
+                !eventMainPlayer ||
+                !(eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL')
+              }
               emptyOption={{
                 value: '',
                 label:
-                  !eventMainPlayer || !(eventType === 'FOUL' || eventType === 'SUBSTITUTION')
+                  !eventMainPlayer ||
+                  !(eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL')
                     ? '— Não se aplica para este tipo de lance —'
                     : '— Nenhum —',
               }}

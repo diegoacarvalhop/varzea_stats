@@ -67,12 +67,23 @@ public class EventService {
 
     private static void validateEventSemantics(EventType type, Player player, Player target) {
         switch (type) {
-            case GOAL, ASSIST, OWN_GOAL, YELLOW_CARD, RED_CARD, BLUE_CARD -> {
+            case ASSIST, YELLOW_CARD, RED_CARD, BLUE_CARD -> {
                 if (player == null) {
                     throw new IllegalArgumentException("Selecione o jogador principal para este tipo de lance.");
                 }
                 if (target != null) {
                     throw new IllegalArgumentException("Este tipo de lance não utiliza jogador alvo.");
+                }
+            }
+            case GOAL, OWN_GOAL -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o jogador principal para este tipo de lance.");
+                }
+                if (target == null) {
+                    throw new IllegalArgumentException("Selecione o goleiro/alvo para este lance.");
+                }
+                if (player.getId().equals(target.getId())) {
+                    throw new IllegalArgumentException("Jogador principal e goleiro/alvo não podem ser a mesma pessoa.");
                 }
             }
             case FOUL -> {
@@ -90,7 +101,10 @@ public class EventService {
                 if (player == null) {
                     throw new IllegalArgumentException("Selecione o cobrador do pênalti.");
                 }
-                if (target != null && player.getId().equals(target.getId())) {
+                if (target == null) {
+                    throw new IllegalArgumentException("Selecione o goleiro/alvo do pênalti.");
+                }
+                if (player.getId().equals(target.getId())) {
                     throw new IllegalArgumentException("Cobrador e alvo do pênalti não podem ser a mesma pessoa.");
                 }
             }
