@@ -41,7 +41,7 @@ export function RankingPage() {
   const { roles } = useAuth();
   const canVoteBola = hasAnyRole(roles, BOLA_VOTE_ROLES);
   const location = useLocation();
-  const [selectedPlayerNameKey, setSelectedPlayerNameKey] = useState('');
+  const [selectedMatchId, setSelectedMatchId] = useState('');
   const [playerId, setPlayerId] = useState('');
 
   const [voteRanking, setVoteRanking] = useState<VoteRanking | null>(null);
@@ -96,7 +96,7 @@ export function RankingPage() {
       const res = await submitVote(id, type);
       appToast.success(`Voto registrado (#${res.id}).`);
       setPlayerId('');
-      setSelectedPlayerNameKey('');
+      setSelectedMatchId('');
       await loadRankings();
     } catch {
       appToast.error('Falha ao votar. Confira o jogador e tente de novo.');
@@ -114,29 +114,33 @@ export function RankingPage() {
   const bolaMurchaRows: CountRow[] =
     voteRanking?.bolaMurcha?.map((e) => ({ playerId: e.playerId, playerName: e.playerName, count: e.voteCount })) ??
     [];
-  const playerNameOptions = useMemo(() => {
-    const names = new Map<string, string>();
+  const matchOptions = useMemo(() => {
+    const matches = new Map<number, string>();
     for (const entry of playerDirectory) {
-      const clean = entry.playerName.trim();
-      if (!clean) continue;
-      const key = clean.toLocaleLowerCase('pt-BR');
-      if (!names.has(key)) names.set(key, clean);
+      if (entry.matchId == null) continue;
+      if (matches.has(entry.matchId)) continue;
+      const when = entry.matchDate
+        ? new Date(entry.matchDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+        : 'Sem data';
+      const where = entry.matchLocation?.trim() ? entry.matchLocation.trim() : 'Sem local';
+      matches.set(entry.matchId, `Partida #${entry.matchId} · ${when} · ${where}`);
     }
-    return [...names.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
-      .map(([key, label]) => ({ value: key, label }));
+    return [...matches.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([matchId, label]) => ({ value: String(matchId), label }));
   }, [playerDirectory]);
 
   const playerMatchOptions = useMemo(() => {
-    if (!selectedPlayerNameKey) return [];
+    const matchId = Number(selectedMatchId);
+    if (!Number.isFinite(matchId)) return [];
     return playerDirectory
-      .filter((e) => e.playerName.trim().toLocaleLowerCase('pt-BR') === selectedPlayerNameKey && e.matchId != null)
+      .filter((e) => e.matchId === matchId)
       .map((e) => ({
         value: String(e.playerId),
         label: formatPlayerDirectoryLabel(e),
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
-  }, [playerDirectory, selectedPlayerNameKey]);
+  }, [playerDirectory, selectedMatchId]);
 
   return (
     <div className={s.page}>
@@ -209,42 +213,40 @@ export function RankingPage() {
         ) : (
           <>
             <p className={s.lead} style={{ marginBottom: '1rem' }}>
-              Primeiro selecione o <strong>jogador</strong> e depois a <strong>partida jogada</strong>. O voto de bola
+              Primeiro selecione a <strong>partida jogada</strong> e depois o <strong>jogador dessa partida</strong>. O voto de bola
               cheia ou murcha é sempre registrado para uma partida específica.
             </p>
             <form className={s.formInline} onSubmit={onSubmit}>
               <SearchableSelect
-                id="rank-player-name-select"
+                id="rank-match-select"
                 style={{ flex: '1 1 220px', maxWidth: 'min(100%, 420px)' }}
-                label="Jogador"
-                value={selectedPlayerNameKey}
+                label="Partida jogada"
+                value={selectedMatchId}
                 onChange={(value) => {
-                  setSelectedPlayerNameKey(value);
+                  setSelectedMatchId(value);
                   setPlayerId('');
                 }}
-                options={playerNameOptions}
+                options={matchOptions}
                 emptyOption={{
                   value: '',
-                  label: loading ? 'Carregando jogadores…' : 'Selecione um jogador',
+                  label: loading ? 'Carregando partidas…' : 'Selecione uma partida',
                 }}
                 disabled={loading}
                 required
-                formValueName="rankingVotePlayerNameKey"
+                formValueName="rankingVoteMatchId"
               />
               <SearchableSelect
-                id="rank-player-match-select"
+                id="rank-player-select"
                 style={{ flex: '1 1 320px', maxWidth: 'min(100%, 620px)' }}
-                label="Partida jogada"
+                label="Jogador"
                 value={playerId}
                 onChange={setPlayerId}
                 options={playerMatchOptions}
                 emptyOption={{
                   value: '',
-                  label: selectedPlayerNameKey
-                    ? 'Selecione a partida'
-                    : 'Escolha o jogador primeiro',
+                  label: selectedMatchId ? 'Selecione o jogador' : 'Escolha a partida primeiro',
                 }}
-                disabled={loading || !selectedPlayerNameKey}
+                disabled={loading || !selectedMatchId}
                 required
                 formValueName="rankingVotePlayerId"
               />
@@ -255,7 +257,7 @@ export function RankingPage() {
                 Bola murcha
               </button>
             </form>
-            {!loading && playerNameOptions.length === 0 && (
+            {!loading && matchOptions.length === 0 && (
               <p className={s.lead}>Nenhum jogador cadastrado ainda. Adicione jogadores no detalhe de uma partida.</p>
             )}
           </>
