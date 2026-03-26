@@ -476,6 +476,16 @@ export function MatchesPage() {
                                 {gkName}
                                 <span className={s.gkBadge}>Goleiro</span>
                               </span>
+                              {gkId != null && (
+                                <button
+                                  type="button"
+                                  className={s.btnRemove}
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                                  onClick={() => clearGoalkeeperForTeam(name)}
+                                >
+                                  Excluir
+                                </button>
+                              )}
                             </li>
                             {drafted.map((playerName) => (
                               <li key={`${name}-${playerName}`} className={s.rosterRow}>
@@ -503,9 +513,6 @@ export function MatchesPage() {
                             </div>
                             <button type="button" className={s.btn} onClick={() => defineGoalkeeperForTeam(name)}>
                               Definir goleiro
-                            </button>
-                            <button type="button" className={s.btn} onClick={() => clearGoalkeeperForTeam(name)}>
-                              Excluir goleiro
                             </button>
                           </div>
                           <button
