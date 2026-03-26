@@ -53,23 +53,6 @@ export async function listPlayersByMatch(matchId: number): Promise<Player[]> {
   return data;
 }
 
-export async function createPlayerForMatch(
-  matchId: number,
-  teamId: number,
-  payload: { directoryRef: number; goalkeeper?: boolean },
-): Promise<Player> {
-  const { data } = await api.post<Player>(`/matches/${matchId}/players`, {
-    teamId,
-    directoryRef: payload.directoryRef,
-    goalkeeper: payload.goalkeeper ?? false,
-  });
-  return data;
-}
-
-export async function deletePlayerFromMatch(matchId: number, playerId: number): Promise<void> {
-  await api.delete(`/matches/${matchId}/players/${playerId}`);
-}
-
 export async function applyDraftToMatch(
   matchId: number,
   body: {

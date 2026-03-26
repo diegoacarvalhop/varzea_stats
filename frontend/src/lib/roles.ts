@@ -38,9 +38,6 @@ export function isAnyAdmin(userRoles: Role[] | null | undefined): boolean {
 /** Pode criar/encerrar partida. */
 export const MATCH_MANAGER_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'SCOUT', 'MEDIA'];
 
-/** Pode criar equipes e jogadores na partida. */
-export const ROSTER_EDITOR_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'SCOUT'];
-
 /** Pode registrar lances. */
 export const EVENT_RECORDER_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'SCOUT', 'MEDIA'];
 
@@ -53,8 +50,6 @@ export const USER_ADMIN_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
 export const FINANCE_MODULE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO', 'PLAYER'];
 
 export const PELADA_SETTINGS_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
-
-export const PRESENCE_DRAFT_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'SCOUT'];
 
 /** Bola cheia / bola murcha na página de ranking. */
 export const BOLA_VOTE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'PLAYER'];

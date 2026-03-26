@@ -4,9 +4,7 @@ import com.varzeastats.dto.ApplyDraftRosterRequest;
 import com.varzeastats.dto.ApplyDraftSlotRequest;
 import com.varzeastats.dto.ApplyDraftTeamLineRequest;
 import com.varzeastats.dto.PlayerDirectoryEntryResponse;
-import com.varzeastats.dto.PlayerMatchCreateRequest;
 import com.varzeastats.dto.PlayerResponse;
-import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Match;
 import com.varzeastats.entity.Player;
 import com.varzeastats.entity.Team;
@@ -87,30 +85,6 @@ public class PlayerService {
     }
 
     @Transactional
-    public PlayerResponse createForMatch(Long matchId, PlayerMatchCreateRequest request, long peladaId) {
-        matchAccessHelper.requireInPelada(matchId, peladaId);
-        Long ref = request.getDirectoryRef();
-        if (ref == null || ref == 0L) {
-            throw new IllegalArgumentException("Referência do diretório inválida.");
-        }
-        Team team = teamRepository
-                .findById(request.getTeamId())
-                .orElseThrow(() -> new IllegalArgumentException("Equipe não encontrada"));
-        if (!team.getMatch().getId().equals(matchId)) {
-            throw new IllegalArgumentException("Esta equipe não pertence a esta partida");
-        }
-        String name = resolveNameFromDirectoryRef(ref, peladaId);
-        boolean isGk = Boolean.TRUE.equals(request.getGoalkeeper());
-        Player player = Player.builder()
-                .name(name)
-                .team(team)
-                .goalkeeper(isGk)
-                .build();
-        player = playerRepository.save(player);
-        return toResponse(player);
-    }
-
-    @Transactional
     public void applyDraftRoster(Long matchId, ApplyDraftRosterRequest request, long peladaId) {
         Match match = matchAccessHelper.requireInPelada(matchId, peladaId);
         if (match.getFinishedAt() != null) {
@@ -133,13 +107,27 @@ public class PlayerService {
         for (ApplyDraftTeamLineRequest line : request.getLines()) {
             Team team = byName.get(line.getTeamName());
             for (ApplyDraftSlotRequest slot : line.getSlots()) {
-                PlayerMatchCreateRequest createReq = new PlayerMatchCreateRequest();
-                createReq.setTeamId(team.getId());
-                createReq.setDirectoryRef(-slot.getUserId());
-                createReq.setGoalkeeper(Boolean.TRUE.equals(slot.getGoalkeeper()));
-                createForMatch(matchId, createReq, peladaId);
+                createPlayerForTeam(matchId, team.getId(), -slot.getUserId(), Boolean.TRUE.equals(slot.getGoalkeeper()), peladaId);
             }
         }
+    }
+
+    private void createPlayerForTeam(Long matchId, Long teamId, Long directoryRef, boolean isGoalkeeper, long peladaId) {
+        matchAccessHelper.requireInPelada(matchId, peladaId);
+        if (directoryRef == null || directoryRef == 0L) {
+            throw new IllegalArgumentException("Referência do diretório inválida.");
+        }
+        Team team = teamRepository.findById(teamId).orElseThrow(() -> new IllegalArgumentException("Equipe não encontrada"));
+        if (!team.getMatch().getId().equals(matchId)) {
+            throw new IllegalArgumentException("Esta equipe não pertence a esta partida");
+        }
+        String name = resolveNameFromDirectoryRef(directoryRef, peladaId);
+        Player player = Player.builder()
+                .name(name)
+                .team(team)
+                .goalkeeper(isGoalkeeper)
+                .build();
+        playerRepository.save(player);
     }
 
     private String resolveNameFromDirectoryRef(long directoryRef, long peladaId) {
@@ -163,18 +151,6 @@ public class PlayerService {
             throw new IllegalArgumentException("Este usuário não é membro desta pelada.");
         }
         return user.getName().trim();
-    }
-
-    @Transactional
-    public void deleteForMatch(Long matchId, Long playerId, long peladaId) {
-        matchAccessHelper.requireInPelada(matchId, peladaId);
-        Player player = playerRepository
-                .findById(playerId)
-                .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado"));
-        if (player.getTeam() == null || !player.getTeam().getMatch().getId().equals(matchId)) {
-            throw new IllegalArgumentException("Este jogador não pertence a esta partida");
-        }
-        removePlayerEntity(player);
     }
 
     private void removePlayerEntity(Player player) {
