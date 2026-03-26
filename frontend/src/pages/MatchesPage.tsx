@@ -25,6 +25,30 @@ function isMensalistaOnPelada(u: UserSummary, peladaId: number): boolean {
   return u.billingMonthlyByPelada?.[String(peladaId)] !== false;
 }
 
+function formatCountdown(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (h > 0) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function resolveLiveTimerFromStorage(matchId: number, nowMs: number): string {
+  try {
+    const raw = window.localStorage.getItem(`match:timer:${matchId}`);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as { remainingSeconds?: number; running?: boolean; savedAtMs?: number };
+    if (!parsed.running || !Number.isFinite(parsed.remainingSeconds) || !Number.isFinite(parsed.savedAtMs)) return '';
+    const elapsed = Math.max(0, Math.floor((nowMs - Number(parsed.savedAtMs)) / 1000));
+    const remaining = Math.max(0, Math.floor(Number(parsed.remainingSeconds)) - elapsed);
+    if (remaining <= 0) return '';
+    return `⏱ ${formatCountdown(remaining)}`;
+  } catch {
+    return '';
+  }
+}
+
 export function MatchesPage() {
   const navigate = useNavigate();
   const { isAuthenticated, roles, peladaId } = useAuth();
@@ -46,6 +70,12 @@ export function MatchesPage() {
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
   const [pregameHydrated, setPregameHydrated] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const tid = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(tid);
+  }, []);
 
   function resolveMatchListPlacar(m: Match): string {
     if (!m.teamScores || m.teamScores.length === 0) return '';
@@ -652,6 +682,9 @@ export function MatchesPage() {
               <span className={s.matchMeta}>{new Date(m.date).toLocaleString('pt-BR')}</span>
               <span className={s.matchMeta}>{m.location}</span>
               <span className={s.matchPlacar}>{resolveMatchListPlacar(m)}</span>
+              {!m.finishedAt && resolveLiveTimerFromStorage(m.id, nowMs) && (
+                <span className={s.matchMeta}>{resolveLiveTimerFromStorage(m.id, nowMs)}</span>
+              )}
               <span className={s.matchChevron}>→</span>
             </Link>
           </li>

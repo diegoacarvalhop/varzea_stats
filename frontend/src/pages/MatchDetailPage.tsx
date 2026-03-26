@@ -92,6 +92,38 @@ function formatCountdown(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+type PersistedMatchTimer = {
+  remainingSeconds: number;
+  running: boolean;
+  savedAtMs: number;
+};
+
+function resolveTimerFromStorage(raw: string | null): PersistedMatchTimer | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      remainingSeconds?: number;
+      running?: boolean;
+      savedAtMs?: number;
+    };
+    if (!Number.isFinite(parsed.remainingSeconds) || !Number.isFinite(parsed.savedAtMs)) return null;
+    const remaining = Math.max(0, Math.floor(parsed.remainingSeconds!));
+    const savedAtMs = Math.floor(parsed.savedAtMs!);
+    if (parsed.running) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - savedAtMs) / 1000));
+      const nextRemaining = Math.max(0, remaining - elapsed);
+      return {
+        remainingSeconds: nextRemaining,
+        running: nextRemaining > 0,
+        savedAtMs: Date.now(),
+      };
+    }
+    return { remainingSeconds: remaining, running: false, savedAtMs };
+  } catch {
+    return null;
+  }
+}
+
 export function MatchDetailPage() {
   const { matchId: matchIdParam } = useParams<{ matchId: string }>();
   const matchId = Number(matchIdParam);
@@ -121,6 +153,7 @@ export function MatchDetailPage() {
   const [countdownSeconds, setCountdownSeconds] = useState(0);
   const [countdownRunning, setCountdownRunning] = useState(false);
   const [extraMinutesInput, setExtraMinutesInput] = useState('0');
+  const [timerHydrated, setTimerHydrated] = useState(false);
 
   const matchFinished = Boolean(match?.finishedAt);
   const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
@@ -169,6 +202,11 @@ export function MatchDetailPage() {
   const selectedTeamsStorageKey = useMemo(() => {
     if (!Number.isFinite(matchId)) return '';
     return `match:selected-teams:${matchId}`;
+  }, [matchId]);
+
+  const timerStorageKey = useMemo(() => {
+    if (!Number.isFinite(matchId)) return '';
+    return `match:timer:${matchId}`;
   }, [matchId]);
 
   const eventMainPlayer = useMemo(() => {
@@ -332,15 +370,38 @@ export function MatchDetailPage() {
   }, [selectedTeamsStorageKey, selectedTeamsHydrated, startingTeamA, startingTeamB]);
 
   useEffect(() => {
+    if (!timerStorageKey) return;
     if (!timerConfigured) {
       setCountdownRunning(false);
       setCountdownSeconds(0);
+      setTimerHydrated(true);
       return;
     }
-    setCountdownRunning(false);
-    setCountdownSeconds(configuredDurationMinutes * 60);
+    const restored = resolveTimerFromStorage(window.localStorage.getItem(timerStorageKey));
+    if (restored) {
+      setCountdownSeconds(restored.remainingSeconds);
+      setCountdownRunning(restored.running);
+    } else {
+      setCountdownRunning(false);
+      setCountdownSeconds(configuredDurationMinutes * 60);
+    }
     setExtraMinutesInput('0');
-  }, [configuredDurationMinutes, timerConfigured, match?.id]);
+    setTimerHydrated(true);
+  }, [timerStorageKey, timerConfigured, configuredDurationMinutes]);
+
+  useEffect(() => {
+    if (!timerStorageKey || !timerHydrated) return;
+    try {
+      const payload: PersistedMatchTimer = {
+        remainingSeconds: Math.max(0, Math.floor(countdownSeconds)),
+        running: countdownRunning && countdownSeconds > 0,
+        savedAtMs: Date.now(),
+      };
+      window.localStorage.setItem(timerStorageKey, JSON.stringify(payload));
+    } catch {
+      // no-op
+    }
+  }, [timerStorageKey, timerHydrated, countdownSeconds, countdownRunning]);
 
   useEffect(() => {
     if (!countdownRunning || countdownSeconds <= 0) return;
@@ -451,6 +512,13 @@ export function MatchDetailPage() {
     setFinishing(true);
     try {
       await finishMatch(matchId);
+      if (timerStorageKey) {
+        try {
+          window.localStorage.removeItem(timerStorageKey);
+        } catch {
+          // no-op
+        }
+      }
       if (selectedTeamsStorageKey) {
         try {
           window.localStorage.removeItem(selectedTeamsStorageKey);
