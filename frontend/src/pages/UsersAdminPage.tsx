@@ -191,6 +191,7 @@ export function UsersAdminPage() {
 
   const [editUser, setEditUser] = useState<UserSummary | null>(null);
   const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editRoles, setEditRoles] = useState<Set<Role>>(new Set());
   const [editActive, setEditActive] = useState(true);
   const [editPassword, setEditPassword] = useState('');
@@ -290,6 +291,7 @@ export function UsersAdminPage() {
   function openEdit(u: UserSummary) {
     setEditUser(u);
     setEditName(u.name);
+    setEditEmail(u.email);
     setEditRoles(new Set(u.roles ?? ['PLAYER']));
     setEditActive(u.accountActive !== false);
     setEditPassword('');
@@ -359,6 +361,18 @@ export function UsersAdminPage() {
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     if (!editUser) return;
+    const editEmailNormalized = editEmail.trim().toLowerCase();
+    if (!editEmailNormalized) {
+      appToast.warning('Informe um e-mail válido.');
+      return;
+    }
+    const hasOtherUserWithEmail = users.some(
+      (u) => u.id !== editUser.id && u.email.trim().toLowerCase() === editEmailNormalized,
+    );
+    if (hasOtherUserWithEmail) {
+      appToast.warning('Já existe um usuário com este e-mail.');
+      return;
+    }
     if (editRoles.size === 0) {
       appToast.warning('Marque pelo menos um perfil.');
       return;
@@ -376,6 +390,7 @@ export function UsersAdminPage() {
       const rolesSorted = Array.from(editRoles).sort((a, b) => a.localeCompare(b));
       const payload: Parameters<typeof patchUser>[1] = {
         name: editName.trim(),
+        email: editEmail.trim(),
         roles: rolesSorted,
         accountActive: editActive,
       };
@@ -408,7 +423,10 @@ export function UsersAdminPage() {
       await patchUser(editUser.id, payload);
       appToast.success('Usuário atualizado.');
       // Próprio usuário: atualiza sessão (cobrança mensal/diária, inadimplência no topo, etc.)
-      if (editUser.email === viewerEmail) {
+      if (
+        editUser.email.trim().toLowerCase() === (viewerEmail ?? '').trim().toLowerCase() &&
+        editEmailNormalized === (viewerEmail ?? '').trim().toLowerCase()
+      ) {
         await refreshProfile();
       }
       setEditUser(null);
@@ -661,6 +679,19 @@ export function UsersAdminPage() {
                 className={s.input}
                 value={editName}
                 onChange={(ev) => setEditName(ev.target.value)}
+                required
+              />
+            </div>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="eu-email">
+                E-mail
+              </label>
+              <input
+                id="eu-email"
+                className={s.input}
+                type="email"
+                value={editEmail}
+                onChange={(ev) => setEditEmail(ev.target.value)}
                 required
               />
             </div>

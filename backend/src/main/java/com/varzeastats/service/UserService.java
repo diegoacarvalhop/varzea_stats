@@ -186,6 +186,14 @@ public class UserService {
         if (request.getName() != null && !request.getName().isBlank()) {
             target.setName(request.getName().trim());
         }
+        if (request.getEmail() != null) {
+            String email = normalizeEmail(request.getEmail());
+            boolean sameEmail = target.getEmail() != null && target.getEmail().equalsIgnoreCase(email);
+            if (!sameEmail && userRepository.existsByEmailIgnoreCase(email)) {
+                throw new IllegalArgumentException("E-mail já cadastrado");
+            }
+            target.setEmail(email);
+        }
         if (request.getAccountActive() != null) {
             target.setAccountActive(request.getAccountActive());
         }

@@ -25,6 +25,7 @@ export interface CreateUserPayload {
 
 export interface UserPatchPayload {
   name?: string;
+  email?: string;
   roles?: Role[];
   peladaId?: number | null;
   peladaIds?: number[];

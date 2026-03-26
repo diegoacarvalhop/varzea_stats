@@ -10,6 +10,7 @@ import lombok.Data;
 public class UserUpdateRequest {
 
     private String name;
+    private String email;
     private List<Role> roles;
     private Long peladaId;
     private List<Long> peladaIds;
