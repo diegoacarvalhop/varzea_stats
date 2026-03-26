@@ -9,7 +9,6 @@ import {
 import { listMediaForMatch, type MatchMediaItem } from '@/services/mediaService';
 import { finishMatch, formatMatchPlacar, getMatch, type Match } from '@/services/matchService';
 import {
-  applyDraftToMatch,
   createPlayerForMatch,
   deletePlayerFromMatch,
   listPlayersByMatch,
@@ -21,11 +20,10 @@ import { buildMatchTeamNameChoices } from '@/lib/peladaTeamNames';
 import { getApiErrorMessage } from '@/lib/apiError';
 import {
   listPresence,
-  runDraft,
   savePresence,
 } from '@/services/peladaOpsService';
 import { listPeladas, type Pelada } from '@/services/peladaService';
-import { createTeamForMatch, listTeamsByMatch, type Team } from '@/services/teamService';
+import { listTeamsByMatch, type Team } from '@/services/teamService';
 import { listUsers, type UserSummary } from '@/services/userService';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { MatchMediaGallery } from '@/components/MatchMediaGallery';
@@ -88,26 +86,6 @@ function filterDirectoryGroupsByPresent(
     if (entries.length > 0) out.push({ label: g.label, entries });
   }
   return out;
-}
-
-/** userIds de goleiros na partida, entre os presentes (cruzamento por nome). */
-function goalkeeperUserIdsFromMatchRoster(
-  roster: Player[],
-  presentUserIds: Set<number>,
-  peladaUsers: UserSummary[],
-): number[] {
-  const nameToUserId = new Map<string, number>();
-  for (const uid of presentUserIds) {
-    const u = peladaUsers.find((x) => x.id === uid);
-    if (u) nameToUserId.set(normalizeDirectoryNameForPresence(u.name), uid);
-  }
-  const out = new Set<number>();
-  for (const p of roster) {
-    if (!p.goalkeeper) continue;
-    const uid = nameToUserId.get(normalizeDirectoryNameForPresence(p.name));
-    if (uid != null && presentUserIds.has(uid)) out.add(uid);
-  }
-  return [...out];
 }
 
 function findDirectoryEntryByPick(
@@ -194,11 +172,6 @@ function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSele
   return out;
 }
 
-/** Na pelada indicada: mensalista se não estiver explícito como diarista (`billingMonthlyByPelada[id] === false`). */
-function isMensalistaOnPelada(u: UserSummary, peladaId: number): boolean {
-  return u.billingMonthlyByPelada?.[String(peladaId)] !== false;
-}
-
 function formatCountdown(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
   const h = Math.floor(safe / 3600);
@@ -227,7 +200,6 @@ export function MatchDetailPage() {
 
   const [draftPeladaUsers, setDraftPeladaUsers] = useState<UserSummary[]>([]);
   const [presentForDraft, setPresentForDraft] = useState<Set<number>>(new Set());
-  const [runningDraftOnMatch, setRunningDraftOnMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
   const [loadingMatchDraft, setLoadingMatchDraft] = useState(false);
   const [removePlayerConfirm, setRemovePlayerConfirm] = useState<Player | null>(null);
@@ -451,40 +423,12 @@ export function MatchDetailPage() {
 
   const presenceDateForMatch = match ? instantToLocalDateIso(match.date) : '';
 
-  const draftMembersSorted = useMemo(() => {
-    const list = [...draftPeladaUsers];
-    list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-    return list;
-  }, [draftPeladaUsers]);
-
-  const presenceByBilling = useMemo(() => {
-    const pid = match?.peladaId;
-    if (pid == null) {
-      return { monthly: [] as UserSummary[], daily: [] as UserSummary[] };
-    }
-    const monthly: UserSummary[] = [];
-    const daily: UserSummary[] = [];
-    for (const u of draftMembersSorted) {
-      if (isMensalistaOnPelada(u, pid)) {
-        monthly.push(u);
-      } else {
-        daily.push(u);
-      }
-    }
-    return { monthly, daily };
-  }, [draftMembersSorted, match?.peladaId]);
-
   const presentForDraftKey = useMemo(
     () =>
       [...presentForDraft]
         .sort((a, b) => a - b)
         .join(','),
     [presentForDraft],
-  );
-
-  const currentGoalkeeperUserIds = useMemo(
-    () => new Set(goalkeeperUserIdsFromMatchRoster(players, presentForDraft, draftPeladaUsers)),
-    [players, presentForDraft, draftPeladaUsers],
   );
 
   useEffect(() => {
@@ -509,56 +453,6 @@ export function MatchDetailPage() {
     return () => window.clearTimeout(handle);
   }, [presentForDraftKey, match?.peladaId, presenceDateForMatch, canDraftPresence, loadingMatchDraft]);
 
-  function togglePresentOnMatchDraft(userId: number, on: boolean) {
-    setPresentForDraft((prev) => {
-      const n = new Set(prev);
-      if (on) n.add(userId);
-      else n.delete(userId);
-      return n;
-    });
-  }
-
-  async function runDraftOnMatchPage() {
-    if (!match?.peladaId || !presenceDateForMatch) return;
-    if (teams.length < 2) {
-      appToast.warning('Crie ao menos 2 equipes na partida antes de sortear.');
-      return;
-    }
-    if (presentForDraft.size < 2) {
-      appToast.warning('Marque ao menos 2 presentes antes de sortear.');
-      return;
-    }
-    setRunningDraftOnMatch(true);
-    try {
-      const gkIds = [...currentGoalkeeperUserIds];
-      const res = await runDraft(match.peladaId, {
-        date: presenceDateForMatch,
-        goalkeeperUserIds: gkIds,
-        teamNames: teams.map((t) => t.name),
-        linePlayersPerTeam:
-          peladaForMatch?.linePlayersPerTeam != null && peladaForMatch.linePlayersPerTeam > 0
-            ? peladaForMatch.linePlayersPerTeam
-            : undefined,
-      });
-      const draftLines = Array.isArray(res) ? res : [];
-      const linesPayload = draftLines.map((line) => ({
-        teamName: line.teamName,
-        slots: line.players.map((slot) => ({
-          userId: slot.userId,
-          goalkeeper: currentGoalkeeperUserIds.has(slot.userId),
-        })),
-      }));
-      await applyDraftToMatch(matchId, { lines: linesPayload });
-
-      await refresh();
-      appToast.success('Jogadores da linha foram sorteados e adicionados nas equipes.');
-    } catch (e) {
-      appToast.error(getApiErrorMessage(e, 'Falha ao sortear.'));
-    } finally {
-      setRunningDraftOnMatch(false);
-    }
-  }
-
   function rosterSlicesForTeam(teamId: number) {
     const teamPlayers = players.filter((p) => p.teamId === teamId);
     const firstFieldIdx = teamPlayers.findIndex((p) => !p.goalkeeper);
@@ -574,18 +468,6 @@ export function MatchDetailPage() {
       await refresh();
     } catch {
       appToast.error('Falha ao remover jogador.');
-    }
-  }
-
-  async function onCreateTeam(e: FormEvent) {
-    e.preventDefault();
-    try {
-      await createTeamForMatch(matchId, newTeamName.trim());
-      setNewTeamName('');
-      appToast.success('Equipe criada nesta partida.');
-      await refresh();
-    } catch {
-      appToast.error('Falha ao criar equipe (administrador ou SCOUT).');
     }
   }
 
@@ -808,242 +690,12 @@ export function MatchDetailPage() {
 
       {match && mediaItems.length > 0 && <MatchMediaGallery items={mediaItems} />}
 
-      {match?.peladaId != null && (
-        <div className={s.card} style={{ marginBottom: '1.25rem' }}>
-            <h2 className={s.cardTitle}>1. Presença nesta partida</h2>
-            <p className={s.lead} style={{ marginBottom: '1rem' }}>
-              Data de referência: <strong>{presenceDateForMatch}</strong> (dia da partida). A presença é confirmada ao
-              marcar ou desmarcar cada jogador. Apenas administradores e scout podem alterar.
-            </p>
-            {loadingMatchDraft ? (
-              <p className={s.lead}>Carregando presença…</p>
-            ) : canDraftPresence ? (
-              <>
-                <p className={s.statsDetailMeta} style={{ marginBottom: '0.5rem' }}>
-                  Marque quem compareceu à pelada neste dia. Mensalistas e diaristas aparecem em colunas distintas; os
-                  dois grupos entram no sorteio normalmente.
-                </p>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
-                    gap: '1.25rem',
-                    alignItems: 'start',
-                  }}
-                >
-                  <div>
-                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
-                      Mensalistas
-                    </p>
-                    {presenceByBilling.monthly.length === 0 ? (
-                      <p className={s.statsDetailMeta}>Nenhum mensalista nesta pelada.</p>
-                    ) : (
-                      <ul
-                        style={{
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        {presenceByBilling.monthly.map((u) => (
-                          <li key={u.id}>
-                            <label className={s.checkboxRow}>
-                              <input
-                                type="checkbox"
-                                checked={presentForDraft.has(u.id)}
-                                onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
-                              />
-                              <span>{u.name}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div>
-                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
-                      Diaristas
-                    </p>
-                    {presenceByBilling.daily.length === 0 ? (
-                      <p className={s.statsDetailMeta}>Nenhum diarista nesta pelada.</p>
-                    ) : (
-                      <ul
-                        style={{
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        {presenceByBilling.daily.map((u) => (
-                          <li key={u.id}>
-                            <label className={s.checkboxRow}>
-                              <input
-                                type="checkbox"
-                                checked={presentForDraft.has(u.id)}
-                                onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
-                              />
-                              <span>{u.name}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : draftMembersSorted.length === 0 ? (
-              <p className={s.lead}>Nenhum jogador cadastrado nesta pelada.</p>
-            ) : (
-              <>
-                <p className={s.statsDetailMeta} style={{ marginBottom: '0.5rem' }}>
-                  Mensalistas e diaristas em colunas; ambos podem ser sorteados quando marcados como presentes.
-                </p>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
-                    gap: '1.25rem',
-                    alignItems: 'start',
-                  }}
-                >
-                  <div>
-                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
-                      Mensalistas
-                    </p>
-                    {presenceByBilling.monthly.length === 0 ? (
-                      <p className={s.statsDetailMeta}>Nenhum mensalista nesta pelada.</p>
-                    ) : (
-                      <ul
-                        style={{
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.35rem',
-                        }}
-                      >
-                        {presenceByBilling.monthly.map((u) => {
-                          const isPresent = presentForDraft.has(u.id);
-                          return (
-                            <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <span
-                                style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }}
-                                aria-hidden
-                              >
-                                {isPresent ? '✓' : '✕'}
-                              </span>
-                              <span>{u.name}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                  <div>
-                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
-                      Diaristas
-                    </p>
-                    {presenceByBilling.daily.length === 0 ? (
-                      <p className={s.statsDetailMeta}>Nenhum diarista nesta pelada.</p>
-                    ) : (
-                      <ul
-                        style={{
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.35rem',
-                        }}
-                      >
-                        {presenceByBilling.daily.map((u) => {
-                          const isPresent = presentForDraft.has(u.id);
-                          return (
-                            <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <span
-                                style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }}
-                                aria-hidden
-                              >
-                                {isPresent ? '✓' : '✕'}
-                              </span>
-                              <span>{u.name}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-        </div>
-      )}
-
       <div className={s.card}>
-        <h2 className={s.cardTitle}>2. Equipes desta partida</h2>
+        <h2 className={s.cardTitle}>1. Equipes desta partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
-          Cada equipe existe só neste jogo. Os nomes vêm da <strong>configuração da pelada</strong>. O select de jogadores
-          lista apenas quem está <strong>marcado como presente</strong> na seção 1. Use o checkbox{' '}
-          <strong>É o goleiro desta equipe</strong> ao adicionar o goleiro; no sorteio da linha, esses jogadores ficam de
-          fora da distribuição do restante. Use <strong>Remover</strong> para substituições.
+          Os times já vêm da preparação de pré-jogo na tela de Partidas. Aqui você acompanha os elencos e pode fazer
+          ajustes pontuais, se necessário.
         </p>
-        {effectiveCanRoster && (
-          <form className={s.formInline} style={{ marginBottom: '1.5rem' }} onSubmit={onCreateTeam}>
-            <div className={s.field} style={{ flex: '1 1 220px' }}>
-              <label className={s.fieldLabel} htmlFor="new-team-name">
-                Nova equipe
-                <span className={s.requiredMark} aria-hidden>
-                  *
-                </span>
-              </label>
-              <select
-                id="new-team-name"
-                className={`${s.input} ${s.select}`}
-                value={newTeamName}
-                onChange={(ev) => setNewTeamName(ev.target.value)}
-                required
-                disabled={peladaForMatch === undefined || teamNameChoices.length === 0}
-              >
-                <option value="">
-                  {peladaForMatch === undefined
-                    ? 'Carregando…'
-                    : teamNameChoices.length === 0
-                      ? 'Nenhuma equipe disponível'
-                      : 'Selecione a equipe…'}
-                </option>
-                {teamNameChoices.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              {peladaForMatch !== undefined && teamNameChoices.length === 0 && teams.length > 0 && (
-                <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem', marginBottom: 0 }}>
-                  Todas as equipes previstas para esta pelada já foram adicionadas à partida.
-                </p>
-              )}
-              {peladaForMatch === null && (
-                <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem', marginBottom: 0 }}>
-                  Não foi possível carregar a pelada. Atualize a página ou confira sua conexão.
-                </p>
-              )}
-            </div>
-            <button
-              className={s.btnPrimary}
-              type="submit"
-              disabled={peladaForMatch === undefined || teamNameChoices.length === 0 || !newTeamName.trim()}
-            >
-              Adicionar equipe
-            </button>
-          </form>
-        )}
         {!matchFinished && !canRoster && (
           <p className={s.lead}>
             Apenas <strong>administradores</strong> (geral ou da pelada) ou <strong>SCOUT</strong> criam equipes e
@@ -1110,18 +762,12 @@ export function MatchDetailPage() {
                       </>
                     }
                     value={rosterPickByTeam[team.id] ?? ''}
-                    aria-label="Escolher jogador presente nesta data (seção 1)"
+                    aria-label="Escolher jogador para a equipe"
                     options={directorySelectOptions}
-                    disabled={match?.peladaId != null && loadingMatchDraft}
                     required
                     emptyOption={{
                       value: '',
-                      label:
-                        match?.peladaId != null && loadingMatchDraft
-                          ? '— Carregando presença… —'
-                          : rosterGroupsForPicker.length === 0
-                            ? '— Marque presenças na seção 1 ou ninguém disponível —'
-                            : '— Selecione o jogador —',
+                      label: rosterGroupsForPicker.length === 0 ? '— Ninguém disponível —' : '— Selecione o jogador —',
                     }}
                     onChange={(v) => {
                       setRosterPickByTeam((prev) => ({ ...prev, [team.id]: v }));
@@ -1161,39 +807,10 @@ export function MatchDetailPage() {
           ))}
         </div>
 
-        {match?.peladaId != null && !loadingMatchDraft && (
-          <>
-            {canDraftPresence && (
-              <div
-                style={{
-                  marginTop: '1.5rem',
-                  paddingTop: '1.25rem',
-                  borderTop: '1px solid rgba(255,255,255,0.08)',
-                }}
-              >
-                <h3 className={s.cardTitle} style={{ fontSize: '1.05rem', marginBottom: '0.5rem' }}>
-                  Sorteio da linha
-                </h3>
-                <p className={s.statsDetailMeta} style={{ marginBottom: '0.75rem' }}>
-                  Use o checkbox ao adicionar jogadores nas equipes para marcar goleiros. Eles não entram no sorteio; só os
-                  demais presentes são distribuídos entre os times.
-                </p>
-                <button
-                  type="button"
-                  className={s.btnPrimary}
-                  disabled={runningDraftOnMatch || presentForDraft.size < 2}
-                  onClick={() => void runDraftOnMatchPage()}
-                >
-                  {runningDraftOnMatch ? 'Sorteando…' : 'Sortear jogadores da linha'}
-                </button>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>3. Pênaltis da partida</h2>
+        <h2 className={s.cardTitle}>2. Pênaltis da partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
           Sessão específica para marcação de pênaltis. Use esta seção somente quando a partida terminar empatada.
         </p>
@@ -1254,7 +871,7 @@ export function MatchDetailPage() {
       </div>
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>4. Lances (stats) desta partida</h2>
+        <h2 className={s.cardTitle}>3. Lances (stats) desta partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
           Registre o que acontece no jogo; as estatísticas por jogador usam estes eventos.
         </p>
@@ -1333,7 +950,7 @@ export function MatchDetailPage() {
       </div>
 
       <div className={s.card}>
-        <h2 className={s.cardTitle}>5. Encerrar partida</h2>
+        <h2 className={s.cardTitle}>4. Encerrar partida</h2>
         <p className={s.lead}>
           Quando o jogo acabar, finalize aqui. Você será levado à tela de <strong>nova partida</strong> para começar o
           próximo cadastro.
