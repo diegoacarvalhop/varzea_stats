@@ -3,13 +3,22 @@ import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
 import { getApiErrorMessage } from '@/lib/apiError';
 import { maskCurrencyBRInput, parseMaskedMoneyToCents } from '@/lib/moneyMask';
+import { hasAnyRole, hasRole } from '@/lib/roles';
 import {
+  approveReceipt,
+  listMyMonthlyPayments,
   listMonthlyPaymentsByUser,
+  listPendingReceipts,
+  listReceiptsByUser,
+  receiptFileUrl,
+  rejectReceipt,
   listDelinquent,
   recordPayment,
   sendDelinquentReminder,
+  submitReceipt,
   type FinanceDelinquentRow,
   type FinanceMonthlyPayment,
+  type FinanceReceipt,
   type PaymentKind,
 } from '@/services/financeService';
 import { listUsers, type UserSummary } from '@/services/userService';
@@ -61,9 +70,12 @@ function formatOverdueDailyDates(days?: string[]): string {
 }
 
 export function FinancePage() {
-  const { peladaId, peladaName } = useAuth();
+  const { peladaId, peladaName, roles, email } = useAuth();
+  const canManageFinance = hasAnyRole(roles, ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO']);
+  const isPlayer = hasRole(roles, 'PLAYER');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [delinquent, setDelinquent] = useState<FinanceDelinquentRow[]>([]);
+  const [pendingReceipts, setPendingReceipts] = useState<FinanceReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [payUserId, setPayUserId] = useState<number | ''>('');
   const [kind, setKind] = useState<PaymentKind>('MONTHLY');
@@ -75,7 +87,14 @@ export function FinancePage() {
   const [historyUserId, setHistoryUserId] = useState<number | ''>('');
   const [historyLoading, setHistoryLoading] = useState(false);
   const [monthlyHistory, setMonthlyHistory] = useState<FinanceMonthlyPayment[]>([]);
+  const [receiptHistory, setReceiptHistory] = useState<FinanceReceipt[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [receiptPaidAt, setReceiptPaidAt] = useState(todayIso());
+  const [receiptMonths, setReceiptMonths] = useState<string[]>([monthStartIso(new Date()).slice(0, 7)]);
+  const [receiptMonthInput, setReceiptMonthInput] = useState(monthStartIso(new Date()).slice(0, 7));
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptSubmitting, setReceiptSubmitting] = useState(false);
+  const [reviewingReceiptById, setReviewingReceiptById] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     if (peladaId == null) {
@@ -86,9 +105,20 @@ export function FinancePage() {
     }
     setLoading(true);
     try {
-      const [uList, del] = await Promise.all([listUsers(), listDelinquent(peladaId)]);
+      const promises: Array<Promise<unknown>> = [listUsers()];
+      if (canManageFinance) {
+        promises.push(listDelinquent(peladaId), listPendingReceipts(peladaId));
+      }
+      const result = await Promise.all(promises);
+      const uList = result[0] as UserSummary[];
       setUsers(uList);
-      setDelinquent(del);
+      if (canManageFinance) {
+        setDelinquent(result[1] as FinanceDelinquentRow[]);
+        setPendingReceipts(result[2] as FinanceReceipt[]);
+      } else {
+        setDelinquent([]);
+        setPendingReceipts([]);
+      }
     } catch {
       appToast.error('Não foi possível carregar dados financeiros.');
       setUsers([]);
@@ -96,7 +126,7 @@ export function FinancePage() {
     } finally {
       setLoading(false);
     }
-  }, [peladaId]);
+  }, [canManageFinance, peladaId]);
 
   useEffect(() => {
     document.title = 'Financeiro · VARzea Stats';
@@ -111,6 +141,10 @@ export function FinancePage() {
         (Array.isArray(u.peladaIds) && u.peladaIds.includes(peladaId)),
     );
   }, [users, peladaId]);
+  const currentUserId = useMemo(
+    () => users.find((u) => u.email.toLowerCase() === (email ?? '').toLowerCase())?.id ?? null,
+    [users, email],
+  );
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -158,14 +192,25 @@ export function FinancePage() {
 
   async function onListMonthlyHistory(e: FormEvent) {
     e.preventDefault();
-    if (peladaId == null || historyUserId === '') {
+    if (peladaId == null || (canManageFinance && historyUserId === '')) {
       appToast.warning('Selecione o jogador para listar as mensalidades.');
       return;
     }
     setHistoryLoading(true);
     try {
-      const rows = await listMonthlyPaymentsByUser({ peladaId, userId: Number(historyUserId) });
+      const userToLoad = canManageFinance ? Number(historyUserId) : Number(currentUserId);
+      if (!Number.isFinite(userToLoad) || userToLoad <= 0) {
+        appToast.warning('Não foi possível identificar seu usuário para carregar o histórico.');
+        return;
+      }
+      const [rows, receipts] = canManageFinance
+        ? await Promise.all([
+            listMonthlyPaymentsByUser({ peladaId, userId: userToLoad }),
+            listReceiptsByUser({ peladaId, userId: userToLoad }),
+          ])
+        : await Promise.all([listMyMonthlyPayments(peladaId), listReceiptsByUser({ peladaId, userId: userToLoad })]);
       setMonthlyHistory(rows);
+      setReceiptHistory(receipts);
       setHistoryLoaded(true);
       if (rows.length === 0) {
         appToast.success('Nenhuma mensalidade registrada para este jogador nesta pelada.');
@@ -178,6 +223,77 @@ export function FinancePage() {
       setHistoryLoading(false);
     }
   }
+
+  async function onSubmitReceipt(e: FormEvent) {
+    e.preventDefault();
+    if (peladaId == null) return;
+    if (!receiptFile) {
+      appToast.warning('Selecione o arquivo do comprovante.');
+      return;
+    }
+    const cleanMonths = receiptMonths.filter(Boolean);
+    if (cleanMonths.length === 0) {
+      appToast.warning('Selecione ao menos um mês de referência.');
+      return;
+    }
+    setReceiptSubmitting(true);
+    try {
+      await submitReceipt({ peladaId, paidAt: receiptPaidAt, referenceMonths: cleanMonths, file: receiptFile });
+      appToast.success('Comprovante enviado para análise.');
+      setReceiptFile(null);
+      setReceiptMonths([monthStartIso(new Date()).slice(0, 7)]);
+      setReceiptMonthInput(monthStartIso(new Date()).slice(0, 7));
+      if (canManageFinance) {
+        await load();
+      }
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível enviar o comprovante.'));
+    } finally {
+      setReceiptSubmitting(false);
+    }
+  }
+
+  function addReceiptMonth() {
+    if (!receiptMonthInput) return;
+    setReceiptMonths((prev) => {
+      if (prev.includes(receiptMonthInput)) return prev;
+      return [...prev, receiptMonthInput].sort();
+    });
+  }
+
+  function removeReceiptMonth(month: string) {
+    setReceiptMonths((prev) => prev.filter((m) => m !== month));
+  }
+
+  async function onReviewReceipt(receiptId: number, action: 'approve' | 'reject') {
+    setReviewingReceiptById((prev) => ({ ...prev, [receiptId]: true }));
+    try {
+      if (action === 'approve') {
+        await approveReceipt(receiptId);
+        appToast.success('Comprovante aprovado e baixa realizada.');
+      } else {
+        await rejectReceipt(receiptId);
+        appToast.success('Comprovante rejeitado.');
+      }
+      await load();
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível analisar o comprovante.'));
+    } finally {
+      setReviewingReceiptById((prev) => ({ ...prev, [receiptId]: false }));
+    }
+  }
+
+  const receiptByMonth = useMemo(() => {
+    const map = new Map<string, FinanceReceipt>();
+    receiptHistory
+      .filter((r) => r.status !== 'REJECTED')
+      .forEach((r) => {
+        r.referenceMonths.forEach((m) => {
+          if (!map.has(m)) map.set(m, r);
+        });
+      });
+    return map;
+  }, [receiptHistory]);
 
   if (peladaId == null) {
     return (
@@ -199,9 +315,10 @@ export function FinancePage() {
         <p className={s.lead}>Carregando…</p>
       ) : (
         <>
-          <section className={s.card}>
-            <h2 className={s.cardTitle}>Registrar pagamento</h2>
-            <form className={s.form} style={{ maxWidth: '28rem' }} onSubmit={(e) => void onSubmit(e)}>
+          {canManageFinance && (
+            <section className={s.card}>
+              <h2 className={s.cardTitle}>Registrar pagamento</h2>
+              <form className={`${s.form} ${s.financeFormCompact}`} onSubmit={(e) => void onSubmit(e)}>
               <div className={s.field}>
                 <label className={s.fieldLabel} htmlFor="fin-user">
                   Jogador
@@ -279,9 +396,81 @@ export function FinancePage() {
               <button className={s.btnPrimary} type="submit" disabled={submitting}>
                 {submitting ? 'Salvando…' : 'Registrar'}
               </button>
-            </form>
-          </section>
-          <section className={s.card} style={{ marginTop: '1.25rem' }}>
+              </form>
+            </section>
+          )}
+          {isPlayer && (
+            <section className={`${s.card} ${s.financeSectionTop}`}>
+              <h2 className={s.cardTitle}>Enviar comprovante de mensalidade</h2>
+              <form className={`${s.form} ${s.financeFormWide}`} onSubmit={(e) => void onSubmitReceipt(e)}>
+                <div className={s.field}>
+                  <label className={s.fieldLabel} htmlFor="receipt-paid">
+                    Data do pagamento
+                  </label>
+                  <input
+                    id="receipt-paid"
+                    className={s.input}
+                    type="date"
+                    value={receiptPaidAt}
+                    onChange={(ev) => setReceiptPaidAt(ev.target.value)}
+                    required
+                  />
+                </div>
+                <div className={s.field}>
+                  <label className={s.fieldLabel} htmlFor="receipt-month">
+                    Meses quitados
+                  </label>
+                  <div className={s.financeMonthPickerRow}>
+                    <input
+                      id="receipt-month"
+                      className={s.input}
+                      type="month"
+                      value={receiptMonthInput}
+                      onChange={(ev) => setReceiptMonthInput(ev.target.value)}
+                    />
+                    <button type="button" className={s.btn} onClick={addReceiptMonth}>
+                      Adicionar
+                    </button>
+                  </div>
+                  {receiptMonths.length > 0 ? (
+                    <div className={s.financeMonthChips}>
+                      {receiptMonths.map((month) => (
+                        <button key={month} type="button" className={s.btn} onClick={() => removeReceiptMonth(month)}>
+                          {new Date(`${month}-01T00:00:00`).toLocaleDateString('pt-BR', {
+                            month: 'long',
+                            year: 'numeric',
+                          })}{' '}
+                          ×
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={s.statsDetailMeta}>
+                      Nenhum mês selecionado.
+                    </p>
+                  )}
+                </div>
+                <div className={s.field}>
+                  <label className={s.fieldLabel} htmlFor="receipt-file">
+                    Comprovante (PDF ou imagem)
+                  </label>
+                  <input
+                    id="receipt-file"
+                    className={s.input}
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                    onChange={(ev) => setReceiptFile(ev.target.files?.[0] ?? null)}
+                    required
+                  />
+                </div>
+                <button className={s.btnPrimary} type="submit" disabled={receiptSubmitting}>
+                  {receiptSubmitting ? 'Enviando…' : 'Enviar comprovante'}
+                </button>
+              </form>
+            </section>
+          )}
+          {canManageFinance && (
+            <section className={`${s.card} ${s.financeSectionTop}`}>
             <h2 className={s.cardTitle}>Inadimplência</h2>
             {delinquent.length === 0 ? (
               <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
@@ -311,22 +500,18 @@ export function FinancePage() {
                         </td>
                         <td>{formatReminderSentAt(row.reminderSentAt)}</td>
                         <td>
-                          {row.billingType === 'DAILY' ? (
-                            <span className={s.statsDetailMeta}>Dar baixa em "Registrar pagamento"</span>
-                          ) : (
-                            <button
-                              type="button"
-                              className={s.btn}
-                              disabled={Boolean(sendingReminderByUser[row.userId])}
-                              onClick={() => void onSendReminder(row)}
-                            >
-                              {sendingReminderByUser[row.userId]
-                                ? 'Enviando…'
-                                : row.reminderSentAt
-                                  ? 'Reenviar cobrança'
-                                  : 'Enviar cobrança'}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className={s.btn}
+                            disabled={Boolean(sendingReminderByUser[row.userId])}
+                            onClick={() => void onSendReminder(row)}
+                          >
+                            {sendingReminderByUser[row.userId]
+                              ? 'Enviando…'
+                              : row.reminderSentAt
+                                ? 'Reenviar cobrança'
+                                : 'Enviar cobrança'}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -334,37 +519,94 @@ export function FinancePage() {
                 </table>
               </div>
             )}
-          </section>
-          <section className={s.card} style={{ marginTop: '1.25rem' }}>
+            </section>
+          )}
+          {canManageFinance && (
+            <section className={`${s.card} ${s.financeSectionTop}`}>
+              <h2 className={s.cardTitle}>Comprovantes pendentes</h2>
+              {pendingReceipts.length === 0 ? (
+                <p className={s.lead}>Nenhum comprovante pendente.</p>
+              ) : (
+                <div className={s.trajectoryTableWrap}>
+                  <table className={s.userListTable}>
+                    <thead>
+                      <tr>
+                        <th>Jogador</th>
+                        <th>Pagamento</th>
+                        <th>Meses</th>
+                        <th>Arquivo</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingReceipts.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.userName}</td>
+                          <td>{new Date(`${r.paidAt}T00:00:00`).toLocaleDateString('pt-BR')}</td>
+                          <td>{formatOverdueMonths(r.referenceMonths)}</td>
+                          <td>
+                            <a className={s.btn} href={receiptFileUrl(r.id)} target="_blank" rel="noreferrer">
+                              Ver comprovante
+                            </a>
+                          </td>
+                          <td className={s.financeActionRow}>
+                            <button
+                              type="button"
+                              className={s.btnPrimary}
+                              disabled={Boolean(reviewingReceiptById[r.id])}
+                              onClick={() => void onReviewReceipt(r.id, 'approve')}
+                            >
+                              Aprovar
+                            </button>
+                            <button
+                              type="button"
+                              className={s.btn}
+                              disabled={Boolean(reviewingReceiptById[r.id])}
+                              onClick={() => void onReviewReceipt(r.id, 'reject')}
+                            >
+                              Rejeitar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+          <section className={`${s.card} ${s.financeSectionTop}`}>
             <h2 className={s.cardTitle}>Mensalidades por jogador</h2>
             <p className={s.lead} style={{ marginTop: 0 }}>
               Consulta disponível para Financeiro, Administrador e Administrador geral.
             </p>
-            <form className={s.form} style={{ maxWidth: '28rem' }} onSubmit={(e) => void onListMonthlyHistory(e)}>
-              <div className={s.field}>
-                <label className={s.fieldLabel} htmlFor="fin-history-user">
-                  Jogador
-                </label>
-                <select
-                  id="fin-history-user"
-                  className={s.input}
-                  value={historyUserId === '' ? '' : String(historyUserId)}
-                  onChange={(ev) => setHistoryUserId(ev.target.value === '' ? '' : Number(ev.target.value))}
-                  required
-                >
-                  <option value="">Selecione…</option>
-                  {filteredUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <form className={`${s.form} ${s.financeFormCompact}`} onSubmit={(e) => void onListMonthlyHistory(e)}>
+              {canManageFinance && (
+                <div className={s.field}>
+                  <label className={s.fieldLabel} htmlFor="fin-history-user">
+                    Jogador
+                  </label>
+                  <select
+                    id="fin-history-user"
+                    className={s.input}
+                    value={historyUserId === '' ? '' : String(historyUserId)}
+                    onChange={(ev) => setHistoryUserId(ev.target.value === '' ? '' : Number(ev.target.value))}
+                    required
+                  >
+                    <option value="">Selecione…</option>
+                    {filteredUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button className={s.btnPrimary} type="submit" disabled={historyLoading}>
                 {historyLoading ? 'Listando…' : 'Listar pagamentos'}
               </button>
             </form>
-            <div style={{ marginTop: '1rem' }}>
+            <div className={s.financeHistoryWrap}>
               {monthlyHistory.length === 0 ? (
                 <p className={s.lead}>
                   {historyLoaded
@@ -379,6 +621,7 @@ export function FinancePage() {
                         <th>Mês de referência</th>
                         <th>Data do pagamento</th>
                         <th>Valor</th>
+                        <th>Comprovante</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -396,6 +639,28 @@ export function FinancePage() {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}`}
+                          </td>
+                          <td>
+                            {row.receiptId ? (
+                              <a className={s.btn} href={receiptFileUrl(row.receiptId)} target="_blank" rel="noreferrer">
+                                Ver comprovante
+                              </a>
+                            ) : (
+                              (() => {
+                                const fromReceipt = receiptByMonth.get(row.referenceMonth);
+                                if (!fromReceipt) return <span className={s.statsDetailMeta}>—</span>;
+                                return (
+                                  <a
+                                    className={s.btn}
+                                    href={receiptFileUrl(fromReceipt.id)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Ver comprovante
+                                  </a>
+                                );
+                              })()
+                            )}
                           </td>
                         </tr>
                       ))}

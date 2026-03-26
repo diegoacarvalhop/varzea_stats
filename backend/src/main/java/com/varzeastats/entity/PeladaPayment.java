@@ -51,4 +51,8 @@ public class PeladaPayment {
 
     @Column(name = "reference_month", nullable = false)
     private LocalDate referenceMonth;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receipt_id")
+    private PeladaPaymentReceipt receipt;
 }

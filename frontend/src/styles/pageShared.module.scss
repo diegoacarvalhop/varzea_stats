@@ -1210,6 +1210,39 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   border-radius: 4px;
 }
 
+.financeFormCompact {
+  max-width: 28rem;
+}
+
+.financeFormWide {
+  max-width: 32rem;
+}
+
+.financeSectionTop {
+  margin-top: 1.25rem;
+}
+
+.financeMonthPickerRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.financeMonthChips {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.financeActionRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.financeHistoryWrap {
+  margin-top: 1rem;
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 0 0 2rem;

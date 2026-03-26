@@ -64,13 +64,14 @@ Para não perder imagens de logo a cada deploy:
 /app/data
 ```
 
-3. Adicione a variável:
+3. Adicione as variáveis:
 
 ```env
-VARZEA_PELADA_LOGO_DIR=image.png
+VARZEA_PELADA_LOGO_DIR=/app/data/pelada-logos
+VARZEA_PAYMENT_RECEIPT_DIR=/app/data/payment-receipts
 ```
 
-O backend já cria e usa esse diretório dentro do container.
+O backend cria e usa esses diretórios dentro do container.
 
 ### Produção recomendada
 
@@ -114,6 +115,7 @@ Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runti
 - Abrir o frontend e fazer login.
 - Criar/editar usuário em `/admin/users`.
 - Criar pelada com logo e validar persistência após novo deploy.
+- Enviar comprovante (PDF/imagem) no financeiro como jogador e aprovar como Admin/Financeiro.
 - Abrir `https://SEU_BACKEND/swagger-ui.html`.
 - Confirmar `GET https://SEU_BACKEND/actuator/health` com status `UP`.
 

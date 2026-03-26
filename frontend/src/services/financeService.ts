@@ -33,6 +33,27 @@ export interface FinanceMonthlyPayment {
   amountCents: number;
   paidAt: string;
   referenceMonth: string;
+  receiptId?: number | null;
+}
+
+export type PaymentReceiptStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface FinanceReceipt {
+  id: number;
+  userId: number;
+  userName: string;
+  peladaId: number;
+  paidAt: string;
+  referenceMonths: string[];
+  status: PaymentReceiptStatus;
+  originalFilename: string;
+  contentType: string;
+  fileSizeBytes: number;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedByUserId?: number | null;
+  reviewedByName?: string | null;
+  reviewNote?: string | null;
 }
 
 export async function recordPayment(payload: PaymentRecordPayload): Promise<void> {
@@ -53,4 +74,48 @@ export async function listMonthlyPaymentsByUser(
 ): Promise<FinanceMonthlyPayment[]> {
   const { data } = await api.get<FinanceMonthlyPayment[]>('/finance/payments/monthly', { params: payload });
   return data;
+}
+
+export async function listMyMonthlyPayments(peladaId: number): Promise<FinanceMonthlyPayment[]> {
+  const { data } = await api.get<FinanceMonthlyPayment[]>('/finance/payments/monthly/my', { params: { peladaId } });
+  return data;
+}
+
+export async function submitReceipt(payload: {
+  peladaId: number;
+  paidAt: string;
+  referenceMonths: string[];
+  file: File;
+}): Promise<FinanceReceipt> {
+  const fd = new FormData();
+  fd.append('peladaId', String(payload.peladaId));
+  fd.append('paidAt', payload.paidAt);
+  payload.referenceMonths.forEach((m) => fd.append('referenceMonths', m));
+  fd.append('file', payload.file);
+  const { data } = await api.post<FinanceReceipt>('/finance/receipts', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+export async function listPendingReceipts(peladaId: number): Promise<FinanceReceipt[]> {
+  const { data } = await api.get<FinanceReceipt[]>('/finance/receipts/pending', { params: { peladaId } });
+  return data;
+}
+
+export async function listReceiptsByUser(payload: { peladaId: number; userId: number }): Promise<FinanceReceipt[]> {
+  const { data } = await api.get<FinanceReceipt[]>('/finance/receipts/user', { params: payload });
+  return data;
+}
+
+export async function approveReceipt(receiptId: number, note?: string): Promise<void> {
+  await api.post(`/finance/receipts/${receiptId}/approve`, { note: note ?? null });
+}
+
+export async function rejectReceipt(receiptId: number, note?: string): Promise<void> {
+  await api.post(`/finance/receipts/${receiptId}/reject`, { note: note ?? null });
+}
+
+export function receiptFileUrl(receiptId: number): string {
+  return api.getUri({ url: `/finance/receipts/${receiptId}/file` });
 }

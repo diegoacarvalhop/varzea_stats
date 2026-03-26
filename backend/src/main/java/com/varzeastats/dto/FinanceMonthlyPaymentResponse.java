@@ -21,4 +21,5 @@ public class FinanceMonthlyPaymentResponse {
     private Integer amountCents;
     private LocalDate paidAt;
     private LocalDate referenceMonth;
+    private Long receiptId;
 }

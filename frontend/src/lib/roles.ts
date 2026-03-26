@@ -50,7 +50,7 @@ export const MEDIA_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'MEDIA'];
 /** Tela de usuários. */
 export const USER_ADMIN_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
 
-export const FINANCE_MODULE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO'];
+export const FINANCE_MODULE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO', 'PLAYER'];
 
 export const PELADA_SETTINGS_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
 
