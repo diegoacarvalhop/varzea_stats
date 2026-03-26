@@ -30,4 +30,7 @@ public class UserCreateRequest {
 
     /** Só usado com perfil jogador: true = mensalista, false = diarista. Null = mensalista. */
     private Boolean billingMonthly;
+
+    /** Só faz sentido para perfil jogador. */
+    private Boolean goalkeeper;
 }

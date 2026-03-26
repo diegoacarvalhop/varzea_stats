@@ -66,4 +66,8 @@ public class User {
     @Column(name = "account_active", nullable = false)
     @Builder.Default
     private boolean accountActive = true;
+
+    @Column(name = "is_goalkeeper", nullable = false)
+    @Builder.Default
+    private boolean goalkeeper = false;
 }

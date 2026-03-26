@@ -110,14 +110,19 @@ export function MatchesPage() {
   }, [draftPeladaUsers]);
 
   const presenceByBilling = useMemo(() => {
-    if (peladaId == null) return { monthly: [] as UserSummary[], daily: [] as UserSummary[] };
+    if (peladaId == null) return { monthly: [] as UserSummary[], daily: [] as UserSummary[], goalkeepers: [] as UserSummary[] };
     const monthly: UserSummary[] = [];
     const daily: UserSummary[] = [];
+    const goalkeepers: UserSummary[] = [];
     for (const u of draftMembersSorted) {
+      if (u.goalkeeper) {
+        goalkeepers.push(u);
+        continue;
+      }
       if (isMensalistaOnPelada(u, peladaId)) monthly.push(u);
       else daily.push(u);
     }
-    return { monthly, daily };
+    return { monthly, daily, goalkeepers };
   }, [draftMembersSorted, peladaId]);
 
   const presentForDraftKey = useMemo(
@@ -139,6 +144,10 @@ export function MatchesPage() {
   const presentUsersSorted = useMemo(() => {
     return draftMembersSorted.filter((u) => presentForDraft.has(u.id));
   }, [draftMembersSorted, presentForDraft]);
+
+  const presentGoalkeepersSorted = useMemo(() => {
+    return presentUsersSorted.filter((u) => u.goalkeeper);
+  }, [presentUsersSorted]);
 
   const selectedGoalkeeperIds = useMemo(() => {
     const ids = pregameTeams
@@ -368,6 +377,11 @@ export function MatchesPage() {
       appToast.warning('O goleiro precisa estar marcado como presente.');
       return;
     }
+    const pickedUser = draftPeladaUsers.find((u) => u.id === pick);
+    if (!pickedUser?.goalkeeper) {
+      appToast.warning('Selecione um usuário marcado como goleiro.');
+      return;
+    }
     setGoalkeeperByTeam((prev) => ({ ...prev, [teamName]: pick }));
     appToast.success('Goleiro definido para a equipe.');
   }
@@ -475,6 +489,22 @@ export function MatchesPage() {
                     </label>
                   ))}
                 </div>
+                <div>
+                  <p className={s.fieldLabel}>2) Presença - Goleiros</p>
+                  {presenceByBilling.goalkeepers.map((u) => (
+                    <label key={u.id} className={s.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={presentForDraft.has(u.id)}
+                        onChange={(ev) => togglePresent(u.id, ev.target.checked)}
+                      />
+                      <span>
+                        {u.name}
+                        <span className={s.gkBadge}>Goleiro</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div style={{ marginTop: '1rem' }}>
@@ -542,7 +572,7 @@ export function MatchesPage() {
                                 }
                               >
                                 <option value="">— Selecione o jogador —</option>
-                                {presentUsersSorted.map((u) => (
+                                {presentGoalkeepersSorted.map((u) => (
                                   <option key={`${name}-${u.id}`} value={u.id}>
                                     {u.name}
                                   </option>

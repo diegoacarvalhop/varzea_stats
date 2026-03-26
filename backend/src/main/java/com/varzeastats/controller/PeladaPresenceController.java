@@ -91,7 +91,8 @@ public class PeladaPresenceController {
                     .build());
             if (!mem.isBillingMonthly()
                     && u.getRoles() != null
-                    && u.getRoles().contains(Role.PLAYER)) {
+                    && u.getRoles().contains(Role.PLAYER)
+                    && !u.isGoalkeeper()) {
                 diaristaPresentIds.add(uid);
                 peladaDailyDebitRepository
                         .findByPelada_IdAndUser_IdAndDebitDate(peladaId, uid, body.getDate())

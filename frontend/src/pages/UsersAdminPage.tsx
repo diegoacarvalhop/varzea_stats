@@ -187,6 +187,7 @@ export function UsersAdminPage() {
   });
   /** Novo usuário: cobrança na pelada (só UI com perfil jogador) */
   const [newUserBillingMonthly, setNewUserBillingMonthly] = useState(true);
+  const [newUserGoalkeeper, setNewUserGoalkeeper] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [editUser, setEditUser] = useState<UserSummary | null>(null);
@@ -198,6 +199,7 @@ export function UsersAdminPage() {
   const [editPeladaIds, setEditPeladaIds] = useState<Set<number>>(new Set());
   /** true = mensalista, false = diarista */
   const [editBillingMonthlyByPelada, setEditBillingMonthlyByPelada] = useState<Record<number, boolean>>({});
+  const [editGoalkeeper, setEditGoalkeeper] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
 
   const editPeladaIdsKey = useMemo(
@@ -303,6 +305,7 @@ export function UsersAdminPage() {
       bill[id] = u.billingMonthlyByPelada?.[String(id)] !== false;
     }
     setEditBillingMonthlyByPelada(bill);
+    setEditGoalkeeper(u.goalkeeper === true);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -335,6 +338,9 @@ export function UsersAdminPage() {
       };
       if (!onlyAdminGeral && selectedRoles.has('PLAYER')) {
         createPayload.billingMonthly = newUserBillingMonthly;
+        createPayload.goalkeeper = newUserGoalkeeper;
+      } else {
+        createPayload.goalkeeper = false;
       }
       await createUser(createPayload);
       appToast.success('Usuário criado.');
@@ -342,6 +348,7 @@ export function UsersAdminPage() {
       setEmail('');
       setNewPassword('');
       setNewUserBillingMonthly(true);
+      setNewUserGoalkeeper(false);
       setSelectedRoles(new Set(['PLAYER']));
       if (isAdminPelada(viewerRoles) && viewerPeladaId != null) {
         setNewUserPeladaId(viewerPeladaId);
@@ -401,6 +408,7 @@ export function UsersAdminPage() {
         payload.peladaIds = [...editPeladaIds].sort((a, b) => a - b);
       }
       if (editRoles.has('PLAYER')) {
+        payload.goalkeeper = editGoalkeeper;
         if (isAdminGeral(viewerRoles) && !editOnlyAdminGeral) {
           const billing: Record<string, boolean> = {};
           for (const id of editPeladaIds) {
@@ -419,6 +427,8 @@ export function UsersAdminPage() {
             };
           }
         }
+      } else {
+        payload.goalkeeper = false;
       }
       await patchUser(editUser.id, payload);
       appToast.success('Usuário atualizado.');
@@ -454,6 +464,9 @@ export function UsersAdminPage() {
   function billingLabelForUser(u: UserSummary): string {
     if (!u.roles?.includes('PLAYER')) {
       return 'Sem cobrança (sem jogador)';
+    }
+    if (u.goalkeeper) {
+      return 'Isento (goleiro)';
     }
     const ids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
     if (ids.length === 0) return '—';
@@ -653,6 +666,14 @@ export function UsersAdminPage() {
                   />
                   <span>Diarista — pagamento por dia (valor na configuração da pelada)</span>
                 </label>
+                <label className={s.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={newUserGoalkeeper}
+                    onChange={(ev) => setNewUserGoalkeeper(ev.target.checked)}
+                  />
+                  <span>Goleiro — isento de cobrança (mensal e diária)</span>
+                </label>
               </div>
             </fieldset>
           )}
@@ -805,6 +826,19 @@ export function UsersAdminPage() {
                   </div>
                 </fieldset>
               )}
+            {editRoles.has('PLAYER') && (
+              <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <legend className={s.fieldLabel}>Perfil de goleiro</legend>
+                <label className={s.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={editGoalkeeper}
+                    onChange={(ev) => setEditGoalkeeper(ev.target.checked)}
+                  />
+                  <span>Goleiro — isento de cobrança (mensal e diária)</span>
+                </label>
+              </fieldset>
+            )}
             {editUser &&
               editRoles.has('PLAYER') &&
               isAdminPelada(viewerRoles) &&
@@ -877,6 +911,7 @@ export function UsersAdminPage() {
                   <th>Perfis</th>
                   <th>Peladas</th>
                   <th>Cobrança</th>
+                  <th>Goleiro</th>
                   <th>Ativo</th>
                   <th />
                 </tr>
@@ -897,6 +932,7 @@ export function UsersAdminPage() {
                     </td>
                     <td>{peladaLabelsForUser(u)}</td>
                     <td>{billingLabelForUser(u)}</td>
+                    <td>{u.goalkeeper ? 'Sim' : 'Não'}</td>
                     <td>{u.accountActive === false ? 'Não' : 'Sim'}</td>
                     <td>
                       <button type="button" className={s.btn} onClick={() => openEdit(u)}>

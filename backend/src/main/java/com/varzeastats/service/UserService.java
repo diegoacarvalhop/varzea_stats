@@ -96,6 +96,7 @@ public class UserService {
                 .mustChangePassword(false)
                 .accountActive(true)
                 .roles(new LinkedHashSet<>(roleSet))
+                .goalkeeper(roleSet.contains(Role.PLAYER) && Boolean.TRUE.equals(request.getGoalkeeper()))
                 .pelada(pelada)
                 .build();
         user = userRepository.save(user);
@@ -141,6 +142,7 @@ public class UserService {
                 .mustChangePassword(false)
                 .accountActive(true)
                 .roles(roles)
+                .goalkeeper(roles.contains(Role.PLAYER) && Boolean.TRUE.equals(request.getGoalkeeper()))
                 .pelada(selectedPelada)
                 .build();
         user = userRepository.save(user);
@@ -206,6 +208,9 @@ public class UserService {
             validateRoleCombination(roleSet);
             target.setRoles(roleSet);
         }
+        if (request.getGoalkeeper() != null) {
+            target.setGoalkeeper(Boolean.TRUE.equals(request.getGoalkeeper()));
+        }
         Map<Long, Boolean> billingMap = request.getBillingMonthlyByPelada();
         boolean replacedMemberships = false;
         if (request.getPeladaIds() != null && !request.getPeladaIds().isEmpty()) {
@@ -228,6 +233,9 @@ public class UserService {
         }
         if (!replacedMemberships && billingMap != null && !billingMap.isEmpty()) {
             applyBillingUpdatesOnly(caller, target, billingMap);
+        }
+        if (target.getRoles() == null || !target.getRoles().contains(Role.PLAYER)) {
+            target.setGoalkeeper(false);
         }
         target = userRepository.save(target);
         return toResponse(target);
@@ -359,6 +367,7 @@ public class UserService {
                 .accountActive(user.isAccountActive())
                 .peladaIds(pids)
                 .billingMonthlyByPelada(billingByPelada)
+                .goalkeeper(user.isGoalkeeper())
                 .build();
     }
 }

@@ -26,4 +26,6 @@ public class UserResponse {
     private java.util.List<Long> peladaIds;
 
     private Map<Long, Boolean> billingMonthlyByPelada;
+
+    private Boolean goalkeeper;
 }

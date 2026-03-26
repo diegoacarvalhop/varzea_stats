@@ -36,4 +36,6 @@ public class LoginResponse {
     private Map<Long, Boolean> billingMonthlyByPelada;
 
     private boolean accountActive;
+
+    private boolean goalkeeper;
 }

@@ -19,4 +19,7 @@ public class UserUpdateRequest {
 
     /** Chave = id da pelada; true = mensalista, false = diarista. Só faz efeito em vínculos existentes ou junto com peladaIds. */
     private Map<Long, Boolean> billingMonthlyByPelada = new LinkedHashMap<>();
+
+    /** Só faz sentido para perfil jogador. */
+    private Boolean goalkeeper;
 }

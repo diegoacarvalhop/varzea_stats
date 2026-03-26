@@ -107,6 +107,7 @@ public class FinanceService {
             User u = userRepository.findById(uid).orElse(null);
             if (u == null
                     || !u.isAccountActive()
+                    || u.isGoalkeeper()
                     || u.getRoles() == null
                     || !u.getRoles().contains(Role.PLAYER)) {
                 continue;
@@ -165,6 +166,9 @@ public class FinanceService {
         }
         User user = userRepository.findById(userId).orElse(null);
         if (!participatesInPlayerBilling(user)) {
+            return List.of();
+        }
+        if (user.isGoalkeeper()) {
             return List.of();
         }
         LocalDate monthStart = today.withDayOfMonth(1);
@@ -377,6 +381,9 @@ public class FinanceService {
         }
         if (!participatesInPlayerBilling(user)) {
             throw new IllegalArgumentException("Cobrança aplica-se apenas a contas com perfil de jogador.");
+        }
+        if (user.isGoalkeeper()) {
+            throw new IllegalArgumentException("Goleiro é isento de cobrança nesta pelada.");
         }
         boolean paid =
                 peladaPaymentRepository.hasMonthlyPaymentForMonth(pelada.getId(), user.getId(), PaymentKind.MONTHLY, monthStart);

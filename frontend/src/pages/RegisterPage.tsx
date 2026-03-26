@@ -20,6 +20,7 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [peladaNome, setPeladaNome] = useState<string | null>(null);
   const [billingMonthly, setBillingMonthly] = useState(true);
+  const [goalkeeper, setGoalkeeper] = useState(false);
   const peladaIdParam = searchParams.get('peladaId');
   const peladaIdQuery = peladaIdParam ? Number(peladaIdParam) : NaN;
   const cadastroAdmin = searchParams.get('tipo') === 'admin' || !Number.isFinite(peladaIdQuery);
@@ -76,6 +77,7 @@ export function RegisterPage() {
         password,
         peladaId: Number.isFinite(peladaIdQuery) ? peladaIdQuery : null,
         billingMonthly: cadastroAdmin ? undefined : billingMonthly,
+        goalkeeper: cadastroAdmin ? undefined : goalkeeper,
       });
       if (cadastroAdmin) {
         await login(email.trim(), password);
@@ -195,6 +197,14 @@ export function RegisterPage() {
                   }}
                 />
                 <span>Diarista — pagamento por dia de jogo</span>
+              </label>
+              <label className={`${styles.subtitle} ${styles.billingOption}`}>
+                <input
+                  type="checkbox"
+                  checked={goalkeeper}
+                  onChange={(ev) => setGoalkeeper(ev.target.checked)}
+                />
+                <span>Sou goleiro (isento de cobrança na pelada)</span>
               </label>
             </fieldset>
           )}

@@ -6,6 +6,7 @@ export interface UserSummary {
   name: string;
   email: string;
   roles: Role[];
+  goalkeeper?: boolean;
   peladaId?: number | null;
   peladaName?: string | null;
   accountActive?: boolean;
@@ -21,6 +22,8 @@ export interface CreateUserPayload {
   peladaId?: number | null;
   /** Só com perfil jogador: true = mensalista, false = diarista */
   billingMonthly?: boolean;
+  /** Só com perfil jogador */
+  goalkeeper?: boolean;
 }
 
 export interface UserPatchPayload {
@@ -33,6 +36,8 @@ export interface UserPatchPayload {
   password?: string;
   /** true = mensalista, false = diarista; chaves são ids de pelada em string */
   billingMonthlyByPelada?: Record<string, boolean>;
+  /** Só com perfil jogador */
+  goalkeeper?: boolean;
 }
 
 export async function listUsers(): Promise<UserSummary[]> {

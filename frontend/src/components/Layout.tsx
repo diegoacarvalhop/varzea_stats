@@ -39,6 +39,7 @@ export function Layout() {
     membershipPeladaIds,
     monthlyDelinquentPeladaIds,
     billingMonthlyByPelada,
+    goalkeeper,
     switchPelada,
   } = useAuth();
   const { logoUrl } = usePeladaBranding();
@@ -232,6 +233,11 @@ export function Layout() {
             </span>
             {roles && roles.length > 0 && (
               <span className={styles.userRoles}>
+                {goalkeeper && (
+                  <span className={pageShared.roleTag} style={{ marginTop: 0 }} title="Goleiro">
+                    🧤
+                  </span>
+                )}
                 {roles.map((r) => (
                   <span key={r} className={pageShared.roleTag} style={{ marginTop: 0 }}>
                     {roleDisplayLabel(r)}

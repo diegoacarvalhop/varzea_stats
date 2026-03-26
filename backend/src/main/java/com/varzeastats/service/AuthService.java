@@ -159,6 +159,7 @@ public class AuthService {
                 .monthlyDelinquentPeladaIds(delinquent)
                 .billingMonthlyByPelada(billingMonthlyByPelada)
                 .accountActive(user.isAccountActive())
+                .goalkeeper(user.isGoalkeeper())
                 .build();
     }
 }

@@ -76,6 +76,7 @@ interface AuthState {
   monthlyDelinquentPeladaIds: number[];
   billingMonthlyByPelada: Record<string, boolean>;
   accountActive: boolean;
+  goalkeeper: boolean;
 }
 
 function emptyAuthState(): AuthState {
@@ -93,6 +94,7 @@ function emptyAuthState(): AuthState {
     monthlyDelinquentPeladaIds: [],
     billingMonthlyByPelada: {},
     accountActive: true,
+    goalkeeper: false,
   };
 }
 
@@ -144,6 +146,7 @@ function loadStored(): AuthState {
       monthlyDelinquentPeladaIds: [],
       billingMonthlyByPelada: {},
       accountActive: true,
+      goalkeeper: false,
     };
   }
 
@@ -162,6 +165,7 @@ function loadStored(): AuthState {
       monthlyDelinquentPeladaIds: [],
       billingMonthlyByPelada: {},
       accountActive: true,
+      goalkeeper: false,
     };
   }
   try {
@@ -179,6 +183,7 @@ function loadStored(): AuthState {
       monthlyDelinquentPeladaIds?: number[];
       billingMonthlyByPelada?: Record<string, boolean>;
       accountActive?: boolean;
+      goalkeeper?: boolean;
     };
     const roles = normalizeRolesFromStored(u);
     let peladaId = u.peladaId ?? null;
@@ -231,6 +236,7 @@ function loadStored(): AuthState {
       billingMonthlyByPelada:
         u.billingMonthlyByPelada && typeof u.billingMonthlyByPelada === 'object' ? u.billingMonthlyByPelada : {},
       accountActive: u.accountActive !== false,
+      goalkeeper: u.goalkeeper === true,
     };
   } catch {
     return {
@@ -247,6 +253,7 @@ function loadStored(): AuthState {
       monthlyDelinquentPeladaIds: [],
       billingMonthlyByPelada: {},
       accountActive: true,
+      goalkeeper: false,
     };
   }
 }
@@ -273,6 +280,7 @@ function buildUserJson(res: LoginResult, mustChange: boolean) {
     monthlyDelinquentPeladaIds: res.monthlyDelinquentPeladaIds ?? [],
     billingMonthlyByPelada: res.billingMonthlyByPelada ?? {},
     accountActive: res.accountActive !== false,
+    goalkeeper: res.goalkeeper === true,
   };
 }
 
@@ -400,6 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         monthlyDelinquentPeladaIds: res.monthlyDelinquentPeladaIds ?? [],
         billingMonthlyByPelada: res.billingMonthlyByPelada ?? {},
         accountActive: res.accountActive !== false,
+        goalkeeper: res.goalkeeper === true,
       });
       await syncPeladaAfterLogin(res, epoch);
       if (epoch !== authEpochRef.current) {

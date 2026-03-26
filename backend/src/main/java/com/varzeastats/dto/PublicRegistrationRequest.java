@@ -24,4 +24,7 @@ public class PublicRegistrationRequest {
 
     /** Para cadastro de PLAYER: true=mensalista (R$15), false=diarista (R$10). */
     private Boolean billingMonthly;
+
+    /** Para cadastro de PLAYER: marca usuário como goleiro. */
+    private Boolean goalkeeper;
 }
