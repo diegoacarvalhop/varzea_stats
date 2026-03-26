@@ -513,27 +513,6 @@ export function MatchesPage() {
                 )}
               </div>
 
-              {draftLines.length > 0 && (
-                <div style={{ marginTop: '1rem' }} className={s.trajectoryTableWrap}>
-                  <table className={s.userListTable}>
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Jogadores</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {draftLines.map((line) => (
-                        <tr key={line.teamIndex}>
-                          <td>{line.teamName}</td>
-                          <td>{line.players.map((p) => p.userName).join(', ') || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
             </>
           )}
         </div>
