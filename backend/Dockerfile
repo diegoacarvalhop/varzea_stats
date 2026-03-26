@@ -15,8 +15,7 @@ WORKDIR /app
 
 COPY --from=builder /app/build/libs/*.jar app.jar
 RUN mkdir -p /app/data/pelada-logos
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=80m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Xss256k"
 
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -27,35 +27,6 @@ JWT_SECRET=troque-por-um-segredo-forte-com-32+-caracteres
 FRONTEND_URL=https://${{varzea-frontend.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-### Ajustes para Railway gratuito (evitar OOM)
-
-No `varzea-backend`, adicione também:
-
-```env
-# JVM enxuta para container pequeno (Railway free costuma estourar após Hibernate/JPA)
-JAVA_OPTS=-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=80m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Xss256k
-
-# Pool de conexão menor (menos memória)
-SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2
-SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0
-SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS=60000
-SPRING_DATASOURCE_HIKARI_MAX_LIFETIME_MS=600000
-
-# Opcional: desligar OpenAPI em produção para reduzir consumo
-SPRINGDOC_API_DOCS_ENABLED=false
-SPRINGDOC_SWAGGER_UI_ENABLED=false
-
-# Se SMTP não estiver configurado, evita falha no healthcheck
-MANAGEMENT_HEALTH_MAIL_ENABLED=false
-
-# Atrasa criação de beans até o primeiro uso; reduz pico de RAM no startup (recomendado no free tier)
-SPRING_MAIN_LAZY_INITIALIZATION=true
-```
-
-Observação:
-- Se precisar usar Swagger em produção, mantenha `SPRINGDOC_*` como `true`.
-- Se ainda houver `Killed` no log, reduza `-XX:MaxRAMPercentage` para `45` ou aumente o plano do Railway.
-
 ### Bootstrap de usuário inicial (ADMIN_GERAL)
 
 Se quiser criar o primeiro usuário automaticamente em produção, defina:
@@ -145,17 +116,6 @@ Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runti
 - Criar/editar usuário em `/admin/users`.
 - Criar pelada com logo e validar persistência após novo deploy.
 - Enviar comprovante (PDF/imagem) no financeiro como jogador e aprovar como Admin/Financeiro.
+- Abrir `https://SEU_BACKEND/swagger-ui.html`.
 - Confirmar `GET https://SEU_BACKEND/actuator/health` com status `UP`.
-- Validar nos logs do backend que passou de `Initialized JPA EntityManagerFactory` sem `Killed`.
-- Monitorar por 10-15 minutos sem reinícios em loop.
-
-## 6) Troubleshooting rápido (OOM)
-
-- Se aparecer `Killed` logo após `QueryEnhancerFactory` / `Initialized JPA EntityManagerFactory`:
-  - Confirme `SPRING_MAIN_LAZY_INITIALIZATION=true` e redeploy.
-  - Ajuste `JAVA_OPTS` para `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=8 -XX:MaxMetaspaceSize=80m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Xss256k`.
-  - Confirme `SPRINGDOC_API_DOCS_ENABLED=false` e `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
-  - Mantenha `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2` e `SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0`.
-- Se o backend ficar estável após ajuste, faça novo redeploy para consolidar as variáveis.
-- Se continuar `Killed`, o limite do plano gratuito pode ser insuficiente para Spring Boot + Hibernate; considere upgrade de memória no Railway.
 
