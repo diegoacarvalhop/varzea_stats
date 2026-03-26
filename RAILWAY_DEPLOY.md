@@ -33,22 +33,25 @@ No `varzea-backend`, adicione também:
 
 ```env
 # JVM enxuta para container pequeno
-JAVA_OPTS=-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=25 -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+JAVA_OPTS=-XX:MaxRAMPercentage=60 -XX:InitialRAMPercentage=15 -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
 
 # Pool de conexão menor (menos memória)
-SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=4
-SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=1
-SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS=120000
-SPRING_DATASOURCE_HIKARI_MAX_LIFETIME_MS=900000
+SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2
+SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0
+SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS=60000
+SPRING_DATASOURCE_HIKARI_MAX_LIFETIME_MS=600000
 
 # Opcional: desligar OpenAPI em produção para reduzir consumo
 SPRINGDOC_API_DOCS_ENABLED=false
 SPRINGDOC_SWAGGER_UI_ENABLED=false
+
+# Se SMTP não estiver configurado, evita falha no healthcheck
+MANAGEMENT_HEALTH_MAIL_ENABLED=false
 ```
 
 Observação:
 - Se precisar usar Swagger em produção, mantenha `SPRINGDOC_*` como `true`.
-- Se ainda houver pressão de memória, reduza `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` para `2` ou `3`.
+- Se ainda houver pressão de memória, reduza `-XX:MaxRAMPercentage` para `50`.
 
 ### Bootstrap de usuário inicial (ADMIN_GERAL)
 
@@ -139,6 +142,15 @@ Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runti
 - Criar/editar usuário em `/admin/users`.
 - Criar pelada com logo e validar persistência após novo deploy.
 - Enviar comprovante (PDF/imagem) no financeiro como jogador e aprovar como Admin/Financeiro.
-- Abrir `https://SEU_BACKEND/swagger-ui.html`.
 - Confirmar `GET https://SEU_BACKEND/actuator/health` com status `UP`.
+- Validar nos logs do backend que passou de `Initialized JPA EntityManagerFactory` sem `Killed`.
+- Monitorar por 10-15 minutos sem reinícios em loop.
+
+## 6) Troubleshooting rápido (OOM)
+
+- Se aparecer `Killed` durante startup:
+  - Ajuste `JAVA_OPTS` para `-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`.
+  - Confirme `SPRINGDOC_API_DOCS_ENABLED=false` e `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
+  - Mantenha `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=2` e `SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0`.
+- Se o backend ficar estável após ajuste, faça novo redeploy para consolidar as variáveis.
 
