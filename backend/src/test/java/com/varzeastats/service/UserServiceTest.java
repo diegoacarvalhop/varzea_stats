@@ -68,7 +68,7 @@ class UserServiceTest {
         req.setPeladaId(7L);
         req.setPassword("definida123");
 
-        when(userRepository.existsByEmail("novo@n.com")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("novo@n.com")).thenReturn(false);
         when(passwordEncoder.encode("definida123")).thenReturn("{bcrypt}hash");
         when(userRepository.save(any(User.class)))
                 .thenAnswer(inv -> {
@@ -104,7 +104,7 @@ class UserServiceTest {
         req.setRoles(List.of(Role.ADMIN_GERAL, Role.PLAYER));
         req.setPassword("x");
 
-        when(userRepository.existsByEmail("x@x.com")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("x@x.com")).thenReturn(false);
 
         assertThatThrownBy(() -> userService.create(req, authFor(caller)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -128,7 +128,7 @@ class UserServiceTest {
         req.setRoles(List.of(Role.ADMIN_GERAL));
         req.setPassword("x");
 
-        when(userRepository.existsByEmail("novoag@x.com")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("novoag@x.com")).thenReturn(false);
 
         assertThatThrownBy(() -> userService.create(req, authFor(caller)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -152,7 +152,7 @@ class UserServiceTest {
         req.setPeladaId(1L);
         req.setPassword("x");
 
-        when(userRepository.existsByEmail("dup@dup.com")).thenReturn(true);
+        when(userRepository.existsByEmailIgnoreCase("dup@dup.com")).thenReturn(true);
 
         assertThatThrownBy(() -> userService.create(req, authFor(caller)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -168,7 +168,7 @@ class UserServiceTest {
         req.setPeladaId(5L);
         req.setBillingMonthly(true);
 
-        when(userRepository.existsByEmail("joao@pelada.com")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("joao@pelada.com")).thenReturn(false);
         Pelada pelada = Pelada.builder().id(5L).name("Pelada Teste").build();
         when(peladaRepository.findById(5L)).thenReturn(Optional.of(pelada));
         when(passwordEncoder.encode("minhasenha")).thenReturn("{bcrypt}hash");
@@ -194,7 +194,7 @@ class UserServiceTest {
         req.setName("X");
         req.setEmail("dup@dup.com");
         req.setPassword("senha123");
-        when(userRepository.existsByEmail("dup@dup.com")).thenReturn(true);
+        when(userRepository.existsByEmailIgnoreCase("dup@dup.com")).thenReturn(true);
 
         assertThatThrownBy(() -> userService.registerPublic(req))
                 .isInstanceOf(IllegalArgumentException.class)

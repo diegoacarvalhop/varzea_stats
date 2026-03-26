@@ -40,6 +40,17 @@ public class UserService {
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
     private final PasswordEncoder passwordEncoder;
 
+    private static String normalizeEmail(String email) {
+        if (email == null) {
+            throw new IllegalArgumentException("E-mail é obrigatório.");
+        }
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.isBlank()) {
+            throw new IllegalArgumentException("E-mail é obrigatório.");
+        }
+        return normalized;
+    }
+
     @Transactional(readOnly = true)
     public List<UserResponse> listForPrincipal(Authentication authentication) {
         AppUserDetails caller = (AppUserDetails) authentication.getPrincipal();
@@ -62,7 +73,12 @@ public class UserService {
 
     @Transactional
     public UserResponse create(UserCreateRequest request, Authentication authentication) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = normalizeEmail(request.getEmail());
+        String name = request.getName() == null ? "" : request.getName().trim();
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Nome é obrigatório.");
+        }
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("E-mail já cadastrado");
         }
         LinkedHashSet<Role> roleSet = new LinkedHashSet<>(request.getRoles());
@@ -74,8 +90,8 @@ public class UserService {
             throw new IllegalArgumentException("Informe a senha inicial do usuário.");
         }
         User user = User.builder()
-                .name(request.getName())
-                .email(request.getEmail())
+                .name(name)
+                .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .mustChangePassword(false)
                 .accountActive(true)
@@ -97,14 +113,15 @@ public class UserService {
 
     @Transactional
     public UserResponse registerPublic(PublicRegistrationRequest request) {
-        String email = request.getEmail().trim();
-        if (email.isEmpty()) {
-            throw new IllegalArgumentException("E-mail é obrigatório.");
-        }
+        String email = normalizeEmail(request.getEmail());
         if (request.getPassword() == null || request.getPassword().length() < 6) {
             throw new IllegalArgumentException("A senha deve ter pelo menos 6 caracteres.");
         }
-        if (userRepository.existsByEmail(email)) {
+        String name = request.getName() == null ? "" : request.getName().trim();
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Nome é obrigatório.");
+        }
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("E-mail já cadastrado");
         }
         Pelada selectedPelada = null;
@@ -118,7 +135,7 @@ public class UserService {
             roles = new LinkedHashSet<>(EnumSet.of(Role.ADMIN));
         }
         User user = User.builder()
-                .name(request.getName().trim())
+                .name(name)
                 .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .mustChangePassword(false)
@@ -139,7 +156,7 @@ public class UserService {
     public UserResponse updateMyMemberships(MembershipUpdateRequest request, Authentication authentication) {
         AppUserDetails caller = (AppUserDetails) authentication.getPrincipal();
         User user = userRepository
-                .findByEmail(caller.getEmail())
+                .findByEmailIgnoreCase(caller.getEmail())
                 .orElseThrow(() -> new IllegalStateException("Usuário não encontrado."));
         if (!user.getRoles().contains(Role.PLAYER)) {
             throw new AccessDeniedException("Somente contas com perfil de jogador podem alterar peladas aqui.");

@@ -28,7 +28,7 @@ public class PasswordResetService {
 
     @Transactional
     public void solicitarRedefinicaoSenha(String email) {
-        userRepository.findByEmail(email.trim()).ifPresent(usuario -> {
+        userRepository.findByEmailIgnoreCase(email.trim()).ifPresent(usuario -> {
             tokenRepository.deleteByUser_Id(usuario.getId());
             String token = UUID.randomUUID().toString().replace("-", "");
             PasswordResetToken entidade = PasswordResetToken.builder()

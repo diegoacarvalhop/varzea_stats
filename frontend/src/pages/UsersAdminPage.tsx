@@ -282,6 +282,10 @@ export function UsersAdminPage() {
 
   const onlyAdminGeral = selectedRoles.size === 1 && selectedRoles.has('ADMIN_GERAL');
   const editOnlyAdminGeral = editRoles.size === 1 && editRoles.has('ADMIN_GERAL');
+  const normalizedExistingEmails = useMemo(
+    () => new Set(users.map((u) => u.email.trim().toLowerCase())),
+    [users],
+  );
 
   function openEdit(u: UserSummary) {
     setEditUser(u);
@@ -301,6 +305,11 @@ export function UsersAdminPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const emailNormalized = email.trim().toLowerCase();
+    if (normalizedExistingEmails.has(emailNormalized)) {
+      appToast.warning('Já existe um usuário com este e-mail.');
+      return;
+    }
     if (selectedRoles.size === 0) {
       appToast.warning('Marque pelo menos um perfil.');
       return;

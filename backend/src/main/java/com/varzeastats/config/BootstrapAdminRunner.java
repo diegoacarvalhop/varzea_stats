@@ -40,7 +40,7 @@ public class BootstrapAdminRunner implements ApplicationRunner {
         if (!enabled) {
             return;
         }
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             return;
         }
         User user = User.builder()

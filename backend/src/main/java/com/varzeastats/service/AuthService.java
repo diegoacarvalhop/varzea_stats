@@ -32,12 +32,20 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
 
+    private static String normalizeEmail(String email) {
+        if (email == null) {
+            throw new IllegalArgumentException("Credenciais inválidas");
+        }
+        return email.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
+        String email = normalizeEmail(request.getEmail());
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+                new UsernamePasswordAuthenticationToken(email, request.getPassword()));
         User user = userRepository
-                .findByEmail(request.getEmail())
+                .findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new IllegalArgumentException("Credenciais inválidas"));
         Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
         String token = jwtService.generateToken(
@@ -47,14 +55,18 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginResponse profile(String email, String bearerToken) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        User user = userRepository
+                .findByEmailIgnoreCase(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
         String token = bearerToken != null && bearerToken.startsWith("Bearer ") ? bearerToken.substring(7) : bearerToken;
         return toLoginResponse(user, token != null ? token : "");
     }
 
     @Transactional(readOnly = true)
     public LoginResponse reissueToken(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        User user = userRepository
+                .findByEmailIgnoreCase(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
         Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
         String token = jwtService.generateToken(
                 user.getEmail(), user.getRoles(), peladaId, user.isMustChangePassword());
@@ -63,7 +75,9 @@ public class AuthService {
 
     @Transactional
     public LoginResponse changePassword(String email, ChangePasswordRequest request) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        User user = userRepository
+                .findByEmailIgnoreCase(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
         if (!passwordEncoder.matches(request.getSenhaAtual(), user.getPassword())) {
             throw new IllegalArgumentException("Senha atual incorreta.");
         }

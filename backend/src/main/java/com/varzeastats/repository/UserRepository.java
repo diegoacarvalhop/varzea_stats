@@ -10,10 +10,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    @Query("SELECT u FROM User u LEFT JOIN FETCH u.pelada WHERE u.email = :email")
-    Optional<User> findByEmail(@Param("email") String email);
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.pelada WHERE lower(u.email) = lower(:email)")
+    Optional<User> findByEmailIgnoreCase(@Param("email") String email);
 
-    boolean existsByEmail(String email);
+    @Query("select (count(u) > 0) from User u where lower(u.email) = lower(:email)")
+    boolean existsByEmailIgnoreCase(@Param("email") String email);
 
     List<User> findAllByPelada_Id(Long peladaId, Sort sort);
 
