@@ -734,6 +734,11 @@ export function FinancePage() {
                 </div>
               </>
             ) : null}
+            <div className={s.financeActionRow}>
+              <button type="button" className={s.btn} onClick={closeReceiptModal}>
+                Fechar
+              </button>
+            </div>
           </div>
         ) : (
           <p className={s.lead}>Não foi possível exibir o comprovante.</p>

@@ -31,12 +31,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
   padding: 1.1rem 1.25rem 0.65rem;
   border-bottom: 1px solid rgba(105, 240, 174, 0.12);
 }
 
 .title {
+  flex: 1 1 12rem;
+  min-width: 0;
   flex-shrink: 0;
   font-family: $font-display;
   font-size: 1rem;
@@ -68,6 +71,12 @@
   &:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+  }
+}
+
+@media (max-width: 520px) {
+  .closeBtn {
+    width: 100%;
   }
 }
 
