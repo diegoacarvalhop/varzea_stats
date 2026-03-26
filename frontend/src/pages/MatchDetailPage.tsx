@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createEventForMatch,
@@ -9,22 +9,11 @@ import {
 import { listMediaForMatch, type MatchMediaItem } from '@/services/mediaService';
 import { finishMatch, formatMatchPlacar, getMatch, type Match } from '@/services/matchService';
 import {
-  createPlayerForMatch,
-  deletePlayerFromMatch,
   listPlayersByMatch,
-  listPlayersDirectory,
   type Player,
-  type PlayerDirectoryEntry,
 } from '@/services/playerService';
-import { buildMatchTeamNameChoices } from '@/lib/peladaTeamNames';
-import { getApiErrorMessage } from '@/lib/apiError';
-import {
-  listPresence,
-  savePresence,
-} from '@/services/peladaOpsService';
 import { listPeladas, type Pelada } from '@/services/peladaService';
 import { listTeamsByMatch, type Team } from '@/services/teamService';
-import { listUsers, type UserSummary } from '@/services/userService';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { MatchMediaGallery } from '@/components/MatchMediaGallery';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/SearchableSelect';
@@ -34,8 +23,6 @@ import {
   EVENT_RECORDER_ROLES,
   hasAnyRole,
   MATCH_MANAGER_ROLES,
-  PRESENCE_DRAFT_ROLES,
-  ROSTER_EDITOR_ROLES,
 } from '@/lib/roles';
 import s from '@/styles/pageShared.module.scss';
 
@@ -54,84 +41,6 @@ const EVENT_TYPES: { value: EventType; label: string }[] = [
 const EVENT_LABELS: Record<EventType, string> = Object.fromEntries(
   EVENT_TYPES.map((x) => [x.value, x.label]),
 ) as Record<EventType, string>;
-
-/** Data local (calendário) a partir do instante da partida — alinhada à presença/sorteio da pelada. */
-function instantToLocalDateIso(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
-}
-
-function normalizeDirectoryNameForPresence(name: string): string {
-  return name.trim().toLowerCase();
-}
-
-/** Diretório filtrado: só entradas ligadas a quem está marcado como presente (membro user id negativo ou nome igual a um presente). */
-function filterDirectoryGroupsByPresent(
-  groups: { label: string; entries: PlayerDirectoryEntry[] }[],
-  presentUserIds: Set<number>,
-  peladaUsers: UserSummary[],
-): { label: string; entries: PlayerDirectoryEntry[] }[] {
-  const presentNameNorm = new Set(
-    peladaUsers.filter((u) => presentUserIds.has(u.id)).map((u) => normalizeDirectoryNameForPresence(u.name)),
-  );
-  const out: { label: string; entries: PlayerDirectoryEntry[] }[] = [];
-  for (const g of groups) {
-    const entries = g.entries.filter((e) => {
-      if (e.playerId < 0) return presentUserIds.has(-e.playerId);
-      return presentNameNorm.has(normalizeDirectoryNameForPresence(e.playerName));
-    });
-    if (entries.length > 0) out.push({ label: g.label, entries });
-  }
-  return out;
-}
-
-function findDirectoryEntryByPick(
-  dir: PlayerDirectoryEntry[],
-  pick: string,
-): PlayerDirectoryEntry | null {
-  const ci = pick.indexOf(':');
-  const pidStr = ci >= 0 ? pick.slice(0, ci) : pick;
-  const midStr = ci >= 0 ? pick.slice(ci + 1) : '';
-  return (
-    dir.find(
-      (x) =>
-        String(x.playerId) === pidStr && String(x.matchId ?? '') === (midStr || String(x.matchId ?? '')),
-    ) ?? null
-  );
-}
-
-function groupDirectoryForRoster(entries: PlayerDirectoryEntry[], currentMatchId: number) {
-  const map = new Map<string, PlayerDirectoryEntry[]>();
-  for (const e of entries) {
-    const teamPart = e.teamName?.trim() || 'Equipe';
-    const matchPart =
-      e.matchId === currentMatchId
-        ? 'esta partida'
-        : e.matchId != null
-          ? `Partida #${e.matchId}`
-          : 'cadastro na pelada';
-    const label = `${teamPart} · ${matchPart}`;
-    if (!map.has(label)) map.set(label, []);
-    map.get(label)!.push(e);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => {
-      const aHere = a.includes('esta partida');
-      const bHere = b.includes('esta partida');
-      if (aHere !== bHere) return aHere ? -1 : 1;
-      return a.localeCompare(b, 'pt-BR');
-    })
-    .map(([label, group]) => ({
-      label,
-      entries: group.slice().sort((x, y) => {
-        if (x.goalkeeper !== y.goalkeeper) return x.goalkeeper ? -1 : 1;
-        return x.playerName.localeCompare(y.playerName, 'pt-BR');
-      }),
-    }));
-}
 
 function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSelectOption[] {
   const knownIds = new Set(teams.map((t) => t.id));
@@ -188,7 +97,6 @@ export function MatchDetailPage() {
   const matchId = Number(matchIdParam);
   const navigate = useNavigate();
   const { isAuthenticated, roles } = useAuth();
-  const canRoster = isAuthenticated && hasAnyRole(roles, ROSTER_EDITOR_ROLES);
   const canRecord = isAuthenticated && hasAnyRole(roles, EVENT_RECORDER_ROLES);
   const canFinish = isAuthenticated && hasAnyRole(roles, MATCH_MANAGER_ROLES);
 
@@ -198,18 +106,10 @@ export function MatchDetailPage() {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [mediaItems, setMediaItems] = useState<MatchMediaItem[]>([]);
 
-  const [draftPeladaUsers, setDraftPeladaUsers] = useState<UserSummary[]>([]);
-  const [presentForDraft, setPresentForDraft] = useState<Set<number>>(new Set());
-  const lastSavedPresenceKeyRef = useRef<string>('');
-  const [loadingMatchDraft, setLoadingMatchDraft] = useState(false);
-  const [removePlayerConfirm, setRemovePlayerConfirm] = useState<Player | null>(null);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
-  const [playerDirectory, setPlayerDirectory] = useState<PlayerDirectoryEntry[]>([]);
-
-  const [newTeamName, setNewTeamName] = useState('');
   const [peladaForMatch, setPeladaForMatch] = useState<Pelada | null | undefined>(undefined);
-  const [rosterPickByTeam, setRosterPickByTeam] = useState<Record<number, string>>({});
-  const [playerGoalkeeperByTeam, setPlayerGoalkeeperByTeam] = useState<Record<number, boolean>>({});
+  const [startingTeamA, setStartingTeamA] = useState('');
+  const [startingTeamB, setStartingTeamB] = useState('');
 
   const [eventType, setEventType] = useState<EventType>('GOAL');
   const [eventPlayerId, setEventPlayerId] = useState('');
@@ -222,50 +122,46 @@ export function MatchDetailPage() {
   const [extraMinutesInput, setExtraMinutesInput] = useState('0');
 
   const matchFinished = Boolean(match?.finishedAt);
-  const effectiveCanRoster = canRoster && !matchFinished;
-  const canDraftPresence =
-    isAuthenticated &&
-    hasAnyRole(roles, PRESENCE_DRAFT_ROLES) &&
-    match != null &&
-    !matchFinished;
   const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
   const timerConfigured = configuredDurationMinutes > 0;
   const timerEnded = timerConfigured && countdownSeconds === 0;
 
-  const rosterDirectoryGroups = useMemo(
-    () => groupDirectoryForRoster(playerDirectory, matchId),
-    [playerDirectory, matchId],
-  );
+  const activeTeams = useMemo(() => {
+    if (!startingTeamA || !startingTeamB || startingTeamA === startingTeamB) return teams;
+    const selected = new Set([startingTeamA, startingTeamB]);
+    return teams.filter((t) => selected.has(t.name));
+  }, [teams, startingTeamA, startingTeamB]);
 
-  const rosterGroupsForPicker = useMemo(() => {
-    if (match?.peladaId == null) return rosterDirectoryGroups;
-    if (loadingMatchDraft) return [];
-    return filterDirectoryGroupsByPresent(rosterDirectoryGroups, presentForDraft, draftPeladaUsers);
-  }, [match?.peladaId, loadingMatchDraft, rosterDirectoryGroups, presentForDraft, draftPeladaUsers]);
+  const activeTeamIds = useMemo(() => new Set(activeTeams.map((t) => t.id)), [activeTeams]);
+
+  const activePlayers = useMemo(() => {
+    if (activeTeams.length === teams.length) return players;
+    return players.filter((p) => p.teamId != null && activeTeamIds.has(p.teamId));
+  }, [players, activeTeams.length, teams.length, activeTeamIds]);
 
   const eventMainPlayer = useMemo(() => {
     if (!eventPlayerId) return null;
     const id = Number(eventPlayerId);
     if (!Number.isFinite(id)) return null;
-    return players.find((p) => p.id === id) ?? null;
-  }, [eventPlayerId, players]);
+    return activePlayers.find((p) => p.id === id) ?? null;
+  }, [eventPlayerId, activePlayers]);
 
   const targetPlayerOptions = useMemo(() => {
-    if (!eventMainPlayer) return players;
-    return players.filter((p) => p.teamId !== eventMainPlayer.teamId);
-  }, [eventMainPlayer, players]);
+    if (!eventMainPlayer) return activePlayers;
+    return activePlayers.filter((p) => p.teamId !== eventMainPlayer.teamId);
+  }, [eventMainPlayer, activePlayers]);
 
   const penaltyMainPlayer = useMemo(() => {
     if (!penaltyPlayerId) return null;
     const id = Number(penaltyPlayerId);
     if (!Number.isFinite(id)) return null;
-    return players.find((p) => p.id === id) ?? null;
-  }, [penaltyPlayerId, players]);
+    return activePlayers.find((p) => p.id === id) ?? null;
+  }, [penaltyPlayerId, activePlayers]);
 
   const penaltyTargetOptions = useMemo(() => {
-    if (!penaltyMainPlayer) return players;
-    return players.filter((p) => p.teamId !== penaltyMainPlayer.teamId);
-  }, [penaltyMainPlayer, players]);
+    if (!penaltyMainPlayer) return activePlayers;
+    return activePlayers.filter((p) => p.teamId !== penaltyMainPlayer.teamId);
+  }, [penaltyMainPlayer, activePlayers]);
 
   useEffect(() => {
     if (!eventTargetId) return;
@@ -283,56 +179,38 @@ export function MatchDetailPage() {
     if (!ok) setPenaltyTargetId('');
   }, [penaltyTargetId, penaltyTargetOptions]);
 
-  const directorySelectOptions = useMemo(() => {
-    const out: SearchableSelectOption[] = [];
-    for (const g of rosterGroupsForPicker) {
-      for (const e of g.entries) {
-        out.push({
-          value: `${e.playerId}:${e.matchId ?? ''}`,
-          label: `${e.playerName}${e.goalkeeper ? ' (Goleiro)' : ''}`,
-          group: g.label,
-        });
-      }
-    }
-    return out;
-  }, [rosterGroupsForPicker]);
-
   const eventTypeSelectOptions = useMemo(
     () => EVENT_TYPES.map((x) => ({ value: x.value, label: x.label })),
     [],
   );
 
-  const eventPlayerSelectOptions = useMemo(() => buildPlayerOptionsByTeam(players, teams), [players, teams]);
-
-  const teamNameChoices = useMemo(() => {
-    if (peladaForMatch === undefined) return [];
-    return buildMatchTeamNameChoices(peladaForMatch, teams);
-  }, [peladaForMatch, teams]);
+  const eventPlayerSelectOptions = useMemo(
+    () => buildPlayerOptionsByTeam(activePlayers, activeTeams),
+    [activePlayers, activeTeams],
+  );
 
   const targetPlayerSelectOptions = useMemo(
-    () => buildPlayerOptionsByTeam(targetPlayerOptions, teams),
-    [targetPlayerOptions, teams],
+    () => buildPlayerOptionsByTeam(targetPlayerOptions, activeTeams),
+    [targetPlayerOptions, activeTeams],
   );
 
   const penaltyTargetSelectOptions = useMemo(
-    () => buildPlayerOptionsByTeam(penaltyTargetOptions, teams),
-    [penaltyTargetOptions, teams],
+    () => buildPlayerOptionsByTeam(penaltyTargetOptions, activeTeams),
+    [penaltyTargetOptions, activeTeams],
   );
 
   const refresh = useCallback(async () => {
     if (!Number.isFinite(matchId)) return;
-    const [m, t, p, e, dir] = await Promise.all([
+    const [m, t, p, e] = await Promise.all([
       getMatch(matchId),
       listTeamsByMatch(matchId),
       listPlayersByMatch(matchId),
       listEventsByMatch(matchId),
-      listPlayersDirectory({ includePeladaMembers: true }).catch(() => [] as PlayerDirectoryEntry[]),
     ]);
     setMatch(m);
     setTeams(t);
     setPlayers(p);
     setEvents(e);
-    setPlayerDirectory(dir);
     if (m?.peladaId != null) {
       try {
         const list = await listPeladas();
@@ -340,38 +218,8 @@ export function MatchDetailPage() {
       } catch {
         setPeladaForMatch(null);
       }
-      setLoadingMatchDraft(true);
-      try {
-        const presenceDate = instantToLocalDateIso(m.date);
-        const [users, presenceIds] = await Promise.all([
-          listUsers(),
-          listPresence(m.peladaId, presenceDate),
-        ]);
-        const pid = m.peladaId!;
-        const memberIds = new Set(
-          users
-            .filter(
-              (u) => u.peladaId === pid || (Array.isArray(u.peladaIds) && u.peladaIds.includes(pid)),
-            )
-            .map((u) => u.id),
-        );
-        setDraftPeladaUsers(users.filter((u) => memberIds.has(u.id)));
-        const pidPresence = presenceIds ?? [];
-        lastSavedPresenceKeyRef.current = [...pidPresence].sort((a, b) => a - b).join(',');
-        setPresentForDraft(new Set(pidPresence));
-      } catch {
-        lastSavedPresenceKeyRef.current = '';
-        setDraftPeladaUsers([]);
-        setPresentForDraft(new Set());
-      } finally {
-        setLoadingMatchDraft(false);
-      }
     } else {
       setPeladaForMatch(null);
-      lastSavedPresenceKeyRef.current = '';
-      setDraftPeladaUsers([]);
-      setPresentForDraft(new Set());
-      setLoadingMatchDraft(false);
     }
     try {
       const media = await listMediaForMatch(matchId);
@@ -390,11 +238,10 @@ export function MatchDetailPage() {
   }, [matchId, refresh]);
 
   useEffect(() => {
-    if (peladaForMatch === undefined) return;
-    if (newTeamName && !teamNameChoices.includes(newTeamName)) {
-      setNewTeamName('');
-    }
-  }, [peladaForMatch, teamNameChoices, newTeamName]);
+    if (teams.length < 2) return;
+    if (!startingTeamA) setStartingTeamA(teams[0].name);
+    if (!startingTeamB) setStartingTeamB(teams[1].name);
+  }, [teams, startingTeamA, startingTeamB]);
 
   useEffect(() => {
     if (!timerConfigured) {
@@ -421,77 +268,12 @@ export function MatchDetailPage() {
     return () => window.clearInterval(tid);
   }, [countdownRunning, countdownSeconds]);
 
-  const presenceDateForMatch = match ? instantToLocalDateIso(match.date) : '';
-
-  const presentForDraftKey = useMemo(
-    () =>
-      [...presentForDraft]
-        .sort((a, b) => a - b)
-        .join(','),
-    [presentForDraft],
-  );
-
-  useEffect(() => {
-    if (!match?.peladaId || !presenceDateForMatch || !canDraftPresence || loadingMatchDraft) return;
-    if (presentForDraftKey === lastSavedPresenceKeyRef.current) return;
-    const handle = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const ids = presentForDraftKey
-            ? presentForDraftKey.split(',').map((x) => Number(x))
-            : [];
-          await savePresence(match.peladaId!, {
-            date: presenceDateForMatch,
-            presentUserIds: ids,
-          });
-          lastSavedPresenceKeyRef.current = presentForDraftKey;
-        } catch (e) {
-          appToast.error(getApiErrorMessage(e, 'Falha ao salvar presença.'));
-        }
-      })();
-    }, 400);
-    return () => window.clearTimeout(handle);
-  }, [presentForDraftKey, match?.peladaId, presenceDateForMatch, canDraftPresence, loadingMatchDraft]);
-
   function rosterSlicesForTeam(teamId: number) {
     const teamPlayers = players.filter((p) => p.teamId === teamId);
     const firstFieldIdx = teamPlayers.findIndex((p) => !p.goalkeeper);
     const goalkeepers = firstFieldIdx === -1 ? teamPlayers : teamPlayers.slice(0, firstFieldIdx);
     const fieldPlayers = firstFieldIdx === -1 ? [] : teamPlayers.slice(firstFieldIdx);
     return { goalkeepers, fieldPlayers };
-  }
-
-  async function executeRemovePlayer(p: Player) {
-    try {
-      await deletePlayerFromMatch(matchId, p.id);
-      appToast.success('Jogador removido da equipe.');
-      await refresh();
-    } catch {
-      appToast.error('Falha ao remover jogador.');
-    }
-  }
-
-  async function onCreatePlayer(e: FormEvent, teamId: number) {
-    e.preventDefault();
-    const pick = rosterPickByTeam[teamId] ?? '';
-    const entry = findDirectoryEntryByPick(playerDirectory, pick);
-    if (!entry) {
-      appToast.warning('Selecione um jogador na lista da pelada.');
-      return;
-    }
-    try {
-      const isGk = playerGoalkeeperByTeam[teamId] ?? false;
-      await createPlayerForMatch(matchId, teamId, {
-        directoryRef: entry.playerId,
-        goalkeeper: isGk,
-      });
-      setRosterPickByTeam((prev) => ({ ...prev, [teamId]: '' }));
-      setPlayerGoalkeeperByTeam((prev) => ({ ...prev, [teamId]: false }));
-      appToast.success('Jogador adicionado à equipe.');
-      await refresh();
-    } catch {
-      appToast.error('Falha ao cadastrar jogador.');
-    }
   }
 
   async function onCreateEvent(e: FormEvent) {
@@ -693,20 +475,48 @@ export function MatchDetailPage() {
       <div className={s.card}>
         <h2 className={s.cardTitle}>1. Equipes desta partida</h2>
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
-          Os times já vêm da preparação de pré-jogo na tela de Partidas. Aqui você acompanha os elencos e pode fazer
-          ajustes pontuais, se necessário.
+          Os times já vêm da preparação de pré-jogo na tela de Partidas. Aqui você apenas acompanha os elencos.
         </p>
-        {!matchFinished && !canRoster && (
-          <p className={s.lead}>
-            Apenas <strong>administradores</strong> (geral ou da pelada) ou <strong>SCOUT</strong> criam equipes e
-            jogadores.
-          </p>
-        )}
 
         {teams.length === 0 && <p className={s.lead}>Nenhuma equipe ainda.</p>}
 
-        <div className={s.teamGrid}>
-          {teams.map((team) => (
+        {teams.length >= 2 && (
+          <div className={s.formInline} style={{ marginBottom: '1rem' }}>
+            <div className={s.field} style={{ flex: '1 1 220px' }}>
+              <label className={s.fieldLabel}>Time 1 (início)</label>
+              <select
+                className={`${s.input} ${s.select}`}
+                value={startingTeamA}
+                onChange={(ev) => setStartingTeamA(ev.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {teams.map((team) => (
+                  <option key={`a-${team.id}`} value={team.name}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={s.field} style={{ flex: '1 1 220px' }}>
+              <label className={s.fieldLabel}>Time 2 (início)</label>
+              <select
+                className={`${s.input} ${s.select}`}
+                value={startingTeamB}
+                onChange={(ev) => setStartingTeamB(ev.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {teams.map((team) => (
+                  <option key={`b-${team.id}`} value={team.name}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div className={s.teamGrid} style={{ gridTemplateColumns: 'repeat(2, minmax(18rem, 1fr))' }}>
+          {activeTeams.map((team) => (
             <div key={team.id} className={s.teamCard}>
               <h3 className={s.teamTitle}>{team.name}</h3>
               {(() => {
@@ -717,15 +527,6 @@ export function MatchDetailPage() {
                       {p.name}
                       {p.goalkeeper && <span className={s.gkBadge}>Goleiro</span>}
                     </span>
-                    {effectiveCanRoster && (
-                      <button
-                        type="button"
-                        className={s.btnRemove}
-                        onClick={() => setRemovePlayerConfirm(p)}
-                      >
-                        Remover
-                      </button>
-                    )}
                   </li>
                 );
                 if (goalkeepers.length === 0 && fieldPlayers.length === 0) {
@@ -745,64 +546,6 @@ export function MatchDetailPage() {
                   </div>
                 );
               })()}
-              {effectiveCanRoster && (
-                <form
-                  className={s.form}
-                  style={{ marginTop: '0.75rem' }}
-                  onSubmit={(ev) => void onCreatePlayer(ev, team.id)}
-                >
-                  <SearchableSelect
-                    id={`player-dir-${team.id}`}
-                    label={
-                      <>
-                        Jogador presente / cadastro na pelada
-                        <span className={s.requiredMark} aria-hidden>
-                          *
-                        </span>
-                      </>
-                    }
-                    value={rosterPickByTeam[team.id] ?? ''}
-                    aria-label="Escolher jogador para a equipe"
-                    options={directorySelectOptions}
-                    required
-                    emptyOption={{
-                      value: '',
-                      label: rosterGroupsForPicker.length === 0 ? '— Ninguém disponível —' : '— Selecione o jogador —',
-                    }}
-                    onChange={(v) => {
-                      setRosterPickByTeam((prev) => ({ ...prev, [team.id]: v }));
-                      if (!v) return;
-                      const picked = findDirectoryEntryByPick(playerDirectory, v);
-                      if (picked) {
-                        setPlayerGoalkeeperByTeam((prev) => ({
-                          ...prev,
-                          [team.id]: picked.goalkeeper,
-                        }));
-                      }
-                    }}
-                  />
-                  <label className={s.checkboxRow}>
-                    <input
-                      type="checkbox"
-                      checked={playerGoalkeeperByTeam[team.id] ?? false}
-                      onChange={(ev) =>
-                        setPlayerGoalkeeperByTeam((prev) => ({
-                          ...prev,
-                          [team.id]: ev.target.checked,
-                        }))
-                      }
-                    />
-                    <span>É o goleiro desta equipe</span>
-                  </label>
-                  <button
-                    className={s.btn}
-                    type="submit"
-                    disabled={!rosterPickByTeam[team.id]}
-                  >
-                    Adicionar jogador
-                  </button>
-                </form>
-              )}
             </div>
           ))}
         </div>
@@ -978,24 +721,6 @@ export function MatchDetailPage() {
         )}
       </div>
 
-      <ConfirmModal
-        open={removePlayerConfirm != null}
-        title="Remover jogador"
-        message={
-          removePlayerConfirm
-            ? `Remover ${removePlayerConfirm.name} da equipe? Lance antigos ligados a ele ficam sem jogador na escalação.`
-            : ''
-        }
-        confirmLabel="Remover"
-        cancelLabel="Cancelar"
-        danger
-        onCancel={() => setRemovePlayerConfirm(null)}
-        onConfirm={() => {
-          const p = removePlayerConfirm;
-          setRemovePlayerConfirm(null);
-          if (p) void executeRemovePlayer(p);
-        }}
-      />
       <ConfirmModal
         open={finishConfirmOpen}
         title="Finalizar partida"

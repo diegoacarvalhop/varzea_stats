@@ -43,8 +43,6 @@ export function MatchesPage() {
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
   const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
   const [goalkeeperPickByTeam, setGoalkeeperPickByTeam] = useState<Record<string, string>>({});
-  const [matchTeamA, setMatchTeamA] = useState('');
-  const [matchTeamB, setMatchTeamB] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
 
@@ -186,11 +184,6 @@ export function MatchesPage() {
     return () => window.clearTimeout(tid);
   }, [canCreate, peladaId, presenceDateForDraft, presentForDraftKey]);
 
-  useEffect(() => {
-    if (matchTeamA && !pregameTeams.includes(matchTeamA)) setMatchTeamA('');
-    if (matchTeamB && !pregameTeams.includes(matchTeamB)) setMatchTeamB('');
-  }, [pregameTeams, matchTeamA, matchTeamB]);
-
   async function onCreateMatch(e: FormEvent) {
     e.preventDefault();
     if (pregameTeams.length < 2) {
@@ -205,25 +198,15 @@ export function MatchesPage() {
       appToast.warning('Faça o sorteio antes de criar a partida.');
       return;
     }
-    if (!matchTeamA || !matchTeamB || matchTeamA === matchTeamB) {
-      appToast.warning('Selecione exatamente 2 times formados para esta partida.');
-      return;
-    }
-    const selectedTeams = [matchTeamA, matchTeamB];
-    const selectedLines = draftLines.filter((line) => selectedTeams.includes(line.teamName));
-    if (selectedLines.length !== 2) {
-      appToast.warning('Os 2 times selecionados precisam estar sorteados.');
-      return;
-    }
     setCreatingMatch(true);
     try {
       const instant = fromDatetimeLocalToUtcIso(date);
       const created = await createMatch({ date: instant, location: location.trim() });
-      for (const teamName of selectedTeams) {
+      for (const teamName of pregameTeams) {
         await createTeamForMatch(created.id, teamName);
       }
       await applyDraftToMatch(created.id, {
-        lines: selectedLines.map((line) => ({
+        lines: draftLines.map((line) => ({
           teamName: line.teamName,
           slots: [
             {
@@ -275,8 +258,6 @@ export function MatchesPage() {
       delete out[name];
       return out;
     });
-    setMatchTeamA((prev) => (prev === name ? '' : prev));
-    setMatchTeamB((prev) => (prev === name ? '' : prev));
     setDraftLines([]);
   }
 
@@ -553,40 +534,6 @@ export function MatchesPage() {
                 </div>
               )}
 
-              {draftLines.length > 0 && (
-                <div style={{ marginTop: '1rem' }}>
-                  <p className={s.fieldLabel}>4) Times da partida (escolha 2 já formados)</p>
-                  <div className={s.formInline}>
-                    <select
-                      className={`${s.input} ${s.select}`}
-                      value={matchTeamA}
-                      onChange={(ev) => setMatchTeamA(ev.target.value)}
-                    >
-                      <option value="">Time 1…</option>
-                      {pregameTeams.map((name) => (
-                        <option key={`a-${name}`} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className={`${s.input} ${s.select}`}
-                      value={matchTeamB}
-                      onChange={(ev) => setMatchTeamB(ev.target.value)}
-                    >
-                      <option value="">Time 2…</option>
-                      {pregameTeams.map((name) => (
-                        <option key={`b-${name}`} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem' }}>
-                    Cada partida é entre 2 times. Ao encerrar, você cria outra e escolhe outros 2.
-                  </p>
-                </div>
-              )}
             </>
           )}
         </div>
