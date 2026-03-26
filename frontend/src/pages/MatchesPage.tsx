@@ -681,10 +681,12 @@ export function MatchesPage() {
               {m.finishedAt && <span className={s.matchFinishedTag}>Encerrada</span>}
               <span className={s.matchMeta}>{new Date(m.date).toLocaleString('pt-BR')}</span>
               <span className={s.matchMeta}>{m.location}</span>
-              <span className={s.matchPlacar}>{resolveMatchListPlacar(m)}</span>
-              {!m.finishedAt && resolveLiveTimerFromStorage(m.id, nowMs) && (
-                <span className={s.matchMeta}>{resolveLiveTimerFromStorage(m.id, nowMs)}</span>
-              )}
+              <span className={s.matchPlacar}>
+                {resolveMatchListPlacar(m)}
+                {!m.finishedAt && resolveLiveTimerFromStorage(m.id, nowMs) && (
+                  <span className={s.matchTimerInline}>{resolveLiveTimerFromStorage(m.id, nowMs)}</span>
+                )}
+              </span>
               <span className={s.matchChevron}>→</span>
             </Link>
           </li>

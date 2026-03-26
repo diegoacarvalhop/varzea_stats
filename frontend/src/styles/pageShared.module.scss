@@ -410,6 +410,16 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   font-size: 0.95rem;
   letter-spacing: 0.04em;
   color: $accent-bright;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.matchTimerInline {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 
 .statBlock {

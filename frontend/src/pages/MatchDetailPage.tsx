@@ -96,6 +96,7 @@ type PersistedMatchTimer = {
   remainingSeconds: number;
   running: boolean;
   savedAtMs: number;
+  completed?: boolean;
 };
 
 function resolveTimerFromStorage(raw: string | null): PersistedMatchTimer | null {
@@ -105,6 +106,7 @@ function resolveTimerFromStorage(raw: string | null): PersistedMatchTimer | null
       remainingSeconds?: number;
       running?: boolean;
       savedAtMs?: number;
+      completed?: boolean;
     };
     if (!Number.isFinite(parsed.remainingSeconds) || !Number.isFinite(parsed.savedAtMs)) return null;
     const remaining = Math.max(0, Math.floor(parsed.remainingSeconds!));
@@ -116,9 +118,13 @@ function resolveTimerFromStorage(raw: string | null): PersistedMatchTimer | null
         remainingSeconds: nextRemaining,
         running: nextRemaining > 0,
         savedAtMs: Date.now(),
+        completed: parsed.completed === true || nextRemaining === 0,
       };
     }
-    return { remainingSeconds: remaining, running: false, savedAtMs };
+    if (remaining === 0 && parsed.completed !== true) {
+      return null;
+    }
+    return { remainingSeconds: remaining, running: false, savedAtMs, completed: parsed.completed === true };
   } catch {
     return null;
   }
@@ -398,6 +404,7 @@ export function MatchDetailPage() {
         remainingSeconds: Math.max(0, Math.floor(countdownSeconds)),
         running: countdownRunning && countdownSeconds > 0,
         savedAtMs: Date.now(),
+        completed: timerConfigured && !countdownRunning && countdownSeconds === 0,
       };
       window.localStorage.setItem(timerStorageKey, JSON.stringify(payload));
     } catch {

@@ -53,10 +53,7 @@ export function PeladaSettingsPage() {
         setLocation(p.location ?? '');
         setScheduleTime(p.scheduleTime ?? '');
         const due = p.monthlyDueDay;
-        // Padrão do sistema é 15: deixamos vazio para mostrar só o placeholder até o admin informar outro dia.
-        setMonthlyDueDay(
-          typeof due === 'number' && due >= 1 && due <= 31 && due !== 15 ? String(due) : '',
-        );
+        setMonthlyDueDay(typeof due === 'number' && due >= 1 && due <= 31 ? String(due) : '');
         setWeekdays(new Set(p.scheduleWeekdays ?? []));
         setMonthlyFee(centsToMasked(p.monthlyFeeCents));
         setDailyFee(centsToMasked(p.dailyFeeCents));
