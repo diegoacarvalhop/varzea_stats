@@ -42,7 +42,8 @@ export function MatchesPage() {
   const [teamNameToAdd, setTeamNameToAdd] = useState('');
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
   const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
-  const [goalkeeperForNewTeam, setGoalkeeperForNewTeam] = useState('');
+  const [goalkeeperPickByTeam, setGoalkeeperPickByTeam] = useState<Record<string, string>>({});
+  const [goalkeeperCheckByTeam, setGoalkeeperCheckByTeam] = useState<Record<string, boolean>>({});
   const [matchTeamA, setMatchTeamA] = useState('');
   const [matchTeamB, setMatchTeamB] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
@@ -257,20 +258,9 @@ export function MatchesPage() {
 
   function addTeamToPregame() {
     const name = teamNameToAdd.trim();
-    const goalkeeperId = Number(goalkeeperForNewTeam);
     if (!name) return;
-    if (!Number.isFinite(goalkeeperId) || goalkeeperId <= 0) {
-      appToast.warning('Selecione o goleiro ao adicionar o time.');
-      return;
-    }
-    if (!presentForDraft.has(goalkeeperId)) {
-      appToast.warning('O goleiro precisa estar marcado como presente.');
-      return;
-    }
     setPregameTeams((prev) => (prev.includes(name) ? prev : [...prev, name]));
-    setGoalkeeperByTeam((prev) => ({ ...prev, [name]: goalkeeperId }));
     setTeamNameToAdd('');
-    setGoalkeeperForNewTeam('');
     setDraftLines([]);
   }
 
@@ -281,9 +271,38 @@ export function MatchesPage() {
       delete out[name];
       return out;
     });
+    setGoalkeeperPickByTeam((prev) => {
+      const out = { ...prev };
+      delete out[name];
+      return out;
+    });
+    setGoalkeeperCheckByTeam((prev) => {
+      const out = { ...prev };
+      delete out[name];
+      return out;
+    });
     setMatchTeamA((prev) => (prev === name ? '' : prev));
     setMatchTeamB((prev) => (prev === name ? '' : prev));
     setDraftLines([]);
+  }
+
+  function defineGoalkeeperForTeam(teamName: string) {
+    const pick = Number(goalkeeperPickByTeam[teamName] ?? '');
+    const checked = goalkeeperCheckByTeam[teamName] === true;
+    if (!checked) {
+      appToast.warning('Marque a opção "É o goleiro desta equipe".');
+      return;
+    }
+    if (!Number.isFinite(pick) || pick <= 0) {
+      appToast.warning('Selecione o jogador goleiro para a equipe.');
+      return;
+    }
+    if (!presentForDraft.has(pick)) {
+      appToast.warning('O goleiro precisa estar marcado como presente.');
+      return;
+    }
+    setGoalkeeperByTeam((prev) => ({ ...prev, [teamName]: pick }));
+    appToast.success('Goleiro definido para a equipe.');
   }
 
   async function onRunDraft() {
@@ -437,18 +456,6 @@ export function MatchesPage() {
                       </option>
                     ))}
                   </select>
-                  <select
-                    className={`${s.input} ${s.select}`}
-                    value={goalkeeperForNewTeam}
-                    onChange={(ev) => setGoalkeeperForNewTeam(ev.target.value)}
-                  >
-                    <option value="">Goleiro do time…</option>
-                    {presentUsersSorted.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))}
-                  </select>
                   <button type="button" className={s.btn} onClick={addTeamToPregame}>
                     Adicionar
                   </button>
@@ -475,6 +482,38 @@ export function MatchesPage() {
                               </li>
                             ))}
                           </ul>
+                          <div className={s.form} style={{ marginTop: '0.75rem' }}>
+                            <div className={s.field}>
+                              <label className={s.fieldLabel}>Jogador presente / cadastro na pelada</label>
+                              <select
+                                className={`${s.input} ${s.select}`}
+                                value={goalkeeperPickByTeam[name] ?? ''}
+                                onChange={(ev) =>
+                                  setGoalkeeperPickByTeam((prev) => ({ ...prev, [name]: ev.target.value }))
+                                }
+                              >
+                                <option value="">— Selecione o jogador —</option>
+                                {presentUsersSorted.map((u) => (
+                                  <option key={`${name}-${u.id}`} value={u.id}>
+                                    {u.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <label className={s.checkboxRow}>
+                              <input
+                                type="checkbox"
+                                checked={goalkeeperCheckByTeam[name] === true}
+                                onChange={(ev) =>
+                                  setGoalkeeperCheckByTeam((prev) => ({ ...prev, [name]: ev.target.checked }))
+                                }
+                              />
+                              <span>É o goleiro desta equipe</span>
+                            </label>
+                            <button type="button" className={s.btn} onClick={() => defineGoalkeeperForTeam(name)}>
+                              Definir goleiro
+                            </button>
+                          </div>
                           <button type="button" className={s.btnRemove} onClick={() => removeTeamFromPregame(name)}>
                             Remover
                           </button>
