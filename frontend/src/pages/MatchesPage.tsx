@@ -43,6 +43,8 @@ export function MatchesPage() {
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
   const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
   const [goalkeeperForNewTeam, setGoalkeeperForNewTeam] = useState('');
+  const [matchTeamA, setMatchTeamA] = useState('');
+  const [matchTeamB, setMatchTeamB] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
 
@@ -116,6 +118,17 @@ export function MatchesPage() {
     [goalkeeperByTeam],
   );
 
+  const draftedPlayersByTeam = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const line of draftLines) {
+      map.set(
+        line.teamName,
+        line.players.map((p) => p.userName),
+      );
+    }
+    return map;
+  }, [draftLines]);
+
   const loadPregame = useCallback(async () => {
     if (!canCreate || peladaId == null) return;
     setLoadingPregame(true);
@@ -173,6 +186,11 @@ export function MatchesPage() {
     return () => window.clearTimeout(tid);
   }, [canCreate, peladaId, presenceDateForDraft, presentForDraftKey]);
 
+  useEffect(() => {
+    if (matchTeamA && !pregameTeams.includes(matchTeamA)) setMatchTeamA('');
+    if (matchTeamB && !pregameTeams.includes(matchTeamB)) setMatchTeamB('');
+  }, [pregameTeams, matchTeamA, matchTeamB]);
+
   async function onCreateMatch(e: FormEvent) {
     e.preventDefault();
     if (pregameTeams.length < 2) {
@@ -187,15 +205,25 @@ export function MatchesPage() {
       appToast.warning('Faça o sorteio antes de criar a partida.');
       return;
     }
+    if (!matchTeamA || !matchTeamB || matchTeamA === matchTeamB) {
+      appToast.warning('Selecione exatamente 2 times formados para esta partida.');
+      return;
+    }
+    const selectedTeams = [matchTeamA, matchTeamB];
+    const selectedLines = draftLines.filter((line) => selectedTeams.includes(line.teamName));
+    if (selectedLines.length !== 2) {
+      appToast.warning('Os 2 times selecionados precisam estar sorteados.');
+      return;
+    }
     setCreatingMatch(true);
     try {
       const instant = fromDatetimeLocalToUtcIso(date);
       const created = await createMatch({ date: instant, location: location.trim() });
-      for (const teamName of pregameTeams) {
+      for (const teamName of selectedTeams) {
         await createTeamForMatch(created.id, teamName);
       }
       await applyDraftToMatch(created.id, {
-        lines: draftLines.map((line) => ({
+        lines: selectedLines.map((line) => ({
           teamName: line.teamName,
           slots: [
             {
@@ -253,6 +281,8 @@ export function MatchesPage() {
       delete out[name];
       return out;
     });
+    setMatchTeamA((prev) => (prev === name ? '' : prev));
+    setMatchTeamB((prev) => (prev === name ? '' : prev));
     setDraftLines([]);
   }
 
@@ -424,33 +454,33 @@ export function MatchesPage() {
                   </button>
                 </div>
                 {pregameTeams.length > 0 ? (
-                  <div style={{ marginTop: '0.75rem' }} className={s.trajectoryTableWrap}>
-                    <table className={s.userListTable}>
-                      <thead>
-                        <tr>
-                          <th>Time</th>
-                          <th>Goleiro</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pregameTeams.map((name) => {
-                          const gkId = goalkeeperByTeam[name];
-                          const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
-                          return (
-                            <tr key={name}>
-                              <td>{name}</td>
-                              <td>{gkName}</td>
-                              <td>
-                                <button type="button" className={s.btn} onClick={() => removeTeamFromPregame(name)}>
-                                  Remover
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className={s.teamGrid} style={{ marginTop: '0.75rem' }}>
+                    {pregameTeams.map((name) => {
+                      const gkId = goalkeeperByTeam[name];
+                      const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
+                      const drafted = draftedPlayersByTeam.get(name) ?? [];
+                      return (
+                        <div key={name} className={s.teamCard}>
+                          <h3 className={s.teamTitle}>{name}</h3>
+                          <ul className={s.rosterList}>
+                            <li className={s.rosterRow}>
+                              <span className={s.rosterName}>
+                                {gkName}
+                                <span className={s.gkBadge}>Goleiro</span>
+                              </span>
+                            </li>
+                            {drafted.map((playerName) => (
+                              <li key={`${name}-${playerName}`} className={s.rosterRow}>
+                                <span className={s.rosterName}>{playerName}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <button type="button" className={s.btnRemove} onClick={() => removeTeamFromPregame(name)}>
+                            Remover
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className={s.statsDetailMeta}>Nenhum time definido.</p>
@@ -475,6 +505,41 @@ export function MatchesPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {draftLines.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <p className={s.fieldLabel}>4) Times da partida (escolha 2 já formados)</p>
+                  <div className={s.formInline}>
+                    <select
+                      className={`${s.input} ${s.select}`}
+                      value={matchTeamA}
+                      onChange={(ev) => setMatchTeamA(ev.target.value)}
+                    >
+                      <option value="">Time 1…</option>
+                      {pregameTeams.map((name) => (
+                        <option key={`a-${name}`} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className={`${s.input} ${s.select}`}
+                      value={matchTeamB}
+                      onChange={(ev) => setMatchTeamB(ev.target.value)}
+                    >
+                      <option value="">Time 2…</option>
+                      {pregameTeams.map((name) => (
+                        <option key={`b-${name}`} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className={s.statsDetailMeta} style={{ marginTop: '0.35rem' }}>
+                    Cada partida é entre 2 times. Ao encerrar, você cria outra e escolhe outros 2.
+                  </p>
                 </div>
               )}
             </>
