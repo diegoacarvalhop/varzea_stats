@@ -75,15 +75,40 @@ public class EventService {
                     throw new IllegalArgumentException("Este tipo de lance não utiliza jogador alvo.");
                 }
             }
-            case GOAL, OWN_GOAL -> {
+            case GOAL -> {
                 if (player == null) {
                     throw new IllegalArgumentException("Selecione o jogador principal para este tipo de lance.");
                 }
                 if (target == null) {
                     throw new IllegalArgumentException("Selecione o goleiro/alvo para este lance.");
                 }
+                if (!target.isGoalkeeper()) {
+                    throw new IllegalArgumentException("O alvo do gol precisa ser o goleiro adversário.");
+                }
+                if (player.getTeam() != null && target.getTeam() != null
+                        && player.getTeam().getId().equals(target.getTeam().getId())) {
+                    throw new IllegalArgumentException("Selecione o goleiro adversário do gol.");
+                }
                 if (player.getId().equals(target.getId())) {
                     throw new IllegalArgumentException("Jogador principal e goleiro/alvo não podem ser a mesma pessoa.");
+                }
+            }
+            case OWN_GOAL -> {
+                if (player == null) {
+                    throw new IllegalArgumentException("Selecione o jogador principal para este tipo de lance.");
+                }
+                if (target == null) {
+                    throw new IllegalArgumentException("Selecione o goleiro/alvo do gol contra.");
+                }
+                if (!target.isGoalkeeper()) {
+                    throw new IllegalArgumentException("O alvo do gol contra precisa ser o goleiro da própria equipe.");
+                }
+                if (player.getTeam() != null && target.getTeam() != null
+                        && !player.getTeam().getId().equals(target.getTeam().getId())) {
+                    throw new IllegalArgumentException("Selecione o goleiro da própria equipe para o gol contra.");
+                }
+                if (player.getId().equals(target.getId())) {
+                    throw new IllegalArgumentException("Jogador principal e goleiro/alvo do gol contra não podem ser a mesma pessoa.");
                 }
             }
             case FOUL -> {
@@ -103,6 +128,13 @@ public class EventService {
                 }
                 if (target == null) {
                     throw new IllegalArgumentException("Selecione o goleiro/alvo do pênalti em jogo.");
+                }
+                if (!target.isGoalkeeper()) {
+                    throw new IllegalArgumentException("O alvo do pênalti em jogo precisa ser o goleiro adversário.");
+                }
+                if (player.getTeam() != null && target.getTeam() != null
+                        && player.getTeam().getId().equals(target.getTeam().getId())) {
+                    throw new IllegalArgumentException("Selecione o goleiro adversário do pênalti em jogo.");
                 }
                 if (player.getId().equals(target.getId())) {
                     throw new IllegalArgumentException("Cobrador e alvo do pênalti em jogo não podem ser a mesma pessoa.");

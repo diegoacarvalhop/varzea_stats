@@ -37,6 +37,9 @@ public class Media {
     @Column(nullable = false)
     private MediaAssetType type;
 
+    @Column(length = 512)
+    private String comment;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "match_id", nullable = false)
     private Match match;

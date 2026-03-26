@@ -16,4 +16,6 @@ public class MediaUploadRequest {
 
     @NotNull
     private Long matchId;
+
+    private String comment;
 }

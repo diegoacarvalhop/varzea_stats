@@ -16,4 +16,5 @@ public class MediaResponse {
     private String url;
     private MediaAssetType type;
     private Long matchId;
+    private String comment;
 }

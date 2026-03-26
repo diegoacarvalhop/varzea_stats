@@ -16,6 +16,7 @@ function formatFinishedMatchLabel(m: Match): string {
 
 export function MediaPage() {
   const [url, setUrl] = useState('');
+  const [comment, setComment] = useState('');
   const [matchId, setMatchId] = useState('');
   const [finishedMatches, setFinishedMatches] = useState<Match[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(true);
@@ -85,10 +86,16 @@ export function MediaPage() {
         appToast.warning('Selecione uma partida.');
         return;
       }
-      const res = await uploadMedia({ url: trimmed, type, matchId: mid });
+      const trimmedComment = comment.trim();
+      if (!trimmedComment) {
+        appToast.warning('Informe um comentário para identificar a mídia.');
+        return;
+      }
+      const res = await uploadMedia({ url: trimmed, type, matchId: mid, comment: trimmedComment });
       appToast.success(`Mídia salva (#${res.id}). Quem abrir o detalhe da partida verá o link na galeria.`);
       setLastSavedMatchId(res.matchId);
       setUrl('');
+      setComment('');
     } catch {
       appToast.error('Falha no envio. Confira URL, partida e permissões.');
     }
@@ -117,6 +124,23 @@ export function MediaPage() {
               onChange={(ev) => setUrl(ev.target.value)}
               required
               placeholder="https://..."
+            />
+          </div>
+          <div className={s.field}>
+            <label className={s.fieldLabel} htmlFor="media-comment">
+              Comentário
+              <span className={s.requiredMark} aria-hidden>
+                *
+              </span>
+            </label>
+            <input
+              id="media-comment"
+              className={s.input}
+              value={comment}
+              onChange={(ev) => setComment(ev.target.value)}
+              required
+              placeholder="Ex.: gol do jogo, melhores momentos, pênalti..."
+              maxLength={512}
             />
           </div>
           <SearchableSelect

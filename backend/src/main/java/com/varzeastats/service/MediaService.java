@@ -26,6 +26,7 @@ public class MediaService {
                         .url(m.getUrl())
                         .type(m.getType())
                         .matchId(matchId)
+                        .comment(m.getComment())
                         .build())
                 .toList();
     }
@@ -36,6 +37,7 @@ public class MediaService {
         Media media = Media.builder()
                 .url(request.getUrl())
                 .type(request.getType())
+                .comment(request.getComment())
                 .match(match)
                 .build();
         media = mediaRepository.save(media);
@@ -44,6 +46,7 @@ public class MediaService {
                 .url(media.getUrl())
                 .type(media.getType())
                 .matchId(match.getId())
+                .comment(media.getComment())
                 .build();
     }
 }

@@ -7,6 +7,7 @@ export interface MatchMediaItem {
   url: string;
   type: MediaType;
   matchId: number;
+  comment?: string | null;
 }
 
 export async function listMediaForMatch(matchId: number): Promise<MatchMediaItem[]> {
@@ -18,6 +19,7 @@ export async function uploadMedia(body: {
   url: string;
   type: MediaType;
   matchId: number;
+  comment?: string;
 }): Promise<MatchMediaItem> {
   const { data } = await api.post<MatchMediaItem>('/media/upload', body);
   return data;

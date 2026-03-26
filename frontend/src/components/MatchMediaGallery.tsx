@@ -79,6 +79,7 @@ function MediaCard({ item }: { item: MatchMediaItem }) {
           <span className={styles.pill}>{TYPE_LABEL[item.type]}</span>
         </div>
         <span className={styles.host}>{host}</span>
+        {item.comment ? <p className={styles.comment}>{item.comment}</p> : null}
         <div className={styles.actions}>
           <a className={styles.btnOpen} href={item.url} target="_blank" rel="noopener noreferrer">
             Abrir link

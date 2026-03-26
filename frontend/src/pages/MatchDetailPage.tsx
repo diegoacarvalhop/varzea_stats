@@ -224,8 +224,22 @@ export function MatchDetailPage() {
 
   const targetPlayerOptions = useMemo(() => {
     if (!eventMainPlayer) return activePlayers;
-    return activePlayers.filter((p) => p.teamId !== eventMainPlayer.teamId);
-  }, [eventMainPlayer, activePlayers]);
+    const opponents = activePlayers.filter((p) => p.teamId !== eventMainPlayer.teamId);
+    const sameTeam = activePlayers.filter((p) => p.teamId === eventMainPlayer.teamId);
+    if (eventType === 'PENALTY_PLAY') {
+      // Pênalti durante o jogo precisa selecionar o goleiro adversário para contar como gols sofridos.
+      return opponents.filter((p) => p.goalkeeper);
+    }
+    if (eventType === 'GOAL') {
+      // Para o gol, o “alvo” do registro é o goleiro adversário.
+      return opponents.filter((p) => p.goalkeeper);
+    }
+    if (eventType === 'OWN_GOAL') {
+      // Para o gol contra, o “alvo” do registro é o goleiro da própria equipe.
+      return sameTeam.filter((p) => p.goalkeeper && p.id !== eventMainPlayer.id);
+    }
+    return opponents;
+  }, [eventMainPlayer, activePlayers, eventType]);
 
   const penaltyMainPlayer = useMemo(() => {
     if (!penaltyPlayerId) return null;
@@ -565,10 +579,10 @@ export function MatchDetailPage() {
 
   function eventLine(ev: MatchEvent) {
     const typeLabel = EVENT_LABELS[ev.type] ?? ev.type;
+    const mainPlayer = ev.playerId != null ? players.find((p) => p.id === ev.playerId) ?? null : null;
     const main =
-      ev.playerId != null
-        ? (players.find((p) => p.id === ev.playerId)?.name ?? 'Jogador removido')
-        : '—';
+      ev.playerId != null ? (mainPlayer?.name ?? 'Jogador removido') : '—';
+    const mainTeamName = mainPlayer?.teamName ?? null;
     const tgt =
       ev.targetId != null
         ? (players.find((p) => p.id === ev.targetId)?.name ?? 'Jogador removido')
@@ -576,7 +590,13 @@ export function MatchDetailPage() {
     return (
       <span>
         <strong>{typeLabel}</strong>
-        {main !== '—' && <> · {main}</>}
+        {main !== '—' && (
+          <>
+            {' '}
+            · {main}
+            {ev.type === 'OWN_GOAL' && mainTeamName ? ` (${mainTeamName})` : ''}
+          </>
+        )}
         {tgt && <> → {tgt}</>}
       </span>
     );
@@ -863,21 +883,46 @@ export function MatchDetailPage() {
               options={eventPlayerSelectOptions}
               emptyOption={{ value: '', label: '— Nenhum —' }}
             />
+            {eventType === 'OWN_GOAL' && eventMainPlayer?.teamName ? (
+              <p className={s.statsDetailMeta} style={{ margin: '-0.35rem 0 0.75rem' }}>
+                Time que fez gol contra: <strong>{eventMainPlayer.teamName}</strong>
+              </p>
+            ) : null}
             <SearchableSelect
               id="ev-target"
-              label="Jogador alvo (time adversário ao jogador principal)"
+              label={
+                eventType === 'PENALTY_PLAY'
+                  ? 'Goleiro adversário (alvo do pênalti)'
+                  : eventType === 'GOAL'
+                    ? 'Goleiro adversário (alvo do gol)'
+                    : eventType === 'OWN_GOAL'
+                      ? 'Goleiro da própria equipe (gol contra)'
+                      : 'Jogador alvo (time adversário ao jogador principal)'
+              }
               value={eventTargetId}
               onChange={setEventTargetId}
               options={targetPlayerSelectOptions}
               disabled={
                 !eventMainPlayer ||
-                !(eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL')
+                !(
+                  eventType === 'FOUL' ||
+                  eventType === 'SUBSTITUTION' ||
+                  eventType === 'GOAL' ||
+                  eventType === 'OWN_GOAL' ||
+                  eventType === 'PENALTY_PLAY'
+                )
               }
               emptyOption={{
                 value: '',
                 label:
                   !eventMainPlayer ||
-                  !(eventType === 'FOUL' || eventType === 'SUBSTITUTION' || eventType === 'GOAL' || eventType === 'OWN_GOAL')
+                  !(
+                    eventType === 'FOUL' ||
+                    eventType === 'SUBSTITUTION' ||
+                    eventType === 'GOAL' ||
+                    eventType === 'OWN_GOAL' ||
+                    eventType === 'PENALTY_PLAY'
+                  )
                     ? '— Não se aplica para este tipo de lance —'
                     : '— Nenhum —',
               }}

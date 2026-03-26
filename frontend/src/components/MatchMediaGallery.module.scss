@@ -188,6 +188,15 @@
   line-height: 1.35;
 }
 
+.comment {
+  margin: 0;
+  font-size: 0.8rem;
+  color: $text-dim;
+  line-height: 1.35;
+  word-break: break-word;
+  max-width: 46ch;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
