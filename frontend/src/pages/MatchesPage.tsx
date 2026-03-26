@@ -166,8 +166,7 @@ export function MatchesPage() {
       const present = presenceIds ?? [];
       lastSavedPresenceKeyRef.current = [...present].sort((a, b) => a - b).join(',');
       setPresentForDraft(new Set(present));
-      const gkSet = new Set(selectedGoalkeeperIds);
-      setDraftLines(stripGoalkeepersFromDraftLines(draftResult, gkSet));
+      setDraftLines(draftResult);
       if (draftResult.length > 0) setPregameTeams(draftResult.map((l) => l.teamName));
       setPeladaForMatch(peladas.find((p) => p.id === peladaId) ?? null);
     } catch {
@@ -179,7 +178,7 @@ export function MatchesPage() {
     } finally {
       setLoadingPregame(false);
     }
-  }, [canCreate, peladaId, presenceDateForDraft, selectedGoalkeeperIds]);
+  }, [canCreate, peladaId, presenceDateForDraft]);
 
   useEffect(() => {
     void loadPregame();
@@ -231,6 +230,12 @@ export function MatchesPage() {
       // no-op
     }
   }, [pregameStorageKey, pregameTeams, goalkeeperByTeam]);
+
+  useEffect(() => {
+    if (selectedGoalkeeperIds.length === 0) return;
+    const gkSet = new Set(selectedGoalkeeperIds);
+    setDraftLines((prev) => stripGoalkeepersFromDraftLines(prev, gkSet));
+  }, [selectedGoalkeeperIds]);
 
   useEffect(() => {
     setGoalkeeperByTeam((prev) => {
