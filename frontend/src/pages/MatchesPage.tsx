@@ -116,6 +116,11 @@ export function MatchesPage() {
     [goalkeeperByTeam],
   );
 
+  const pregameStorageKey = useMemo(() => {
+    if (peladaId == null) return '';
+    return `pregame:${peladaId}:${presenceDateForDraft}`;
+  }, [peladaId, presenceDateForDraft]);
+
   const draftedPlayersByTeam = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const line of draftLines) {
@@ -148,9 +153,7 @@ export function MatchesPage() {
       lastSavedPresenceKeyRef.current = [...present].sort((a, b) => a - b).join(',');
       setPresentForDraft(new Set(present));
       setDraftLines(draftResult);
-      if (draftResult.length > 0) {
-        setPregameTeams(draftResult.map((l) => l.teamName));
-      }
+      if (draftResult.length > 0) setPregameTeams(draftResult.map((l) => l.teamName));
       setPeladaForMatch(peladas.find((p) => p.id === peladaId) ?? null);
     } catch {
       setDraftPeladaUsers([]);
@@ -183,6 +186,47 @@ export function MatchesPage() {
     }, 350);
     return () => window.clearTimeout(tid);
   }, [canCreate, peladaId, presenceDateForDraft, presentForDraftKey]);
+
+  useEffect(() => {
+    if (!pregameStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(pregameStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { teams?: string[]; goalkeeperByTeam?: Record<string, number> };
+      if (Array.isArray(parsed.teams)) setPregameTeams(parsed.teams);
+      if (parsed.goalkeeperByTeam && typeof parsed.goalkeeperByTeam === 'object') {
+        setGoalkeeperByTeam(parsed.goalkeeperByTeam);
+      }
+    } catch {
+      // no-op
+    }
+  }, [pregameStorageKey]);
+
+  useEffect(() => {
+    if (!pregameStorageKey) return;
+    try {
+      window.localStorage.setItem(
+        pregameStorageKey,
+        JSON.stringify({
+          teams: pregameTeams,
+          goalkeeperByTeam,
+        }),
+      );
+    } catch {
+      // no-op
+    }
+  }, [pregameStorageKey, pregameTeams, goalkeeperByTeam]);
+
+  useEffect(() => {
+    setGoalkeeperByTeam((prev) => {
+      const out: Record<string, number> = {};
+      for (const team of pregameTeams) {
+        const gk = prev[team];
+        if (gk != null) out[team] = gk;
+      }
+      return out;
+    });
+  }, [pregameTeams]);
 
   async function onCreateMatch(e: FormEvent) {
     e.preventDefault();

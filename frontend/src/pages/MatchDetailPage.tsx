@@ -125,19 +125,20 @@ export function MatchDetailPage() {
   const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
   const timerConfigured = configuredDurationMinutes > 0;
   const timerEnded = timerConfigured && countdownSeconds === 0;
+  const selectedPairValid = Boolean(startingTeamA && startingTeamB && startingTeamA !== startingTeamB);
 
   const activeTeams = useMemo(() => {
-    if (!startingTeamA || !startingTeamB || startingTeamA === startingTeamB) return teams;
+    if (!selectedPairValid) return [];
     const selected = new Set([startingTeamA, startingTeamB]);
     return teams.filter((t) => selected.has(t.name));
-  }, [teams, startingTeamA, startingTeamB]);
+  }, [teams, startingTeamA, startingTeamB, selectedPairValid]);
 
   const activeTeamIds = useMemo(() => new Set(activeTeams.map((t) => t.id)), [activeTeams]);
 
   const activePlayers = useMemo(() => {
-    if (activeTeams.length === teams.length) return players;
+    if (!selectedPairValid) return [];
     return players.filter((p) => p.teamId != null && activeTeamIds.has(p.teamId));
-  }, [players, activeTeams.length, teams.length, activeTeamIds]);
+  }, [players, activeTeamIds, selectedPairValid]);
 
   const eventMainPlayer = useMemo(() => {
     if (!eventPlayerId) return null;
@@ -238,9 +239,8 @@ export function MatchDetailPage() {
   }, [matchId, refresh]);
 
   useEffect(() => {
-    if (teams.length < 2) return;
-    if (!startingTeamA) setStartingTeamA(teams[0].name);
-    if (!startingTeamB) setStartingTeamB(teams[1].name);
+    if (startingTeamA && !teams.some((t) => t.name === startingTeamA)) setStartingTeamA('');
+    if (startingTeamB && !teams.some((t) => t.name === startingTeamB)) setStartingTeamB('');
   }, [teams, startingTeamA, startingTeamB]);
 
   useEffect(() => {
@@ -278,11 +278,15 @@ export function MatchDetailPage() {
 
   async function onCreateEvent(e: FormEvent) {
     e.preventDefault();
-    if (teams.length === 0) {
-      appToast.warning('Cadastre ao menos uma equipe antes de registrar lances.');
+    if (!selectedPairValid) {
+      appToast.warning('Selecione os 2 times desta partida antes de registrar lances.');
       return;
     }
-    if (players.length === 0) {
+    if (activeTeams.length === 0) {
+      appToast.warning('Não há equipes selecionadas para esta partida.');
+      return;
+    }
+    if (activePlayers.length === 0) {
       appToast.warning('Cadastre jogadores nas equipes antes de registrar lances.');
       return;
     }
@@ -313,11 +317,15 @@ export function MatchDetailPage() {
 
   async function onRegisterPenalty(e: FormEvent) {
     e.preventDefault();
-    if (teams.length === 0) {
-      appToast.warning('Cadastre ao menos uma equipe antes de registrar pênaltis.');
+    if (!selectedPairValid) {
+      appToast.warning('Selecione os 2 times desta partida antes de registrar pênaltis.');
       return;
     }
-    if (players.length === 0) {
+    if (activeTeams.length === 0) {
+      appToast.warning('Não há equipes selecionadas para esta partida.');
+      return;
+    }
+    if (activePlayers.length === 0) {
       appToast.warning('Cadastre jogadores nas equipes antes de registrar pênaltis.');
       return;
     }
@@ -459,6 +467,11 @@ export function MatchDetailPage() {
           <p className={s.lead}>
             {new Date(match.date).toLocaleString('pt-BR')} · {match.location}
           </p>
+          <p className={s.statsDetailMeta} style={{ marginTop: '-0.15rem' }}>
+            {selectedPairValid
+              ? `${startingTeamA} x ${startingTeamB}`
+              : 'Selecione os 2 times desta partida na seção de equipes.'}
+          </p>
           <p className={s.placarHighlight}>{formatMatchPlacar(match.teamScores)}</p>
         </>
       )}
@@ -481,7 +494,7 @@ export function MatchDetailPage() {
         {teams.length === 0 && <p className={s.lead}>Nenhuma equipe ainda.</p>}
 
         {teams.length >= 2 && (
-          <div className={s.formInline} style={{ marginBottom: '1rem' }}>
+          <div className={s.formInline} style={{ marginBottom: '0.5rem' }}>
             <div className={s.field} style={{ flex: '1 1 220px' }}>
               <label className={s.fieldLabel}>Time 1 (início)</label>
               <select
@@ -513,6 +526,11 @@ export function MatchDetailPage() {
               </select>
             </div>
           </div>
+        )}
+        {teams.length >= 2 && !selectedPairValid && (
+          <p className={s.statsDetailMeta} style={{ marginBottom: '1rem' }}>
+            Selecione 2 times diferentes para iniciar esta partida.
+          </p>
         )}
 
         <div className={s.teamGrid} style={{ gridTemplateColumns: 'repeat(2, minmax(18rem, 1fr))' }}>
