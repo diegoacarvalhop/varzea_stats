@@ -2,7 +2,8 @@ import axios from 'axios';
 import { getPeladaId } from '@/lib/peladaContext';
 import type { Role } from '@/services/authService';
 
-const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const runtimeApiUrl = window.__APP_CONFIG__?.VITE_API_URL;
+const baseURL = runtimeApiUrl ?? import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
 export const api = axios.create({
   baseURL,

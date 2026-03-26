@@ -14,6 +14,8 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 COPY --from=builder /app/build/libs/*.jar app.jar
+RUN mkdir -p /app/data/pelada-logos
+VOLUME ["/app/data"]
 
 EXPOSE 8080
 
