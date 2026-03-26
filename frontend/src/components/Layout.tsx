@@ -97,10 +97,6 @@ export function Layout() {
     location.pathname !== '/pelada' &&
     !adminGeralOnUsersRoute;
 
-  if (adminMustPickPelada) {
-    return <Navigate to="/pelada" replace />;
-  }
-
   const showPeladaBar = Boolean(resolvedPeladaLabel);
   const canSwitchPeladaAdmin = isAdminGeral(roles);
   const canSwitchPeladaMember = !isAdminGeral(roles) && membershipPeladaIds.length > 1;
@@ -157,6 +153,10 @@ export function Layout() {
     }, 400);
     return () => window.clearTimeout(tid);
   }, [numericPeladaId, roles, isMensalistaNaPeladaAtual, dueDayThisMonth, refreshProfile]);
+
+  if (adminMustPickPelada) {
+    return <Navigate to="/pelada" replace />;
+  }
 
   return (
     <div className={styles.shell}>
