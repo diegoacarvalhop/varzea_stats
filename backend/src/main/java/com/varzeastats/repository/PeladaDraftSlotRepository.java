@@ -14,5 +14,5 @@ public interface PeladaDraftSlotRepository extends JpaRepository<PeladaDraftSlot
     @Query("DELETE FROM PeladaDraftSlot p WHERE p.pelada.id = :peladaId AND p.draftDate = :draftDate")
     int deleteByPeladaIdAndDraftDate(@Param("peladaId") Long peladaId, @Param("draftDate") LocalDate draftDate);
 
-    List<PeladaDraftSlot> findByPelada_IdAndDraftDateOrderByTeamIndexAsc(Long peladaId, LocalDate draftDate);
+    List<PeladaDraftSlot> findByPelada_IdAndDraftDateOrderByTeamIndexAscIdAsc(Long peladaId, LocalDate draftDate);
 }

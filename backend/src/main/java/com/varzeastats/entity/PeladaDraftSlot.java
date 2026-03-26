@@ -49,4 +49,8 @@ public class PeladaDraftSlot {
     @Column(name = "skill_score", nullable = false)
     @Builder.Default
     private double skillScore = 0d;
+
+    @Column(name = "is_goalkeeper", nullable = false)
+    @Builder.Default
+    private boolean goalkeeper = false;
 }

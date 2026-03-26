@@ -4,6 +4,7 @@ export interface DraftPlayerSlot {
   userId: number;
   userName: string;
   skillScore: number;
+  goalkeeper?: boolean;
 }
 
 export interface DraftTeamLine {
@@ -26,6 +27,7 @@ export async function runDraft(
   body: {
     date: string;
     goalkeeperUserIds?: number[];
+    goalkeeperByTeam?: Record<string, number>;
     teamNames?: string[];
     linePlayersPerTeam?: number;
   },

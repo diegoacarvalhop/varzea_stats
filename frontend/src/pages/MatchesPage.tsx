@@ -25,13 +25,6 @@ function isMensalistaOnPelada(u: UserSummary, peladaId: number): boolean {
   return u.billingMonthlyByPelada?.[String(peladaId)] !== false;
 }
 
-function stripGoalkeepersFromDraftLines(lines: DraftTeamLine[], goalkeeperIds: Set<number>): DraftTeamLine[] {
-  return lines.map((line) => ({
-    ...line,
-    players: line.players.filter((slot) => !goalkeeperIds.has(slot.userId)),
-  }));
-}
-
 export function MatchesPage() {
   const navigate = useNavigate();
   const { isAuthenticated, roles, peladaId } = useAuth();
@@ -166,7 +159,7 @@ export function MatchesPage() {
     for (const line of draftLines) {
       map.set(
         line.teamName,
-        line.players.map((p) => p.userName),
+        line.players.filter((p) => p.goalkeeper !== true).map((p) => p.userName),
       );
     }
     return map;
@@ -199,6 +192,14 @@ export function MatchesPage() {
       setPresentForDraft(new Set(present));
       setDraftLines(draftResult);
       if (draftResult.length > 0) setPregameTeams(draftResult.map((l) => l.teamName));
+      if (draftResult.length > 0) {
+        const fromDraft: Record<string, number> = {};
+        for (const line of draftResult) {
+          const gk = line.players.find((p) => p.goalkeeper === true);
+          if (gk) fromDraft[line.teamName] = gk.userId;
+        }
+        setGoalkeeperByTeam((prev) => ({ ...prev, ...fromDraft }));
+      }
       setPeladaForMatch(peladas.find((p) => p.id === peladaId) ?? null);
     } catch {
       setDraftPeladaUsers([]);
@@ -272,12 +273,6 @@ export function MatchesPage() {
   }, [pregameStorageKey, pregameHydrated, date, pregameTeams, goalkeeperByTeam]);
 
   useEffect(() => {
-    if (selectedGoalkeeperIds.length === 0) return;
-    const gkSet = new Set(selectedGoalkeeperIds);
-    setDraftLines((prev) => stripGoalkeepersFromDraftLines(prev, gkSet));
-  }, [selectedGoalkeeperIds]);
-
-  useEffect(() => {
     setGoalkeeperByTeam((prev) => {
       const out: Record<string, number> = {};
       for (const team of pregameTeams) {
@@ -312,15 +307,7 @@ export function MatchesPage() {
       await applyDraftToMatch(created.id, {
         lines: draftLines.map((line) => ({
           teamName: line.teamName,
-          slots: [
-            {
-              userId: goalkeeperByTeam[line.teamName],
-              goalkeeper: true,
-            },
-            ...line.players
-              .filter((slot) => !selectedGoalkeeperIds.includes(slot.userId))
-              .map((slot) => ({ userId: slot.userId, goalkeeper: false })),
-          ],
+          slots: line.players.map((slot) => ({ userId: slot.userId, goalkeeper: slot.goalkeeper === true })),
         })),
       });
       setLocation('');
@@ -411,13 +398,13 @@ export function MatchesPage() {
     }
     setRunningDraft(true);
     try {
-      const gkSet = new Set(selectedGoalkeeperIds);
       const result = await runDraft(peladaId, {
         date: presenceDateForDraft,
         teamNames: pregameTeams,
         goalkeeperUserIds: selectedGoalkeeperIds,
+        goalkeeperByTeam,
       });
-      setDraftLines(stripGoalkeepersFromDraftLines(result, gkSet));
+      setDraftLines(result);
       appToast.success('Times sorteados.');
     } catch {
       appToast.error('Falha ao sortear times.');
@@ -498,10 +485,7 @@ export function MatchesPage() {
                         checked={presentForDraft.has(u.id)}
                         onChange={(ev) => togglePresent(u.id, ev.target.checked)}
                       />
-                      <span>
-                        {u.name}
-                        <span className={s.gkBadge}>Goleiro</span>
-                      </span>
+                      <span>{u.name}</span>
                     </label>
                   ))}
                 </div>
@@ -532,7 +516,9 @@ export function MatchesPage() {
                     style={{ marginTop: '0.75rem', gridTemplateColumns: 'repeat(2, minmax(18rem, 1fr))' }}
                   >
                     {pregameTeams.map((name) => {
-                      const gkId = goalkeeperByTeam[name];
+                      const line = draftLines.find((l) => l.teamName === name);
+                      const persistedGoalkeeper = line?.players.find((p) => p.goalkeeper === true);
+                      const gkId = persistedGoalkeeper?.userId ?? goalkeeperByTeam[name];
                       const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
                       const drafted = draftedPlayersByTeam.get(name) ?? [];
                       return (

@@ -14,4 +14,5 @@ public class DraftPlayerSlotResponse {
     private Long userId;
     private String userName;
     private double skillScore;
+    private boolean goalkeeper;
 }

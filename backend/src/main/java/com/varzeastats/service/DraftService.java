@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -62,21 +63,48 @@ public class DraftService {
                 .orElseThrow(() -> new IllegalArgumentException("Pelada não encontrada."));
         List<String> names = resolveTeamNames(request, pelada);
         int teamCount = names.size();
+        Map<String, Integer> teamIndexByName = new LinkedHashMap<>();
+        for (int i = 0; i < names.size(); i++) {
+            teamIndexByName.put(names.get(i), i);
+        }
         Map<Long, Double> scores = loadSkillScores(peladaId, presentUserIds);
         Set<Long> presentSet = new HashSet<>(presentUserIds);
+        Map<String, Long> goalkeeperByTeamReq = request.getGoalkeeperByTeam() == null
+                ? Map.of()
+                : request.getGoalkeeperByTeam();
         List<Long> gkRequested =
                 request.getGoalkeeperUserIds() == null ? List.of() : request.getGoalkeeperUserIds();
         Set<Long> gkSet = new HashSet<>(gkRequested);
+        Map<Integer, Long> assignedGoalkeeperByTeamIndex = new LinkedHashMap<>();
+        if (!goalkeeperByTeamReq.isEmpty()) {
+            for (Map.Entry<String, Long> e : goalkeeperByTeamReq.entrySet()) {
+                String teamName = e.getKey() == null ? "" : e.getKey().trim();
+                Long uid = e.getValue();
+                if (!teamIndexByName.containsKey(teamName)) {
+                    throw new IllegalArgumentException("Equipe inválida no goleiro por time: " + teamName);
+                }
+                if (uid == null) {
+                    throw new IllegalArgumentException("Goleiro inválido para o time: " + teamName);
+                }
+                if (!presentSet.contains(uid)) {
+                    throw new IllegalArgumentException("Todo goleiro deve estar na lista de presença do dia.");
+                }
+                User gkUser = userRepository.findById(uid).orElseThrow(() -> new IllegalArgumentException("Usuário goleiro não encontrado."));
+                if (!gkUser.isGoalkeeper()) {
+                    throw new IllegalArgumentException("O usuário selecionado não está marcado como goleiro: " + gkUser.getName());
+                }
+                int idx = teamIndexByName.get(teamName);
+                assignedGoalkeeperByTeamIndex.put(idx, uid);
+                gkSet.add(uid);
+            }
+        }
         for (Long g : gkSet) {
             if (!presentSet.contains(g)) {
                 throw new IllegalArgumentException("Todo goleiro deve estar na lista de presença do dia.");
             }
         }
-        List<Long> gks = presentUserIds.stream().filter(gkSet::contains).toList();
         List<Long> fieldIds = presentUserIds.stream().filter(id -> !gkSet.contains(id)).toList();
         Random rnd = new Random(peladaId * 31L + date.toEpochDay());
-        List<Long> gksShuffled = new ArrayList<>(gks);
-        Collections.shuffle(gksShuffled, rnd);
         fieldIds = new ArrayList<>(fieldIds);
         fieldIds.sort(Comparator.<Long>comparingDouble(u -> scores.getOrDefault(u, 0d)).reversed());
         fieldIds = shuffleEqualScoreRuns(fieldIds, scores, rnd);
@@ -87,10 +115,15 @@ public class DraftService {
                 fieldIds = new ArrayList<>(fieldIds.subList(0, maxField));
             }
         }
-        List<Long> ordered = new ArrayList<>();
-        ordered.addAll(gksShuffled);
-        ordered.addAll(fieldIds);
-        List<List<Long>> teams = snakeBuckets(ordered, teamCount);
+        List<List<Long>> teams =
+                IntStream.range(0, teamCount).mapToObj(i -> new ArrayList<Long>()).collect(Collectors.toList());
+        for (Map.Entry<Integer, Long> e : assignedGoalkeeperByTeamIndex.entrySet()) {
+            teams.get(e.getKey()).add(e.getValue());
+        }
+        List<List<Long>> distributedField = snakeBuckets(fieldIds, teamCount);
+        for (int i = 0; i < teamCount; i++) {
+            teams.get(i).addAll(distributedField.get(i));
+        }
         peladaDraftSlotRepository.deleteByPeladaIdAndDraftDate(peladaId, date);
         List<DraftTeamLineResponse> lines = new ArrayList<>();
         for (int t = 0; t < teamCount; t++) {
@@ -107,11 +140,13 @@ public class DraftService {
                         .teamName(names.get(t))
                         .user(u)
                         .skillScore(sc)
+                        .goalkeeper(assignedGoalkeeperByTeamIndex.getOrDefault(t, -1L).equals(uid))
                         .build());
                 players.add(DraftPlayerSlotResponse.builder()
                         .userId(u.getId())
                         .userName(u.getName())
                         .skillScore(sc)
+                        .goalkeeper(assignedGoalkeeperByTeamIndex.getOrDefault(t, -1L).equals(uid))
                         .build());
             }
             lines.add(DraftTeamLineResponse.builder()
@@ -126,7 +161,7 @@ public class DraftService {
     @Transactional(readOnly = true)
     public List<DraftTeamLineResponse> lastResult(Long peladaId, LocalDate date, AppUserDetails caller) {
         authorize(caller, peladaId);
-        List<PeladaDraftSlot> slots = peladaDraftSlotRepository.findByPelada_IdAndDraftDateOrderByTeamIndexAsc(
+        List<PeladaDraftSlot> slots = peladaDraftSlotRepository.findByPelada_IdAndDraftDateOrderByTeamIndexAscIdAsc(
                 peladaId, date);
         if (slots.isEmpty()) {
             return List.of();
@@ -138,10 +173,12 @@ public class DraftService {
             List<PeladaDraftSlot> row = byTeam.get(t);
             String tn = row.get(0).getTeamName();
             List<DraftPlayerSlotResponse> players = row.stream()
+                    .sorted(Comparator.comparing(PeladaDraftSlot::isGoalkeeper).reversed())
                     .map(s -> DraftPlayerSlotResponse.builder()
                             .userId(s.getUser().getId())
                             .userName(s.getUser().getName())
                             .skillScore(s.getSkillScore())
+                            .goalkeeper(s.isGoalkeeper())
                             .build())
                     .toList();
             out.add(DraftTeamLineResponse.builder()
