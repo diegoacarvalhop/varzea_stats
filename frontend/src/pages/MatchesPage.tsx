@@ -25,6 +25,13 @@ function isMensalistaOnPelada(u: UserSummary, peladaId: number): boolean {
   return u.billingMonthlyByPelada?.[String(peladaId)] !== false;
 }
 
+function stripGoalkeepersFromDraftLines(lines: DraftTeamLine[], goalkeeperIds: Set<number>): DraftTeamLine[] {
+  return lines.map((line) => ({
+    ...line,
+    players: line.players.filter((slot) => !goalkeeperIds.has(slot.userId)),
+  }));
+}
+
 export function MatchesPage() {
   const navigate = useNavigate();
   const { isAuthenticated, roles, peladaId } = useAuth();
@@ -111,10 +118,12 @@ export function MatchesPage() {
     return draftMembersSorted.filter((u) => presentForDraft.has(u.id));
   }, [draftMembersSorted, presentForDraft]);
 
-  const selectedGoalkeeperIds = useMemo(
-    () => Object.values(goalkeeperByTeam).filter((id): id is number => Number.isFinite(id)),
-    [goalkeeperByTeam],
-  );
+  const selectedGoalkeeperIds = useMemo(() => {
+    const ids = pregameTeams
+      .map((team) => Number(goalkeeperByTeam[team]))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    return Array.from(new Set(ids));
+  }, [pregameTeams, goalkeeperByTeam]);
 
   const pregameStorageKey = useMemo(() => {
     if (peladaId == null) return '';
@@ -157,7 +166,8 @@ export function MatchesPage() {
       const present = presenceIds ?? [];
       lastSavedPresenceKeyRef.current = [...present].sort((a, b) => a - b).join(',');
       setPresentForDraft(new Set(present));
-      setDraftLines(draftResult);
+      const gkSet = new Set(selectedGoalkeeperIds);
+      setDraftLines(stripGoalkeepersFromDraftLines(draftResult, gkSet));
       if (draftResult.length > 0) setPregameTeams(draftResult.map((l) => l.teamName));
       setPeladaForMatch(peladas.find((p) => p.id === peladaId) ?? null);
     } catch {
@@ -169,7 +179,7 @@ export function MatchesPage() {
     } finally {
       setLoadingPregame(false);
     }
-  }, [canCreate, peladaId, presenceDateForDraft]);
+  }, [canCreate, peladaId, presenceDateForDraft, selectedGoalkeeperIds]);
 
   useEffect(() => {
     void loadPregame();
@@ -349,12 +359,13 @@ export function MatchesPage() {
     }
     setRunningDraft(true);
     try {
+      const gkSet = new Set(selectedGoalkeeperIds);
       const result = await runDraft(peladaId, {
         date: presenceDateForDraft,
         teamNames: pregameTeams,
         goalkeeperUserIds: selectedGoalkeeperIds,
       });
-      setDraftLines(result);
+      setDraftLines(stripGoalkeepersFromDraftLines(result, gkSet));
       appToast.success('Times sorteados.');
     } catch {
       appToast.error('Falha ao sortear times.');
