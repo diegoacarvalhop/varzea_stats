@@ -24,7 +24,33 @@ SPRING_DATASOURCE_USERNAME=${{Postgres.PGUSER}}
 SPRING_DATASOURCE_PASSWORD=${{Postgres.PGPASSWORD}}
 
 JWT_SECRET=troque-por-um-segredo-forte-com-32+-caracteres
-FRONTEND_URL=https://SEU_FRONTEND.up.railway.app
+FRONTEND_URL=https://${{varzea-frontend.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+### Bootstrap de usuário inicial (ADMIN_GERAL)
+
+Se quiser criar o primeiro usuário automaticamente em produção, defina:
+
+```env
+VARZEA_BOOTSTRAP_ADMIN_ENABLED=true
+VARZEA_BOOTSTRAP_ADMIN_EMAIL=admin@seu-dominio.com
+VARZEA_BOOTSTRAP_ADMIN_PASSWORD=defina-uma-senha-forte
+VARZEA_BOOTSTRAP_ADMIN_NAME=Administrador Geral
+```
+
+Importante:
+
+- O bootstrap só cria o usuário se não existir conta com esse e-mail.
+- Depois que o admin inicial estiver criado, recomenda-se desativar:
+
+```env
+VARZEA_BOOTSTRAP_ADMIN_ENABLED=false
+```
+
+- Senha padrão para usuários criados por administradores (opcional sobrescrever):
+
+```env
+VARZEA_USER_DEFAULT_PASSWORD=123456
 ```
 
 ### Logos da pelada (volume persistente)
@@ -49,6 +75,7 @@ O backend já cria e usa esse diretório dentro do container.
 ### Produção recomendada
 
 ```env
+# Se já criou o admin inicial, mantenha false
 VARZEA_BOOTSTRAP_ADMIN_ENABLED=false
 ```
 
@@ -69,7 +96,7 @@ SPRING_MAIL_SMTP_STARTTLS_ENABLE=true
 Defina no serviço `varzea-frontend`:
 
 ```env
-VITE_API_URL=https://SEU_BACKEND.up.railway.app
+VITE_API_URL=https://${{varzea-backend.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runtime-config.js` gerado no start do container), então você pode trocar a URL da API sem rebuild local.
@@ -77,11 +104,10 @@ Observação: o frontend agora lê `VITE_API_URL` em **runtime** (arquivo `runti
 ## 4) Ordem de publicação
 
 1. Suba o PostgreSQL.
-2. Faça deploy do backend.
+2. Configure o backend e faça o primeiro deploy.
 3. Confirme `https://SEU_BACKEND/actuator/health`.
-4. Configure `VITE_API_URL` no frontend e faça deploy.
-5. Atualize `FRONTEND_URL` no backend para a URL final do frontend.
-6. Redeploy rápido do backend para refletir a URL final nos links de e-mail.
+4. Configure o frontend e faça deploy.
+5. Se os domínios públicos forem criados após o primeiro deploy, faça um redeploy rápido em ambos para resolver as referências `${{...}}`.
 
 ## 5) Checklist de teste em produção
 
