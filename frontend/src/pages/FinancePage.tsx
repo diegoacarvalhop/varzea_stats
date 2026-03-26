@@ -382,6 +382,63 @@ export function FinancePage() {
       ) : (
         <>
           {canManageFinance && (
+            <section className={`${s.card} ${s.financeSectionTop}`}>
+            <h2 className={s.cardTitle}>Inadimplência</h2>
+            {delinquent.length === 0 ? (
+              <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
+            ) : (
+              <div className={s.trajectoryTableWrap}>
+                <table className={s.userListTable}>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>E-mail</th>
+                      <th>Tipo</th>
+                      <th>Referência em atraso</th>
+                      <th>Status</th>
+                      <th style={{ width: '12rem' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {delinquent.map((row) => (
+                      <tr key={`${row.userId}-${row.peladaId}`}>
+                        <td>{row.userName}</td>
+                        <td>{row.email}</td>
+                        <td>{row.billingType === 'DAILY' ? 'Diarista' : 'Mensalista'}</td>
+                        <td>
+                          {row.billingType === 'DAILY'
+                            ? formatOverdueDailyDates(row.overdueDailyDates)
+                            : formatOverdueMonths(row.overdueMonths)}
+                        </td>
+                        <td>{formatReminderSentAt(row.reminderSentAt)}</td>
+                        <td className={s.financeActionRow}>
+                          {row.pendingReceiptId ? (
+                            <button type="button" className={s.btnPrimary} onClick={() => void openReceiptModal(row)}>
+                              Ver comprovante
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={s.btn}
+                            disabled={Boolean(sendingReminderByUser[row.userId])}
+                            onClick={() => void onSendReminder(row)}
+                          >
+                            {sendingReminderByUser[row.userId]
+                              ? 'Enviando…'
+                              : row.reminderSentAt
+                                ? 'Reenviar cobrança'
+                                : 'Enviar cobrança'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            </section>
+          )}
+          {canManageFinance && (
             <section className={s.card}>
               <h2 className={s.cardTitle}>Registrar pagamento</h2>
               <form className={`${s.form} ${s.financeFormCompact}`} onSubmit={(e) => void onSubmit(e)}>
@@ -520,63 +577,6 @@ export function FinancePage() {
                   {receiptSubmitting ? 'Enviando…' : 'Enviar comprovante'}
                 </button>
               </form>
-            </section>
-          )}
-          {canManageFinance && (
-            <section className={`${s.card} ${s.financeSectionTop}`}>
-            <h2 className={s.cardTitle}>Inadimplência</h2>
-            {delinquent.length === 0 ? (
-              <p className={s.lead}>Nenhum inadimplente nesta pelada para o mês atual.</p>
-            ) : (
-              <div className={s.trajectoryTableWrap}>
-                <table className={s.userListTable}>
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>E-mail</th>
-                      <th>Tipo</th>
-                      <th>Referência em atraso</th>
-                      <th>Status</th>
-                      <th style={{ width: '12rem' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {delinquent.map((row) => (
-                      <tr key={`${row.userId}-${row.peladaId}`}>
-                        <td>{row.userName}</td>
-                        <td>{row.email}</td>
-                        <td>{row.billingType === 'DAILY' ? 'Diarista' : 'Mensalista'}</td>
-                        <td>
-                          {row.billingType === 'DAILY'
-                            ? formatOverdueDailyDates(row.overdueDailyDates)
-                            : formatOverdueMonths(row.overdueMonths)}
-                        </td>
-                        <td>{formatReminderSentAt(row.reminderSentAt)}</td>
-                        <td className={s.financeActionRow}>
-                          {row.pendingReceiptId ? (
-                            <button type="button" className={s.btnPrimary} onClick={() => void openReceiptModal(row)}>
-                              Ver comprovante
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            className={s.btn}
-                            disabled={Boolean(sendingReminderByUser[row.userId])}
-                            onClick={() => void onSendReminder(row)}
-                          >
-                            {sendingReminderByUser[row.userId]
-                              ? 'Enviando…'
-                              : row.reminderSentAt
-                                ? 'Reenviar cobrança'
-                                : 'Enviar cobrança'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
             </section>
           )}
           <section className={`${s.card} ${s.financeSectionTop}`}>
