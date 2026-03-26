@@ -234,7 +234,7 @@ export function Layout() {
             {roles && roles.length > 0 && (
               <span className={styles.userRoles}>
                 {goalkeeper && (
-                  <span className={pageShared.roleTag} style={{ marginTop: 0 }} title="Goleiro">
+                  <span aria-label="Goleiro" title="Goleiro" style={{ fontSize: '1.45rem', lineHeight: 1 }}>
                     🧤
                   </span>
                 )}

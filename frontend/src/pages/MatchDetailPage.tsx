@@ -204,6 +204,13 @@ export function MatchDetailPage() {
   }, [eventTargetId, targetPlayerOptions]);
 
   useEffect(() => {
+    const acceptsTarget = eventType === 'FOUL' || eventType === 'SUBSTITUTION';
+    if (!acceptsTarget && eventTargetId) {
+      setEventTargetId('');
+    }
+  }, [eventType, eventTargetId]);
+
+  useEffect(() => {
     if (!penaltyTargetId) return;
     const tid = Number(penaltyTargetId);
     if (!Number.isFinite(tid)) return;
@@ -305,6 +312,7 @@ export function MatchDetailPage() {
   }, [selectedTeamsStorageKey]);
 
   useEffect(() => {
+    if (teams.length === 0) return;
     if (startingTeamA && !teams.some((t) => t.name === startingTeamA)) setStartingTeamA('');
     if (startingTeamB && !teams.some((t) => t.name === startingTeamB)) setStartingTeamB('');
   }, [teams, startingTeamA, startingTeamB]);
@@ -379,7 +387,8 @@ export function MatchDetailPage() {
     }
     try {
       const pid = eventPlayerId ? Number(eventPlayerId) : null;
-      const tid = eventTargetId ? Number(eventTargetId) : null;
+      const acceptsTarget = eventType === 'FOUL' || eventType === 'SUBSTITUTION';
+      const tid = acceptsTarget && eventTargetId ? Number(eventTargetId) : null;
       await createEventForMatch(matchId, {
         type: eventType,
         playerId: pid,
@@ -765,10 +774,13 @@ export function MatchDetailPage() {
               value={eventTargetId}
               onChange={setEventTargetId}
               options={targetPlayerSelectOptions}
-              disabled={!eventMainPlayer}
+              disabled={!eventMainPlayer || !(eventType === 'FOUL' || eventType === 'SUBSTITUTION')}
               emptyOption={{
                 value: '',
-                label: !eventMainPlayer ? '— Selecione o jogador principal primeiro —' : '— Nenhum —',
+                label:
+                  !eventMainPlayer || !(eventType === 'FOUL' || eventType === 'SUBSTITUTION')
+                    ? '— Não se aplica para este tipo de lance —'
+                    : '— Nenhum —',
               }}
             />
             <button className={s.btnPrimary} type="submit">
