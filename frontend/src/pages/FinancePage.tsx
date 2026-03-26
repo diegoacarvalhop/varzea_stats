@@ -191,7 +191,8 @@ export function FinancePage() {
     <div className={s.page}>
       <h1>Financeiro — {peladaName ?? `Pelada #${peladaId}`}</h1>
       <p className={s.lead}>
-        Registre pagamentos mensais ou diários. Mensalistas entram em inadimplência após o dia 15 sem quitação do mês.
+        Registre pagamentos mensais ou diários. Mensalistas entram em inadimplência após o dia de vencimento configurado
+        na pelada (sem quitação do mês).
         Diaristas entram em inadimplência no dia em que forem marcados presentes e o débito não for baixado.
       </p>
       {loading ? (
@@ -337,7 +338,7 @@ export function FinancePage() {
           <section className={s.card} style={{ marginTop: '1.25rem' }}>
             <h2 className={s.cardTitle}>Mensalidades por jogador</h2>
             <p className={s.lead} style={{ marginTop: 0 }}>
-              Consulta disponível para Financeiro, Admin da pelada e Admin geral.
+              Consulta disponível para Financeiro, Administrador e Administrador geral.
             </p>
             <form className={s.form} style={{ maxWidth: '28rem' }} onSubmit={(e) => void onListMonthlyHistory(e)}>
               <div className={s.field}>

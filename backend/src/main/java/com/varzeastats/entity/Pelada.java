@@ -51,6 +51,11 @@ public class Pelada {
     @Column(name = "schedule_time", length = 5)
     private String scheduleTime;
 
+    /** Dia do mês (1–31) limite para quitar mensalidade; após esse dia no mês, considera inadimplente o mês corrente. */
+    @Column(name = "monthly_due_day", nullable = false)
+    @Builder.Default
+    private Integer monthlyDueDay = 15;
+
     /** Dias ISO-8601 (1=Seg … 7=Dom), CSV ordenado, ex.: "1,3,5". */
     @Column(name = "schedule_weekdays", length = 32)
     private String scheduleWeekdays;
@@ -63,6 +68,10 @@ public class Pelada {
 
     @Column(name = "team_count")
     private Integer teamCount;
+
+    /** Máx. jogadores de linha por equipe no sorteio; null = sem limite. */
+    @Column(name = "line_players_per_team")
+    private Integer linePlayersPerTeam;
 
     @Column(name = "team_names", columnDefinition = "TEXT")
     private String teamNames;

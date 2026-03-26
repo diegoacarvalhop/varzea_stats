@@ -35,6 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class FinanceService {
 
+    /** Mensalidade/diária de pelada só se aplica a quem tem perfil de jogador. */
+    private static boolean participatesInPlayerBilling(User user) {
+        return user != null && user.getRoles() != null && user.getRoles().contains(Role.PLAYER);
+    }
+
     private final PeladaPaymentRepository peladaPaymentRepository;
     private final PeladaDailyDebitRepository peladaDailyDebitRepository;
     private final PeladaDelinquentReminderRepository peladaDelinquentReminderRepository;
@@ -97,7 +102,7 @@ public class FinanceService {
                 continue;
             }
             if (m.isBillingMonthly()) {
-                if (today.getDayOfMonth() <= 15) {
+                if (today.getDayOfMonth() <= effectiveMonthlyDueDay(pelada, today)) {
                     continue;
                 }
                 List<LocalDate> overdueMonths = listOverdueMonthsForUser(peladaId, uid, pelada, monthStart);
@@ -142,9 +147,18 @@ public class FinanceService {
         if (peladaIds == null || peladaIds.isEmpty()) {
             return List.of();
         }
+        User user = userRepository.findById(userId).orElse(null);
+        if (!participatesInPlayerBilling(user)) {
+            return List.of();
+        }
         LocalDate monthStart = today.withDayOfMonth(1);
         List<Long> out = new ArrayList<>();
         for (Long pid : peladaIds) {
+            Pelada peladaForDue =
+                    peladaRepository.findById(pid).orElse(null);
+            if (peladaForDue == null) {
+                continue;
+            }
             Optional<UserPeladaMembership> mem = userPeladaMembershipRepository.findById(
                     new UserPeladaId(userId, pid));
             if (mem.isEmpty() || !mem.get().isBillingMonthly()) {
@@ -153,7 +167,7 @@ public class FinanceService {
                 }
                 continue;
             }
-            if (today.getDayOfMonth() <= 15) {
+            if (today.getDayOfMonth() <= effectiveMonthlyDueDay(peladaForDue, today)) {
                 continue;
             }
             boolean paidThisMonth =
@@ -216,6 +230,9 @@ public class FinanceService {
         if (!membership.isBillingMonthly()) {
             throw new IllegalArgumentException("Cobrança por e-mail disponível apenas para mensalistas.");
         }
+        if (!participatesInPlayerBilling(user)) {
+            throw new IllegalArgumentException("Cobrança aplica-se apenas a contas com perfil de jogador.");
+        }
         boolean paid =
                 peladaPaymentRepository.hasMonthlyPaymentForMonth(pelada.getId(), user.getId(), PaymentKind.MONTHLY, monthStart);
         if (paid) {
@@ -249,6 +266,13 @@ public class FinanceService {
             return;
         }
         throw new AccessDeniedException("Sem permissão financeira nesta pelada.");
+    }
+
+    /** Dia efetivo de vencimento no mês (1–lengthOfMonth), nunca ultrapassa o último dia do mês. */
+    private static int effectiveMonthlyDueDay(Pelada pelada, LocalDate dateInMonth) {
+        int raw = pelada.getMonthlyDueDay() != null ? pelada.getMonthlyDueDay() : 15;
+        raw = Math.max(1, Math.min(raw, 31));
+        return Math.min(raw, dateInMonth.lengthOfMonth());
     }
 
     private List<LocalDate> listOverdueMonthsForUser(Long peladaId, Long userId, Pelada pelada, LocalDate monthStart) {

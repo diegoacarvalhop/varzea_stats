@@ -2,16 +2,8 @@ import { FormEvent, useMemo, useState } from 'react';
 import { PasswordField } from '@/components/PasswordField';
 import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
+import { roleDisplayLabel } from '@/lib/roles';
 import s from '@/styles/pageShared.module.scss';
-
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN_GERAL: 'Administrador geral',
-  ADMIN: 'Administrador da pelada',
-  SCOUT: 'Scout / mesário',
-  MEDIA: 'Mídia',
-  FINANCEIRO: 'Financeiro',
-  PLAYER: 'Jogador',
-};
 
 const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
   ADMIN_GERAL: [
@@ -99,7 +91,7 @@ export function ProfilePage() {
     setSavingBillingMode(true);
     try {
       await updateMemberships({ peladaIds, billingMonthlyByPelada: billingMonthlyMap });
-      appToast.success(nextMonthly ? 'Perfil atualizado para mensalista (R$ 15,00/mês).' : 'Perfil atualizado para diarista (R$ 10,00 por dia).');
+      appToast.success(nextMonthly ? 'Perfil atualizado para mensalista.' : 'Perfil atualizado para diarista.');
     } catch {
       appToast.error('Não foi possível atualizar seu tipo de cobrança.');
     } finally {
@@ -127,7 +119,7 @@ export function ProfilePage() {
             <strong>Perfis:</strong>{' '}
             {(roles ?? []).map((role) => (
               <span key={role} className={s.rolePill} style={{ marginLeft: '0.35rem' }}>
-                {ROLE_LABEL[role] ?? role}
+                {roleDisplayLabel(role)}
               </span>
             ))}
           </div>
@@ -159,6 +151,9 @@ export function ProfilePage() {
           <p className={s.lead} style={{ marginTop: 0 }}>
             Pelada: <strong>{peladaName ?? `#${peladaId}`}</strong>
           </p>
+          <p className={s.statsDetailMeta} style={{ marginTop: '-0.25rem', marginBottom: '0.35rem' }}>
+            Os valores cobrados seguem o que está cadastrado em Configuração da pelada.
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             <label className={s.checkboxRow}>
               <input
@@ -169,7 +164,7 @@ export function ProfilePage() {
                   if (ev.target.checked) void onToggleBillingMode(true);
                 }}
               />
-              <span>Mensalista — R$ 15,00 por mês</span>
+              <span>Mensalista — pagamento mensal</span>
             </label>
             <label className={s.checkboxRow}>
               <input
@@ -180,7 +175,7 @@ export function ProfilePage() {
                   if (ev.target.checked) void onToggleBillingMode(false);
                 }}
               />
-              <span>Diarista — R$ 10,00 por dia de jogo</span>
+              <span>Diarista — pagamento por dia de jogo</span>
             </label>
           </div>
         </section>

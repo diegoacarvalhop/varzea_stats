@@ -23,7 +23,7 @@ public class PasswordResetService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${varzea.password-reset.link-base:http://localhost:5173}")
+    @Value("${varzea.password-reset.link-base:http://localhost:3000}")
     private String linkBase;
 
     @Transactional

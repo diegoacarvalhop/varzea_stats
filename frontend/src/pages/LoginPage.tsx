@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
 import { getPeladaId } from '@/lib/peladaContext';
-import { isAdminGeral } from '@/lib/roles';
+import { hasRole, isAdminGeral } from '@/lib/roles';
 import type { Role } from '@/services/authService';
 import { PasswordField } from '@/components/PasswordField';
 import styles from './LoginPage.module.scss';
@@ -37,10 +37,23 @@ export function LoginPage() {
     };
   }, []);
 
-  if (isAuthenticated) {
+  // Alinhar com o token persistido: após logout o localStorage some antes de um possível render atrasado do contexto.
+  const hasPersistedToken = Boolean(localStorage.getItem('varzea_token'));
+  if (isAuthenticated && hasPersistedToken) {
     const storedRoles = parseStoredRoles(localStorage.getItem('varzea_user'));
     if (isAdminGeral(storedRoles) && !getPeladaId()) {
       return <Navigate to="/pelada" replace />;
+    }
+    if (hasRole(storedRoles, 'ADMIN') && !isAdminGeral(storedRoles)) {
+      const raw = localStorage.getItem('varzea_user');
+      try {
+        const u = raw ? (JSON.parse(raw) as { peladaId?: number | null }) : {};
+        if (u.peladaId == null) {
+          return <Navigate to="/pelada" replace />;
+        }
+      } catch {
+        return <Navigate to="/pelada" replace />;
+      }
     }
     return <Navigate to={from} replace />;
   }
@@ -59,6 +72,10 @@ export function LoginPage() {
       const roles = parseStoredRoles(raw);
       if (isAdminGeral(roles)) {
         navigate(getPeladaId() ? '/painel' : '/pelada', { replace: true });
+        return;
+      }
+      if (hasRole(roles, 'ADMIN') && res.peladaId == null) {
+        navigate('/pelada', { replace: true });
         return;
       }
       navigate(from, { replace: true });

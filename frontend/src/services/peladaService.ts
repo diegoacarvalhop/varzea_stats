@@ -9,11 +9,15 @@ export interface Pelada {
   location?: string | null;
   scheduleLabel?: string | null;
   scheduleTime?: string | null;
+  /** Dia do mês (1–31) para vencimento da mensalidade. */
+  monthlyDueDay?: number | null;
   scheduleWeekdays?: number[] | null;
   scheduleLegacyLabel?: string | null;
   monthlyFeeCents?: number | null;
   dailyFeeCents?: number | null;
   teamCount?: number | null;
+  /** Máx. jogadores de linha por equipe no sorteio; null = sem limite */
+  linePlayersPerTeam?: number | null;
   teamNames?: string | null;
   matchDurationMinutes?: number | null;
   matchGoalsToEnd?: number | null;
@@ -33,10 +37,13 @@ export interface PeladaSettingsPayload {
   active?: boolean;
   location?: string | null;
   scheduleTime?: string | null;
+  monthlyDueDay?: number | null;
   scheduleWeekdays?: number[] | null;
   monthlyFeeCents?: number | null;
   dailyFeeCents?: number | null;
   teamCount?: number | null;
+  /** 0 = sem limite no sorteio; ≥1 = teto de jogadores de linha por equipe */
+  linePlayersPerTeam?: number | null;
   teamNames?: string | null;
   matchDurationMinutes?: number | null;
   matchGoalsToEnd?: number | null;

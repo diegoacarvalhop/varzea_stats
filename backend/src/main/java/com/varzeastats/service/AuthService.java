@@ -79,9 +79,12 @@ public class AuthService {
         String peladaName = user.getPelada() != null ? user.getPelada().getName() : null;
         Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
         Boolean peladaHasLogo = null;
+        Integer peladaMonthlyDueDay = null;
         if (user.getPelada() != null) {
             String fn = user.getPelada().getLogoFileName();
             peladaHasLogo = fn != null && !fn.isBlank();
+            Integer d = user.getPelada().getMonthlyDueDay();
+            peladaMonthlyDueDay = d != null ? d : 15;
         }
         List<Role> rolesSorted = user.getRoles().stream()
                 .sorted(Comparator.comparing(Enum::name))
@@ -91,9 +94,11 @@ public class AuthService {
                 .sorted()
                 .collect(Collectors.toList());
         Map<Long, Boolean> billingMonthlyByPelada = new LinkedHashMap<>();
-        userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
-            billingMonthlyByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
-        });
+        if (user.getRoles() != null && user.getRoles().contains(Role.PLAYER)) {
+            userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
+                billingMonthlyByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
+            });
+        }
         List<Long> delinquent = financeService.monthlyDelinquentPeladaIdsForUser(
                 user.getId(), membershipIds, LocalDate.now());
         return LoginResponse.builder()
@@ -104,6 +109,7 @@ public class AuthService {
                 .peladaId(peladaId)
                 .peladaName(peladaName)
                 .peladaHasLogo(peladaHasLogo)
+                .peladaMonthlyDueDay(peladaMonthlyDueDay)
                 .mustChangePassword(user.isMustChangePassword())
                 .membershipPeladaIds(membershipIds)
                 .monthlyDelinquentPeladaIds(delinquent)

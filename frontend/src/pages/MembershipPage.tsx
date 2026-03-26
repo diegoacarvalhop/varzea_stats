@@ -84,7 +84,8 @@ export function MembershipPage() {
       <h1>Minhas peladas</h1>
       <p className={s.lead}>
         Marque em quais peladas você participa. Você pode alterar quando quiser. Para cada pelada, indique se prefere{' '}
-        <strong>mensalista</strong> (pagamento mensal até o dia 15) ou <strong>só diária</strong> quando jogar.
+        <strong>mensalista</strong> (pagamento mensal até o dia de vencimento definido pela pelada) ou{' '}
+        <strong>só diária</strong> quando jogar.
       </p>
       {loading ? (
         <p className={s.lead}>Carregando…</p>
@@ -127,7 +128,7 @@ export function MembershipPage() {
                           }))
                         }
                       />
-                      <span>Sou mensalista nesta pelada (cobrança mensal até dia 15)</span>
+                      <span>Sou mensalista nesta pelada (cobrança mensal até o vencimento configurado pelo grupo)</span>
                     </label>
                   )}
                 </li>

@@ -24,12 +24,15 @@ public class PeladaResponse {
     /** Texto para exibição (dias + horário ou legado). */
     private String scheduleLabel;
     private String scheduleTime;
+    /** Dia de vencimento da mensalidade (1–31). */
+    private Integer monthlyDueDay;
     private List<Integer> scheduleWeekdays;
     /** Texto livre antigo quando ainda não há dias/horário estruturados. */
     private String scheduleLegacyLabel;
     private Integer monthlyFeeCents;
     private Integer dailyFeeCents;
     private Integer teamCount;
+    private Integer linePlayersPerTeam;
     private String teamNames;
     private Integer matchDurationMinutes;
     private Integer matchGoalsToEnd;

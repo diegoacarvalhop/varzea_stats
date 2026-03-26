@@ -9,3 +9,6 @@
 *.log
 .env
 .env.local
+
+# sobrescritas locais do backend (contém segredos)
+backend/src/main/resources/application-local.properties

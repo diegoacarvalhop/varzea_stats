@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PasswordField } from '@/components/PasswordField';
 import { useAuth } from '@/hooks/useAuth';
+import { hasRole, isAdminGeral } from '@/lib/roles';
 import { getApiErrorMessage } from '@/lib/apiError';
 import { appToast } from '@/lib/appToast';
 import { registerPublicAccount } from '@/services/authService';
@@ -9,7 +10,7 @@ import { listPeladas } from '@/services/peladaService';
 import styles from './LoginPage.module.scss';
 
 export function RegisterPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login, roles, peladaId } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
@@ -20,8 +21,8 @@ export function RegisterPage() {
   const [peladaNome, setPeladaNome] = useState<string | null>(null);
   const [billingMonthly, setBillingMonthly] = useState(true);
   const peladaIdParam = searchParams.get('peladaId');
-  const peladaId = peladaIdParam ? Number(peladaIdParam) : NaN;
-  const cadastroAdmin = searchParams.get('tipo') === 'admin' || !Number.isFinite(peladaId);
+  const peladaIdQuery = peladaIdParam ? Number(peladaIdParam) : NaN;
+  const cadastroAdmin = searchParams.get('tipo') === 'admin' || !Number.isFinite(peladaIdQuery);
 
   useEffect(() => {
     document.title = 'Cadastro · VARzea Stats';
@@ -31,19 +32,29 @@ export function RegisterPage() {
   }, []);
 
   useEffect(() => {
-    if (!Number.isFinite(peladaId)) {
+    if (!Number.isFinite(peladaIdQuery)) {
       setPeladaNome(null);
       return;
     }
     void listPeladas()
       .then((list) => {
-        const p = list.find((x) => x.id === peladaId);
+        const p = list.find((x) => x.id === peladaIdQuery);
         setPeladaNome(p?.name ?? null);
       })
       .catch(() => setPeladaNome(null));
-  }, [peladaId]);
+  }, [peladaIdQuery]);
 
-  if (isAuthenticated) {
+  const hasPersistedToken = Boolean(localStorage.getItem('varzea_token'));
+  if (isAuthenticated && hasPersistedToken) {
+    if (
+      cadastroAdmin &&
+      roles &&
+      hasRole(roles, 'ADMIN') &&
+      !isAdminGeral(roles) &&
+      peladaId == null
+    ) {
+      return <Navigate to="/pelada" replace />;
+    }
     return <Navigate to="/painel" replace />;
   }
 
@@ -63,15 +74,17 @@ export function RegisterPage() {
         name: name.trim(),
         email: email.trim(),
         password,
-        peladaId: Number.isFinite(peladaId) ? peladaId : null,
+        peladaId: Number.isFinite(peladaIdQuery) ? peladaIdQuery : null,
         billingMonthly: cadastroAdmin ? undefined : billingMonthly,
       });
-      appToast.success(
-        cadastroAdmin
-          ? 'Conta ADMIN criada. Faça login para criar a pelada e concluir seu acesso.'
-          : 'Conta de jogador criada. Faça login para entrar na pelada.',
-      );
-      navigate('/login', { replace: true });
+      if (cadastroAdmin) {
+        await login(email.trim(), password);
+        appToast.success('Conta criada como administrador. Crie seu grupo para continuar.');
+        navigate('/pelada', { replace: true });
+      } else {
+        appToast.success('Conta de jogador criada. Faça login para entrar na pelada.');
+        navigate('/login', { replace: true });
+      }
     } catch (err) {
       appToast.error(getApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
     } finally {
@@ -89,13 +102,15 @@ export function RegisterPage() {
         <p className={styles.subtitle}>
           {cadastroAdmin ? (
             <>
-              Este cadastro cria sua conta como <strong>ADMIN</strong> para criar uma nova pelada.
+              Este cadastro cria sua conta como <strong>administrador</strong> (ADMIN — não é o administrador geral).
+              Em seguida você criará o grupo e já entrará no sistema com a pelada selecionada.
             </>
           ) : (
             <>
               Este cadastro cria sua conta como <strong>JOGADOR</strong> para entrar na pelada{' '}
-              <strong>{peladaNome ?? `#${peladaId}`}</strong>. Escolha abaixo seu tipo de cobrança: mensalista
-              (R$15,00/mês) ou diarista (R$10,00 por dia de jogo).
+              <strong>{peladaNome ?? `#${peladaIdQuery}`}</strong>. Escolha abaixo o tipo de cobrança: mensalista
+              (pagamento mensal) ou diarista (pagamento por dia de jogo). Os valores são os definidos na configuração
+              dessa pelada.
             </>
           )}
         </p>
@@ -169,7 +184,7 @@ export function RegisterPage() {
                     if (ev.target.checked) setBillingMonthly(true);
                   }}
                 />
-                <span>Mensalista — R$ 15,00 por mês</span>
+                <span>Mensalista — pagamento mensal</span>
               </label>
               <label className={`${styles.subtitle} ${styles.billingOption}`}>
                 <input
@@ -179,7 +194,7 @@ export function RegisterPage() {
                     if (ev.target.checked) setBillingMonthly(false);
                   }}
                 />
-                <span>Diarista — R$ 10,00 por dia de jogo</span>
+                <span>Diarista — pagamento por dia de jogo</span>
               </label>
             </fieldset>
           )}

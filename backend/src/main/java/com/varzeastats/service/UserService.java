@@ -84,7 +84,13 @@ public class UserService {
                 .build();
         user = userRepository.save(user);
         if (pelada != null) {
-            replaceMemberships(user.getId(), List.of(pelada.getId()), null);
+            Map<Long, Boolean> billingMap = null;
+            if (roleSet.contains(Role.PLAYER)) {
+                boolean monthly =
+                        request.getBillingMonthly() == null || Boolean.TRUE.equals(request.getBillingMonthly());
+                billingMap = Map.of(pelada.getId(), monthly);
+            }
+            replaceMemberships(user.getId(), List.of(pelada.getId()), billingMap);
         }
         return toResponse(user);
     }
@@ -175,8 +181,11 @@ public class UserService {
             validateRoleCombination(roleSet);
             target.setRoles(roleSet);
         }
+        Map<Long, Boolean> billingMap = request.getBillingMonthlyByPelada();
+        boolean replacedMemberships = false;
         if (request.getPeladaIds() != null && !request.getPeladaIds().isEmpty()) {
-            replaceMemberships(target.getId(), request.getPeladaIds(), null);
+            replaceMemberships(target.getId(), request.getPeladaIds(), billingMap);
+            replacedMemberships = true;
             Pelada p = peladaRepository.findById(request.getPeladaIds().get(0)).orElse(null);
             target.setPelada(p);
         } else if (request.getPeladaId() != null) {
@@ -188,8 +197,12 @@ public class UserService {
                 userPeladaMembershipRepository.deleteById_UserId(target.getId());
             } else {
                 target.setPelada(p);
-                replaceMemberships(target.getId(), List.of(p.getId()), null);
+                replaceMemberships(target.getId(), List.of(p.getId()), billingMap);
+                replacedMemberships = true;
             }
+        }
+        if (!replacedMemberships && billingMap != null && !billingMap.isEmpty()) {
+            applyBillingUpdatesOnly(caller, target, billingMap);
         }
         target = userRepository.save(target);
         return toResponse(target);
@@ -221,6 +234,31 @@ public class UserService {
                     .id(new UserPeladaId(userId, pid))
                     .billingMonthly(monthly)
                     .build();
+            userPeladaMembershipRepository.save(m);
+        }
+    }
+
+    private void applyBillingUpdatesOnly(AppUserDetails caller, User target, Map<Long, Boolean> billingMap) {
+        if (billingMap == null || billingMap.isEmpty()) {
+            return;
+        }
+        Long callerPeladaId = caller.getPeladaId();
+        boolean isGeral = caller.isAdminGeral();
+        for (Map.Entry<Long, Boolean> e : billingMap.entrySet()) {
+            Long pid = e.getKey();
+            if (pid == null) {
+                continue;
+            }
+            if (!isGeral) {
+                if (callerPeladaId == null || !callerPeladaId.equals(pid)) {
+                    throw new AccessDeniedException("Sem permissão para alterar cobrança desta pelada.");
+                }
+            }
+            UserPeladaId id = new UserPeladaId(target.getId(), pid);
+            UserPeladaMembership m = userPeladaMembershipRepository
+                    .findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Usuário não participa da pelada: " + pid));
+            m.setBillingMonthly(Boolean.TRUE.equals(e.getValue()));
             userPeladaMembershipRepository.save(m);
         }
     }
@@ -281,9 +319,11 @@ public class UserService {
                 .sorted()
                 .collect(Collectors.toList());
         Map<Long, Boolean> billingByPelada = new LinkedHashMap<>();
-        userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
-            billingByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
-        });
+        if (user.getRoles() != null && user.getRoles().contains(Role.PLAYER)) {
+            userPeladaMembershipRepository.findById_UserId(user.getId()).forEach(m -> {
+                billingByPelada.put(m.getId().getPeladaId(), m.isBillingMonthly());
+            });
+        }
         return UserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())

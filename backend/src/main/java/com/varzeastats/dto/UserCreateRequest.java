@@ -27,4 +27,7 @@ public class UserCreateRequest {
 
     @NotBlank
     private String password;
+
+    /** Só usado com perfil jogador: true = mensalista, false = diarista. Null = mensalista. */
+    private Boolean billingMonthly;
 }

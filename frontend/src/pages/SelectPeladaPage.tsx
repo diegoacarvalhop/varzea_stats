@@ -50,9 +50,14 @@ function PeladaListThumb({ pelada }: { pelada: Pelada }) {
 
 export function SelectPeladaPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, roles, switchPelada } = useAuth();
+  const { isAuthenticated, roles, peladaId, switchPelada, refreshProfile } = useAuth();
   const isAdminGlobal = isAdminGeral(roles);
   const canCreatePelada = isAdminGlobal || hasRole(roles, 'ADMIN');
+  const adminSemPeladaCriando =
+    isAuthenticated &&
+    hasRole(roles, 'ADMIN') &&
+    !isAdminGlobal &&
+    peladaId == null;
 
   const [peladas, setPeladas] = useState<Pelada[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +112,7 @@ export function SelectPeladaPage() {
   const pagedPeladas = filteredPeladas.slice(pageStart, pageStart + pageSize);
 
   function choose(p: Pelada) {
-    switchPelada(p.id, p.name, Boolean(p.hasLogo));
+    switchPelada(p.id, p.name, Boolean(p.hasLogo), p.monthlyDueDay);
     navigate(isAuthenticated ? '/painel' : '/login', { replace: true });
   }
 
@@ -119,12 +124,17 @@ export function SelectPeladaPage() {
     }
     setCreating(true);
     try {
-      const p = await createPelada(newName.trim(), newLogo);
+      const created = await createPelada(newName.trim(), newLogo);
       setNewName('');
       setNewLogo(null);
       appToast.success('Pelada criada.');
-      await load();
-      choose(p);
+      if (isAdminGlobal) {
+        await load();
+        choose(created);
+      } else {
+        await refreshProfile();
+        navigate('/painel', { replace: true });
+      }
     } catch {
       appToast.error(
         'Não foi possível criar a pelada. Verifique nome e imagem (PNG, JPEG, GIF ou WebP, até 2 MB).',
@@ -136,14 +146,23 @@ export function SelectPeladaPage() {
 
   return (
     <div className={s.page}>
-      <h1>Peladas disponíveis</h1>
-      <p className={s.lead}>
-        Selecione a pelada desejada para continuar para o login. A lista é exibida em ordem alfabética.
-      </p>
-      {!isAuthenticated && (
-        <p className={s.lead} style={{ marginTop: '-0.75rem' }}>
-          Se você vai criar uma nova pelada, faça login com sua conta <strong>ADMIN</strong>.
+      <h1>{adminSemPeladaCriando ? 'Criar sua pelada' : 'Peladas disponíveis'}</h1>
+      {adminSemPeladaCriando ? (
+        <p className={s.lead}>
+          Cadastre o nome do seu grupo (e opcionalmente a logomarca). Ao concluir, você entrará no painel com esta pelada
+          já selecionada.
         </p>
+      ) : (
+        <>
+          <p className={s.lead}>
+            Selecione a pelada desejada para continuar para o login. A lista é exibida em ordem alfabética.
+          </p>
+          {!isAuthenticated && (
+            <p className={s.lead} style={{ marginTop: '-0.75rem' }}>
+              Se você vai criar uma nova pelada, faça login com sua conta <strong>ADMIN</strong>.
+            </p>
+          )}
+        </>
       )}
 
       {isAuthenticated && canCreatePelada && (
@@ -198,6 +217,7 @@ export function SelectPeladaPage() {
         </div>
       )}
 
+      {!adminSemPeladaCriando && (
       <div className={s.card}>
         <h2 className={s.cardTitle}>Escolha sua pelada</h2>
         <div className={s.formInline}>
@@ -271,8 +291,9 @@ export function SelectPeladaPage() {
           </>
         )}
       </div>
+      )}
 
-      {isAuthenticated && (
+      {isAuthenticated && !adminSemPeladaCriando && (
         <p className={s.lead} style={{ marginTop: '1rem' }}>
           <Link to="/painel">Voltar ao dashboard</Link>
         </p>

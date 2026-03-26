@@ -27,10 +27,12 @@ export function PeladaSettingsPage() {
   const [active, setActive] = useState(true);
   const [location, setLocation] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
+  const [monthlyDueDay, setMonthlyDueDay] = useState('');
   const [weekdays, setWeekdays] = useState<Set<number>>(new Set());
   const [monthlyFee, setMonthlyFee] = useState('');
   const [dailyFee, setDailyFee] = useState('');
-  const [teamCount, setTeamCount] = useState('4');
+  const [teamCount, setTeamCount] = useState('');
+  const [linePlayersPerTeam, setLinePlayersPerTeam] = useState('');
   const [teamNames, setTeamNames] = useState('');
   const [matchDuration, setMatchDuration] = useState('');
   const [matchGoals, setMatchGoals] = useState('');
@@ -50,10 +52,18 @@ export function PeladaSettingsPage() {
         setActive(p.active !== false);
         setLocation(p.location ?? '');
         setScheduleTime(p.scheduleTime ?? '');
+        const due = p.monthlyDueDay;
+        // Padrão do sistema é 15: deixamos vazio para mostrar só o placeholder até o admin informar outro dia.
+        setMonthlyDueDay(
+          typeof due === 'number' && due >= 1 && due <= 31 && due !== 15 ? String(due) : '',
+        );
         setWeekdays(new Set(p.scheduleWeekdays ?? []));
         setMonthlyFee(centsToMasked(p.monthlyFeeCents));
         setDailyFee(centsToMasked(p.dailyFeeCents));
-        setTeamCount(p.teamCount != null ? String(p.teamCount) : '4');
+        setTeamCount(p.teamCount != null ? String(p.teamCount) : '');
+        setLinePlayersPerTeam(
+          p.linePlayersPerTeam != null && p.linePlayersPerTeam > 0 ? String(p.linePlayersPerTeam) : '',
+        );
         setTeamNames(p.teamNames ?? '');
         setMatchDuration(minutesToDurationTimeValue(p.matchDurationMinutes ?? null));
         setMatchGoals(p.matchGoalsToEnd != null ? String(p.matchGoalsToEnd) : '');
@@ -85,15 +95,30 @@ export function PeladaSettingsPage() {
     if (peladaId == null || pelada == null) {
       return;
     }
-    const tc = Number(teamCount);
+    const tcTrim = teamCount.trim();
+    if (tcTrim === '') {
+      appToast.warning('Informe a quantidade de equipes (mínimo 2).');
+      return;
+    }
+    const tc = Number(tcTrim);
     if (!Number.isFinite(tc) || tc < 2) {
       appToast.warning('Quantidade de equipes deve ser pelo menos 2.');
       return;
     }
+    const lpTrim = linePlayersPerTeam.trim();
+    let linePlayersPayload = 0;
+    if (lpTrim !== '') {
+      const lp = Number(lpTrim);
+      if (!Number.isFinite(lp) || lp < 1) {
+        appToast.warning('Jogadores por equipe deve ser um número inteiro ≥ 1 ou deixe em branco (sem limite no sorteio).');
+        return;
+      }
+      linePlayersPayload = Math.floor(lp);
+    }
     const monthlyCents = parseMaskedMoneyToCents(monthlyFee);
     const dailyCents = parseMaskedMoneyToCents(dailyFee);
     if (monthlyFee.trim() !== '' && monthlyCents == null) {
-      appToast.warning('Valor mensal inválido.');
+      appToast.warning('Valor da mensalidade inválido.');
       return;
     }
     if (dailyFee.trim() !== '' && dailyCents == null) {
@@ -103,16 +128,24 @@ export function PeladaSettingsPage() {
     const md = durationTimeValueToMinutes(matchDuration);
     const mg = matchGoals.trim() === '' ? null : Number(matchGoals);
     const weekdayList = [...weekdays].sort((a, b) => a - b);
+    const dueTrim = monthlyDueDay.trim();
+    const dueNum = dueTrim === '' ? 15 : Number(dueTrim);
+    if (!Number.isFinite(dueNum) || dueNum < 1 || dueNum > 31) {
+      appToast.warning('Dia de vencimento da mensalidade deve ser um número entre 1 e 31.');
+      return;
+    }
     setSaving(true);
     try {
       await updatePeladaSettings(peladaId, {
         active,
         location: location.trim() || null,
         scheduleTime: scheduleTime.trim(),
+        monthlyDueDay: Math.floor(dueNum),
         scheduleWeekdays: weekdayList,
         monthlyFeeCents: monthlyCents,
         dailyFeeCents: dailyCents,
         teamCount: tc,
+        linePlayersPerTeam: linePlayersPayload,
         teamNames: teamNames.trim() || null,
         matchDurationMinutes: md,
         matchGoalsToEnd: mg != null && Number.isFinite(mg) ? mg : null,
@@ -197,59 +230,119 @@ export function PeladaSettingsPage() {
             ))}
           </div>
         </div>
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="ps-time">
-            Horário da pelada
-          </label>
-          <input
-            id="ps-time"
-            className={s.input}
-            type="time"
-            value={scheduleTime}
-            onChange={(ev) => setScheduleTime(ev.target.value)}
-          />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: '1rem',
+            alignItems: 'end',
+          }}
+        >
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-due">
+              Dia de vencimento
+            </label>
+            <input
+              id="ps-due"
+              className={s.input}
+              type="number"
+              min={1}
+              max={31}
+              inputMode="numeric"
+              placeholder="15"
+              value={monthlyDueDay}
+              onChange={(ev) => setMonthlyDueDay(ev.target.value)}
+            />
+          </div>
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-time">
+              Horário da pelada
+            </label>
+            <input
+              id="ps-time"
+              className={s.input}
+              type="time"
+              value={scheduleTime}
+              onChange={(ev) => setScheduleTime(ev.target.value)}
+            />
+          </div>
         </div>
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="ps-mf">
-            Valor mensal (R$)
-          </label>
-          <input
-            id="ps-mf"
-            className={s.input}
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="R$ 0,00"
-            value={monthlyFee}
-            onChange={(ev) => setMonthlyFee(maskCurrencyBRInput(ev.target.value))}
-          />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))',
+            gap: '1rem',
+            alignItems: 'start',
+          }}
+        >
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-mf">
+              Valor da mensalidade
+            </label>
+            <input
+              id="ps-mf"
+              className={s.input}
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="R$ 0,00"
+              value={monthlyFee}
+              onChange={(ev) => setMonthlyFee(maskCurrencyBRInput(ev.target.value))}
+            />
+          </div>
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-df">
+              Valor da diária
+            </label>
+            <input
+              id="ps-df"
+              className={s.input}
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="R$ 0,00"
+              value={dailyFee}
+              onChange={(ev) => setDailyFee(maskCurrencyBRInput(ev.target.value))}
+            />
+          </div>
         </div>
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="ps-df">
-            Valor da diária (R$)
-          </label>
-          <input
-            id="ps-df"
-            className={s.input}
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="R$ 0,00"
-            value={dailyFee}
-            onChange={(ev) => setDailyFee(maskCurrencyBRInput(ev.target.value))}
-          />
-        </div>
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="ps-tc">
-            Quantidade de equipes
-          </label>
-          <input
-            id="ps-tc"
-            className={s.input}
-            type="number"
-            min={2}
-            value={teamCount}
-            onChange={(ev) => setTeamCount(ev.target.value)}
-            required
-          />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))',
+            gap: '1rem',
+            alignItems: 'start',
+          }}
+        >
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-tc">
+              Quantidade de equipes
+            </label>
+            <input
+              id="ps-tc"
+              className={s.input}
+              type="number"
+              min={2}
+              placeholder="4"
+              value={teamCount}
+              onChange={(ev) => setTeamCount(ev.target.value)}
+            />
+          </div>
+          <div className={s.field} style={{ marginBottom: 0 }}>
+            <label className={s.fieldLabel} htmlFor="ps-lp">
+              Jogadores de linha por equipe
+            </label>
+            <input
+              id="ps-lp"
+              className={s.input}
+              type="number"
+              min={1}
+              placeholder="Ex.: 5"
+              value={linePlayersPerTeam}
+              onChange={(ev) => setLinePlayersPerTeam(ev.target.value)}
+            />
+            <span className={s.statsDetailMeta} style={{ display: 'block', marginTop: '0.35rem' }}>
+              No sorteio da partida: teto de jogadores de campo por time (goleiros não contam). Vazio = sem limite.
+            </span>
+          </div>
         </div>
         <div className={s.field}>
           <label className={s.fieldLabel} htmlFor="ps-tn">

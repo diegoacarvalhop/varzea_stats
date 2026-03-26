@@ -1,9 +1,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormModal } from '@/components/FormModal';
 import { PasswordField } from '@/components/PasswordField';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { appToast } from '@/lib/appToast';
 import { getPeladaId } from '@/lib/peladaContext';
-import { isAdminGeral, isAdminPelada } from '@/lib/roles';
+import { isAdminGeral, isAdminPelada, ROLE_DISPLAY_LABEL, roleDisplayLabel } from '@/lib/roles';
 import { useAuth } from '@/hooks/useAuth';
 import type { Role } from '@/services/authService';
 import { listPeladas, type Pelada } from '@/services/peladaService';
@@ -86,11 +87,11 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     financeiro: false,
   },
   {
-    feature: 'Votar bola cheia / bola murcha (API pública; qualquer visitante)',
+    feature: 'Votar bola cheia / bola murcha (administrador geral, administrador ou jogador)',
     adminGeral: true,
     adminPelada: true,
-    scout: true,
-    media: true,
+    scout: false,
+    media: false,
     player: true,
     financeiro: false,
   },
@@ -108,32 +109,32 @@ const PERMISSION_MATRIX: MatrixRow[] = [
 const ROLE_OPTIONS: { value: Role; label: string; hint: string }[] = [
   {
     value: 'ADMIN_GERAL',
-    label: 'Administrador geral',
+    label: ROLE_DISPLAY_LABEL.ADMIN_GERAL,
     hint: 'Todas as peladas, cria grupos e qualquer tipo de usuário. Só outro administrador geral pode marcar este perfil ao cadastrar. Não pode ser combinado com outros perfis.',
   },
   {
     value: 'ADMIN',
-    label: 'Administrador da pelada',
+    label: ROLE_DISPLAY_LABEL.ADMIN,
     hint: 'Gestão completa dentro da pelada vinculada; cadastra usuários só nessa pelada.',
   },
   {
     value: 'SCOUT',
-    label: 'Scout / mesário',
+    label: ROLE_DISPLAY_LABEL.SCOUT,
     hint: 'Organiza partida: equipes, jogadores, lances e encerramento.',
   },
   {
     value: 'MEDIA',
-    label: 'Mídia',
+    label: ROLE_DISPLAY_LABEL.MEDIA,
     hint: 'Registra lances e anexa links de foto/vídeo; cria e encerra partidas.',
   },
   {
     value: 'FINANCEIRO',
-    label: 'Financeiro',
+    label: ROLE_DISPLAY_LABEL.FINANCEIRO,
     hint: 'Registra pagamentos e consulta inadimplência na pelada em que participa.',
   },
   {
     value: 'PLAYER',
-    label: 'Jogador',
+    label: ROLE_DISPLAY_LABEL.PLAYER,
     hint: 'Acompanha dados no app (leitura); sem edição de partida ou mídia.',
   },
 ];
@@ -163,7 +164,13 @@ function toggleRoleInSet(prev: Set<Role>, role: Role, checked: boolean): Set<Rol
 }
 
 export function UsersAdminPage() {
-  const { roles: viewerRoles, peladaId: viewerPeladaId, peladaName: viewerPeladaName } = useAuth();
+  const {
+    roles: viewerRoles,
+    peladaId: viewerPeladaId,
+    peladaName: viewerPeladaName,
+    email: viewerEmail,
+    refreshProfile,
+  } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [peladas, setPeladas] = useState<Pelada[]>([]);
@@ -178,6 +185,8 @@ export function UsersAdminPage() {
     const n = raw ? Number(raw) : NaN;
     return Number.isFinite(n) ? n : '';
   });
+  /** Novo usuário: cobrança na pelada (só UI com perfil jogador) */
+  const [newUserBillingMonthly, setNewUserBillingMonthly] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [editUser, setEditUser] = useState<UserSummary | null>(null);
@@ -186,7 +195,14 @@ export function UsersAdminPage() {
   const [editActive, setEditActive] = useState(true);
   const [editPassword, setEditPassword] = useState('');
   const [editPeladaIds, setEditPeladaIds] = useState<Set<number>>(new Set());
+  /** true = mensalista, false = diarista */
+  const [editBillingMonthlyByPelada, setEditBillingMonthlyByPelada] = useState<Record<number, boolean>>({});
   const [editSaving, setEditSaving] = useState(false);
+
+  const editPeladaIdsKey = useMemo(
+    () => [...editPeladaIds].sort((a, b) => a - b).join(','),
+    [editPeladaIds],
+  );
 
   const roleOptionsForForm = useMemo(
     () =>
@@ -230,6 +246,19 @@ export function UsersAdminPage() {
   }, [viewerRoles, viewerPeladaId]);
 
   useEffect(() => {
+    if (!editUser) return;
+    const idsFromKey =
+      editPeladaIdsKey === '' ? [] : editPeladaIdsKey.split(',').map((x) => Number(x));
+    setEditBillingMonthlyByPelada((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const id of idsFromKey) {
+        next[id] = id in prev ? prev[id]! : true;
+      }
+      return next;
+    });
+  }, [editUser?.id, editPeladaIdsKey]);
+
+  useEffect(() => {
     if (!isAdminGeral(viewerRoles)) {
       setSelectedRoles((prev) => {
         if (!prev.has('ADMIN_GERAL')) return prev;
@@ -261,7 +290,13 @@ export function UsersAdminPage() {
     setEditActive(u.accountActive !== false);
     setEditPassword('');
     const pids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
-    setEditPeladaIds(new Set(pids.filter((x): x is number => x != null)));
+    const filtered = pids.filter((x): x is number => x != null);
+    setEditPeladaIds(new Set(filtered));
+    const bill: Record<number, boolean> = {};
+    for (const id of filtered) {
+      bill[id] = u.billingMonthlyByPelada?.[String(id)] !== false;
+    }
+    setEditBillingMonthlyByPelada(bill);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -280,17 +315,22 @@ export function UsersAdminPage() {
     }
     setSubmitting(true);
     try {
-      await createUser({
+      const createPayload: Parameters<typeof createUser>[0] = {
         name: name.trim(),
         email: email.trim(),
         roles: rolesListSorted,
         password: newPassword.trim(),
         peladaId: onlyAdminGeral ? null : Number(newUserPeladaId),
-      });
+      };
+      if (!onlyAdminGeral && selectedRoles.has('PLAYER')) {
+        createPayload.billingMonthly = newUserBillingMonthly;
+      }
+      await createUser(createPayload);
       appToast.success('Usuário criado.');
       setName('');
       setEmail('');
       setNewPassword('');
+      setNewUserBillingMonthly(true);
       setSelectedRoles(new Set(['PLAYER']));
       if (isAdminPelada(viewerRoles) && viewerPeladaId != null) {
         setNewUserPeladaId(viewerPeladaId);
@@ -336,8 +376,32 @@ export function UsersAdminPage() {
       if (isAdminGeral(viewerRoles) && !editOnlyAdminGeral) {
         payload.peladaIds = [...editPeladaIds].sort((a, b) => a - b);
       }
+      if (editRoles.has('PLAYER')) {
+        if (isAdminGeral(viewerRoles) && !editOnlyAdminGeral) {
+          const billing: Record<string, boolean> = {};
+          for (const id of editPeladaIds) {
+            billing[String(id)] = editBillingMonthlyByPelada[id] !== false;
+          }
+          payload.billingMonthlyByPelada = billing;
+        } else if (isAdminPelada(viewerRoles) && viewerPeladaId != null) {
+          const memberIds = editUser.peladaIds?.length
+            ? editUser.peladaIds
+            : editUser.peladaId != null
+              ? [editUser.peladaId]
+              : [];
+          if (memberIds.includes(viewerPeladaId)) {
+            payload.billingMonthlyByPelada = {
+              [String(viewerPeladaId)]: editBillingMonthlyByPelada[viewerPeladaId] !== false,
+            };
+          }
+        }
+      }
       await patchUser(editUser.id, payload);
       appToast.success('Usuário atualizado.');
+      // Próprio usuário: atualiza sessão (cobrança mensal/diária, inadimplência no topo, etc.)
+      if (editUser.email === viewerEmail) {
+        await refreshProfile();
+      }
       setEditUser(null);
       await loadUsers();
     } catch (err: unknown) {
@@ -361,16 +425,19 @@ export function UsersAdminPage() {
   }
 
   function billingLabelForUser(u: UserSummary): string {
+    if (!u.roles?.includes('PLAYER')) {
+      return 'Sem cobrança (sem jogador)';
+    }
     const ids = u.peladaIds?.length ? u.peladaIds : u.peladaId != null ? [u.peladaId] : [];
     if (ids.length === 0) return '—';
     const billing = u.billingMonthlyByPelada ?? {};
     if (!isAdminGeral(viewerRoles) && viewerPeladaId != null) {
       const monthly = billing[String(viewerPeladaId)];
-      return monthly === false ? 'Diarista (R$10)' : 'Mensalista (R$15)';
+      return monthly === false ? 'Diarista' : 'Mensalista';
     }
     return ids
       .map((id) => {
-        const mode = billing[String(id)] === false ? 'Diarista (R$10)' : 'Mensalista (R$15)';
+        const mode = billing[String(id)] === false ? 'Diarista' : 'Mensalista';
         const pName = peladas.find((p) => p.id === id)?.name ?? `#${id}`;
         return `${pName}: ${mode}`;
       })
@@ -382,7 +449,7 @@ export function UsersAdminPage() {
       <h1>Usuários</h1>
       <p className={s.lead}>
         Cadastro de contas com <strong>um ou mais perfis</strong> por pessoa. <strong>Administrador geral</strong> e{' '}
-        <strong>administrador da pelada</strong> acessam esta tela; o segundo só vê e cria usuários ligados à própria
+        <strong>administrador</strong> acessam esta tela; o segundo só vê e cria usuários ligados à própria
         pelada. O perfil <strong>administrador geral</strong> não pode ser combinado com outros na mesma conta. Contas{' '}
         <strong>inativas</strong> continuam podendo entrar no sistema, mas ficam de fora das peladas até serem reativadas.
       </p>
@@ -396,12 +463,12 @@ export function UsersAdminPage() {
             <thead>
               <tr>
                 <th scope="col">Funcionalidade</th>
-                <th scope="col">Admin geral</th>
-                <th scope="col">Admin pelada</th>
-                <th scope="col">Scout</th>
-                <th scope="col">Mídia</th>
-                <th scope="col">Financeiro</th>
-                <th scope="col">Jogador</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.ADMIN_GERAL}</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.ADMIN}</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.SCOUT}</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.MEDIA}</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.FINANCEIRO}</th>
+                <th scope="col">{ROLE_DISPLAY_LABEL.PLAYER}</th>
               </tr>
             </thead>
             <tbody>
@@ -535,18 +602,47 @@ export function UsersAdminPage() {
               )}
             </div>
           )}
+          {!onlyAdminGeral && selectedRoles.has('PLAYER') && (
+            <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend className={s.fieldLabel}>Cobrança nesta pelada</legend>
+              <p className={s.statsDetailMeta} style={{ marginTop: 0, marginBottom: '0.5rem' }}>
+                Só aparece quando há perfil jogador. Administrador (ou outros papéis sem jogador) não entram na cobrança
+                como jogador.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label className={s.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={newUserBillingMonthly}
+                    onChange={(ev) => setNewUserBillingMonthly(ev.target.checked)}
+                  />
+                  <span>Mensalista — pagamento mensal (valor na configuração da pelada)</span>
+                </label>
+                <label className={s.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={!newUserBillingMonthly}
+                    onChange={(ev) => setNewUserBillingMonthly(!ev.target.checked)}
+                  />
+                  <span>Diarista — pagamento por dia (valor na configuração da pelada)</span>
+                </label>
+              </div>
+            </fieldset>
+          )}
           <button className={s.btnPrimary} type="submit" disabled={submitting}>
             {submitting ? 'Salvando…' : 'Cadastrar usuário'}
           </button>
         </form>
       </section>
 
-      {editUser && (
-        <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="edit-user-title">
-          <h2 className={s.cardTitle} id="edit-user-title">
-            Editar — {editUser.email}
-          </h2>
-          <form className={s.form} onSubmit={(e) => void onSaveEdit(e)} style={{ maxWidth: '32rem' }}>
+      <FormModal
+        open={editUser != null}
+        title={editUser ? `Editar — ${editUser.email}` : ''}
+        onClose={() => setEditUser(null)}
+        closeDisabled={editSaving}
+      >
+        {editUser ? (
+          <form className={s.form} onSubmit={(e) => void onSaveEdit(e)} style={{ maxWidth: 'none' }}>
             <div className={s.field}>
               <label className={s.fieldLabel} htmlFor="eu-name">
                 Nome
@@ -618,17 +714,110 @@ export function UsersAdminPage() {
                 </div>
               </fieldset>
             )}
+            {editRoles.has('PLAYER') &&
+              isAdminGeral(viewerRoles) &&
+              !editOnlyAdminGeral &&
+              editPeladaIds.size > 0 && (
+                <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+                  <legend className={s.fieldLabel}>Cobrança por pelada</legend>
+                  <p className={s.statsDetailMeta} style={{ marginTop: 0, marginBottom: '0.5rem' }}>
+                    Disponível só para contas com perfil jogador: em cada pelada, mensalista ou diarista (valores em
+                    Configuração da pelada).
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.35rem' }}>
+                    {[...editPeladaIds].sort((a, b) => a - b).map((pid) => {
+                      const pName = peladas.find((p) => p.id === pid)?.name ?? `#${pid}`;
+                      const monthly = editBillingMonthlyByPelada[pid] !== false;
+                      return (
+                        <div key={pid}>
+                          <span className={s.fieldLabel} style={{ display: 'block', marginBottom: '0.25rem' }}>
+                            {pName}
+                          </span>
+                          <label className={s.checkboxRow}>
+                            <input
+                              type="checkbox"
+                              checked={monthly}
+                              onChange={(ev) =>
+                                setEditBillingMonthlyByPelada((b) => ({
+                                  ...b,
+                                  [pid]: ev.target.checked,
+                                }))
+                              }
+                            />
+                            <span>Mensalista — mensal (valor na pelada)</span>
+                          </label>
+                          <label className={s.checkboxRow}>
+                            <input
+                              type="checkbox"
+                              checked={!monthly}
+                              onChange={(ev) =>
+                                setEditBillingMonthlyByPelada((b) => ({
+                                  ...b,
+                                  [pid]: !ev.target.checked,
+                                }))
+                              }
+                            />
+                            <span>Diarista — por dia (valor na pelada)</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+            {editUser &&
+              editRoles.has('PLAYER') &&
+              isAdminPelada(viewerRoles) &&
+              viewerPeladaId != null &&
+              (editUser.peladaIds?.includes(viewerPeladaId) ||
+                editUser.peladaId === viewerPeladaId) && (
+                <fieldset className={s.field} style={{ border: 'none', padding: 0, margin: 0 }}>
+                  <legend className={s.fieldLabel}>Cobrança nesta pelada</legend>
+                  <p className={s.statsDetailMeta} style={{ marginTop: 0, marginBottom: '0.5rem' }}>
+                    {viewerPeladaName?.trim() || `Pelada #${viewerPeladaId}`} — só aparece quando o usuário tem perfil
+                    jogador.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <label className={s.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={editBillingMonthlyByPelada[viewerPeladaId] !== false}
+                        onChange={(ev) =>
+                          setEditBillingMonthlyByPelada((b) => ({
+                            ...b,
+                            [viewerPeladaId]: ev.target.checked,
+                          }))
+                        }
+                      />
+                      <span>Mensalista — mensal (valor na pelada)</span>
+                    </label>
+                    <label className={s.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={editBillingMonthlyByPelada[viewerPeladaId] === false}
+                        onChange={(ev) =>
+                          setEditBillingMonthlyByPelada((b) => ({
+                            ...b,
+                            [viewerPeladaId]: !ev.target.checked,
+                          }))
+                        }
+                      />
+                      <span>Diarista — por dia (valor na pelada)</span>
+                    </label>
+                  </div>
+                </fieldset>
+              )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
               <button className={s.btnPrimary} type="submit" disabled={editSaving}>
                 {editSaving ? 'Salvando…' : 'Salvar alterações'}
               </button>
-              <button type="button" className={s.btn} onClick={() => setEditUser(null)}>
+              <button type="button" className={s.btn} disabled={editSaving} onClick={() => setEditUser(null)}>
                 Cancelar
               </button>
             </div>
           </form>
-        </section>
-      )}
+        ) : null}
+      </FormModal>
 
       <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="user-list-title">
         <h2 className={s.cardTitle} id="user-list-title">
@@ -661,7 +850,7 @@ export function UsersAdminPage() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                         {(u.roles ?? []).map((r) => (
                           <span key={r} className={s.rolePill}>
-                            {r}
+                            {roleDisplayLabel(r)}
                           </span>
                         ))}
                       </div>

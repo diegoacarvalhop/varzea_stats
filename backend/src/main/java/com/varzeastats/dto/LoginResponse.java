@@ -21,6 +21,8 @@ public class LoginResponse {
     /** Nulo para conta só ADMIN_GERAL. */
     private Long peladaId;
     private String peladaName;
+    /** Dia de vencimento da mensalidade na pelada do contexto (1–31); nulo se sem pelada. */
+    private Integer peladaMonthlyDueDay;
     /** Se a pelada da conta tem logomarca (GET /peladas/{id}/logo). */
     private Boolean peladaHasLogo;
 

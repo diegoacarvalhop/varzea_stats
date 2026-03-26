@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
+import { BOLA_VOTE_ROLES, hasAnyRole } from '@/lib/roles';
 import { formatPlayerDirectoryLabel, listPlayersDirectory, type PlayerDirectoryEntry } from '@/services/playerService';
 import {
   getLanceRankings,
@@ -36,6 +38,8 @@ const HASH_TO_SECTION: Record<string, string> = {
 };
 
 export function RankingPage() {
+  const { roles } = useAuth();
+  const canVoteBola = hasAnyRole(roles, BOLA_VOTE_ROLES);
   const location = useLocation();
   const [selectedPlayerNameKey, setSelectedPlayerNameKey] = useState('');
   const [playerId, setPlayerId] = useState('');
@@ -139,8 +143,8 @@ export function RankingPage() {
       <h1>Rankings</h1>
       <p className={s.lead}>
         <strong>Gols, assistências, cartões</strong> e demais lances: cada bloco ordena os jogadores pelo total
-        registrado em todas as partidas (quem tem mais aparece em 1º). Abaixo, <strong>votação</strong> da galera (bola
-        cheia / murcha).
+        registrado em todas as partidas (quem tem mais aparece em 1º). Abaixo, <strong>votação</strong> em bola cheia e
+        bola murcha (só administrador geral, administrador ou jogador podem registrar voto).
       </p>
 
       <section className={s.card} id="ranking-lances" aria-labelledby="ranking-lances-title">
@@ -197,55 +201,64 @@ export function RankingPage() {
 
       <div className={s.card} style={{ marginTop: '1.25rem' }}>
         <h2 className={s.cardTitle}>Registrar voto</h2>
-        <p className={s.lead} style={{ marginBottom: '1rem' }}>
-          Primeiro selecione o <strong>jogador</strong> e depois a <strong>partida jogada</strong>. O voto de bola cheia
-          ou murcha é sempre registrado para uma partida específica.
-        </p>
-        <form className={s.formInline} onSubmit={onSubmit}>
-          <SearchableSelect
-            id="rank-player-name-select"
-            style={{ flex: '1 1 220px', maxWidth: 'min(100%, 420px)' }}
-            label="Jogador"
-            value={selectedPlayerNameKey}
-            onChange={(value) => {
-              setSelectedPlayerNameKey(value);
-              setPlayerId('');
-            }}
-            options={playerNameOptions}
-            emptyOption={{
-              value: '',
-              label: loading ? 'Carregando jogadores…' : 'Selecione um jogador',
-            }}
-            disabled={loading}
-            required
-            formValueName="rankingVotePlayerNameKey"
-          />
-          <SearchableSelect
-            id="rank-player-match-select"
-            style={{ flex: '1 1 320px', maxWidth: 'min(100%, 620px)' }}
-            label="Partida jogada"
-            value={playerId}
-            onChange={setPlayerId}
-            options={playerMatchOptions}
-            emptyOption={{
-              value: '',
-              label: selectedPlayerNameKey
-                ? 'Selecione a partida'
-                : 'Escolha o jogador primeiro',
-            }}
-            disabled={loading || !selectedPlayerNameKey}
-            required
-            formValueName="rankingVotePlayerId"
-          />
-          <button className={s.btnVoteGood} type="submit">
-            Bola cheia
-          </button>
-          <button className={s.btnVoteBad} type="button" onClick={() => void vote('BOLA_MURCHA')}>
-            Bola murcha
-          </button>
-        </form>
-        {!loading && playerNameOptions.length === 0 && (
-          <p className={s.lead}>Nenhum jogador cadastrado ainda. Adicione jogadores no detalhe de uma partida.</p>
+        {!canVoteBola ? (
+          <p className={s.lead}>
+            Apenas perfis <strong>administrador geral</strong>, <strong>administrador</strong> ou{' '}
+            <strong>jogador</strong> podem registrar votos de bola cheia ou bola murcha.
+          </p>
+        ) : (
+          <>
+            <p className={s.lead} style={{ marginBottom: '1rem' }}>
+              Primeiro selecione o <strong>jogador</strong> e depois a <strong>partida jogada</strong>. O voto de bola
+              cheia ou murcha é sempre registrado para uma partida específica.
+            </p>
+            <form className={s.formInline} onSubmit={onSubmit}>
+              <SearchableSelect
+                id="rank-player-name-select"
+                style={{ flex: '1 1 220px', maxWidth: 'min(100%, 420px)' }}
+                label="Jogador"
+                value={selectedPlayerNameKey}
+                onChange={(value) => {
+                  setSelectedPlayerNameKey(value);
+                  setPlayerId('');
+                }}
+                options={playerNameOptions}
+                emptyOption={{
+                  value: '',
+                  label: loading ? 'Carregando jogadores…' : 'Selecione um jogador',
+                }}
+                disabled={loading}
+                required
+                formValueName="rankingVotePlayerNameKey"
+              />
+              <SearchableSelect
+                id="rank-player-match-select"
+                style={{ flex: '1 1 320px', maxWidth: 'min(100%, 620px)' }}
+                label="Partida jogada"
+                value={playerId}
+                onChange={setPlayerId}
+                options={playerMatchOptions}
+                emptyOption={{
+                  value: '',
+                  label: selectedPlayerNameKey
+                    ? 'Selecione a partida'
+                    : 'Escolha o jogador primeiro',
+                }}
+                disabled={loading || !selectedPlayerNameKey}
+                required
+                formValueName="rankingVotePlayerId"
+              />
+              <button className={s.btnVoteGood} type="submit">
+                Bola cheia
+              </button>
+              <button className={s.btnVoteBad} type="button" onClick={() => void vote('BOLA_MURCHA')}>
+                Bola murcha
+              </button>
+            </form>
+            {!loading && playerNameOptions.length === 0 && (
+              <p className={s.lead}>Nenhum jogador cadastrado ainda. Adicione jogadores no detalhe de uma partida.</p>
+            )}
+          </>
         )}
       </div>
     </div>

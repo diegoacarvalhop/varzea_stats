@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePeladaBranding } from '@/hooks/usePeladaBranding';
@@ -11,7 +11,9 @@ import {
   isAnyAdmin,
   MEDIA_ROLES,
   PELADA_SETTINGS_ROLES,
+  roleDisplayLabel,
 } from '@/lib/roles';
+import { effectiveMonthlyDueDayInMonth } from '@/lib/effectiveMonthlyDueDay';
 import { listPeladas, type Pelada } from '@/services/peladaService';
 import pageShared from '@/styles/pageShared.module.scss';
 import styles from './Layout.module.scss';
@@ -31,16 +33,17 @@ export function Layout() {
     roles,
     peladaId,
     peladaName,
+    peladaMonthlyDueDay,
     refreshProfile,
     logout,
     membershipPeladaIds,
     monthlyDelinquentPeladaIds,
+    billingMonthlyByPelada,
     switchPelada,
   } = useAuth();
   const { logoUrl } = usePeladaBranding();
   const [headerLogoBroken, setHeaderLogoBroken] = useState(false);
   const [membershipPeladas, setMembershipPeladas] = useState<Pelada[]>([]);
-  const [delinquentHere, setDelinquentHere] = useState(false);
 
   useEffect(() => {
     setHeaderLogoBroken(false);
@@ -86,7 +89,9 @@ export function Layout() {
 
   const adminGeralOnUsersRoute =
     isAdminGeral(roles) && location.pathname.startsWith('/admin/users');
-  const adminSemPelada = hasRole(roles, 'ADMIN') && peladaId == null;
+  const adminSemPelada = hasRole(roles, 'ADMIN') && !isAdminGeral(roles) && peladaId == null;
+  const adminOnboardingCriarPelada =
+    adminSemPelada && location.pathname === '/pelada';
   const adminMustPickPelada =
     ((isAdminGeral(roles) && !getPeladaId()) || adminSemPelada) &&
     location.pathname !== '/pelada' &&
@@ -99,28 +104,59 @@ export function Layout() {
   const showPeladaBar = Boolean(resolvedPeladaLabel);
   const canSwitchPeladaAdmin = isAdminGeral(roles);
   const canSwitchPeladaMember = !isAdminGeral(roles) && membershipPeladaIds.length > 1;
-  const showNav = true;
+  const showNav = !adminOnboardingCriarPelada;
+  const brandTo = adminOnboardingCriarPelada ? '/pelada' : '/painel';
 
-  useEffect(() => {
+  /** ID numérico da pelada em contexto (evita falha de banner com peladaId string vs ids numéricos do /me). */
+  const numericPeladaId = useMemo(() => {
+    if (peladaId == null) return null;
+    const n = Number(peladaId);
+    return Number.isFinite(n) ? n : null;
+  }, [peladaId]);
+
+  /**
+   * Mensalista na pelada em contexto (diarista = billingMonthlyByPelada[id] === false).
+   * Chave ausente conta como mensalista; mapa vazio costuma vir do /me quando ainda não havia PLAYER na sessão local.
+   */
+  const isMensalistaNaPeladaAtual = useMemo(() => {
+    if (numericPeladaId == null) return false;
+    return billingMonthlyByPelada[String(numericPeladaId)] !== false;
+  }, [numericPeladaId, billingMonthlyByPelada]);
+
+  const dueDayThisMonth =
+    peladaMonthlyDueDay != null
+      ? effectiveMonthlyDueDayInMonth(peladaMonthlyDueDay, new Date())
+      : effectiveMonthlyDueDayInMonth(15, new Date());
+
+  /** Não exige hasRole(PLAYER): o /me só inclui a pelada em monthlyDelinquentPeladaIds para quem o backend trata como jogador na cobrança. */
+  const showFinanceDelinquentBanner = useMemo(() => {
+    if (numericPeladaId == null || !roles || !isMensalistaNaPeladaAtual) {
+      return false;
+    }
     const today = new Date();
-    if (peladaId == null || today.getDate() <= 15) {
-      setDelinquentHere(false);
+    if (today.getDate() <= dueDayThisMonth) return false;
+    const ids = monthlyDelinquentPeladaIds ?? [];
+    return ids.some((x) => Number(x) === numericPeladaId);
+  }, [
+    numericPeladaId,
+    roles,
+    isMensalistaNaPeladaAtual,
+    dueDayThisMonth,
+    monthlyDelinquentPeladaIds,
+  ]);
+
+  /** Atualiza /me após o vencimento (sem depender da lista de inadimplência no array de deps — evita corrida com Strict Mode e mantém sessão alinhada ao financeiro). */
+  useEffect(() => {
+    if (numericPeladaId == null || !roles || !isMensalistaNaPeladaAtual) {
       return;
     }
-    let active = true;
-    void refreshProfile()
-      .then((res) => {
-        if (!active) return;
-        setDelinquentHere((res.monthlyDelinquentPeladaIds ?? []).includes(peladaId));
-      })
-      .catch(() => {
-        if (!active) return;
-        setDelinquentHere(monthlyDelinquentPeladaIds.includes(peladaId));
-      });
-    return () => {
-      active = false;
-    };
-  }, [peladaId, refreshProfile, monthlyDelinquentPeladaIds]);
+    const today = new Date();
+    if (today.getDate() <= dueDayThisMonth) return;
+    const tid = window.setTimeout(() => {
+      void refreshProfile();
+    }, 400);
+    return () => window.clearTimeout(tid);
+  }, [numericPeladaId, roles, isMensalistaNaPeladaAtual, dueDayThisMonth, refreshProfile]);
 
   return (
     <div className={styles.shell}>
@@ -136,7 +172,7 @@ export function Layout() {
       )}
       <div className={styles.shellContent}>
         <header className={styles.header}>
-          <Link to="/painel" className={styles.brand}>
+          <Link to={brandTo} className={styles.brand}>
             {logoUrl && !headerLogoBroken ? (
               <img
                 src={logoUrl}
@@ -198,14 +234,19 @@ export function Layout() {
               <span className={styles.userRoles}>
                 {roles.map((r) => (
                   <span key={r} className={pageShared.roleTag} style={{ marginTop: 0 }}>
-                    {r}
+                    {roleDisplayLabel(r)}
                   </span>
                 ))}
               </span>
             )}
-            <NavLink to="/perfil" className={({ isActive }) => (isActive ? `${styles.btnProfile} ${styles.btnProfileActive}` : styles.btnProfile)}>
-              Perfil
-            </NavLink>
+            {!adminOnboardingCriarPelada && (
+              <NavLink
+                to="/perfil"
+                className={({ isActive }) => (isActive ? `${styles.btnProfile} ${styles.btnProfileActive}` : styles.btnProfile)}
+              >
+                Perfil
+              </NavLink>
+            )}
             <button type="button" className={styles.btnLogout} onClick={logout}>
               Sair
             </button>
@@ -247,7 +288,7 @@ export function Layout() {
                     const id = Number(ev.target.value);
                     const p = membershipPeladas.find((x) => x.id === id);
                     if (p) {
-                      switchPelada(p.id, p.name, Boolean(p.hasLogo));
+                      switchPelada(p.id, p.name, Boolean(p.hasLogo), p.monthlyDueDay);
                     }
                   }}
                 >
@@ -266,9 +307,10 @@ export function Layout() {
             )}
           </div>
         )}
-        {delinquentHere && (
+        {showFinanceDelinquentBanner && (
           <div className={styles.financeAlert} role="status">
-            Inadimplente na mensalidade desta pelada (após o dia 15). Regularize com o gestor ou pelo módulo financeiro.
+            Inadimplente na mensalidade desta pelada (após o dia {dueDayThisMonth} do mês). Regularize com o gestor ou
+            pelo módulo financeiro.
           </div>
         )}
         <main className={styles.main}>

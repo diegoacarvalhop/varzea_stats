@@ -1,5 +1,19 @@
 import type { Role } from '@/services/authService';
 
+/** Nome do perfil para exibição na interface (português). */
+export const ROLE_DISPLAY_LABEL: Record<Role, string> = {
+  ADMIN_GERAL: 'Administrador geral',
+  ADMIN: 'Administrador',
+  SCOUT: 'Scout / mesário',
+  MEDIA: 'Mídia',
+  FINANCEIRO: 'Financeiro',
+  PLAYER: 'Jogador',
+};
+
+export function roleDisplayLabel(role: Role): string {
+  return ROLE_DISPLAY_LABEL[role] ?? role;
+}
+
 export function hasRole(userRoles: Role[] | null | undefined, role: Role): boolean {
   return Boolean(userRoles?.includes(role));
 }
@@ -41,3 +55,6 @@ export const FINANCE_MODULE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO
 export const PELADA_SETTINGS_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
 
 export const PRESENCE_DRAFT_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'SCOUT'];
+
+/** Bola cheia / bola murcha na página de ranking. */
+export const BOLA_VOTE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'PLAYER'];

@@ -1,0 +1,49 @@
+@use '../styles/variables' as *;
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dialog {
+  width: 100%;
+  max-width: min(40rem, calc(100vw - 2rem));
+  max-height: min(92vh, 920px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(14, 28, 32, 0.98) 0%, rgba(5, 10, 12, 0.99) 100%);
+  border: 1px solid $border-strong;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 48px rgba(0, 230, 118, 0.06);
+}
+
+.title {
+  flex-shrink: 0;
+  font-family: $font-display;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  padding: 1.35rem 1.5rem 0.65rem;
+  color: $accent-bright;
+  border-bottom: 1px solid rgba(105, 240, 174, 0.12);
+}
+
+.body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem 1.5rem 1.35rem;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}

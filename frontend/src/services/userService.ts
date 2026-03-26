@@ -19,6 +19,8 @@ export interface CreateUserPayload {
   roles: Role[];
   password: string;
   peladaId?: number | null;
+  /** Só com perfil jogador: true = mensalista, false = diarista */
+  billingMonthly?: boolean;
 }
 
 export interface UserPatchPayload {
@@ -28,6 +30,8 @@ export interface UserPatchPayload {
   peladaIds?: number[];
   accountActive?: boolean;
   password?: string;
+  /** true = mensalista, false = diarista; chaves são ids de pelada em string */
+  billingMonthlyByPelada?: Record<string, boolean>;
 }
 
 export async function listUsers(): Promise<UserSummary[]> {

@@ -140,7 +140,7 @@ export function DashboardPage() {
             <div className={s.featureIcon}>🎬</div>
             <h2>Mídia</h2>
             <p className={s.featureText}>
-              Cadastre URLs de fotos e vídeos vinculadas à partida (administradores da pelada ou geral, e mídia).
+              Cadastre URLs de fotos e vídeos vinculadas à partida (administrador geral ou administrador, e mídia).
             </p>
             <span className={s.featureCardCta}>Abrir mídia →</span>
           </Link>
@@ -151,7 +151,7 @@ export function DashboardPage() {
             <div className={s.featureIcon}>👤</div>
             <h2>Usuários</h2>
             <p className={s.featureText}>
-              Cadastre contas e papéis. O administrador geral vê todas as peladas; o da pelada só a sua.
+              Cadastre contas e papéis. O administrador geral vê todas as peladas; o administrador só a sua.
             </p>
             <span className={s.featureCardCta}>Gerenciar usuários →</span>
           </Link>

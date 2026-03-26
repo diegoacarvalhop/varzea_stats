@@ -22,6 +22,8 @@ export interface LoginResult {
   roles: Role[];
   peladaId?: number | null;
   peladaName?: string | null;
+  /** Dia de vencimento da mensalidade na pelada do contexto (1–31). */
+  peladaMonthlyDueDay?: number | null;
   peladaHasLogo?: boolean | null;
   mustChangePassword?: boolean;
   membershipPeladaIds?: number[];

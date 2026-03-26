@@ -104,8 +104,15 @@ public class PeladaService {
     @Transactional
     public PeladaResponse create(String name, MultipartFile logoFile, Authentication authentication) {
         AppUserDetails caller = requireCaller(authentication);
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("Nome da pelada é obrigatório.");
+        }
+        if (peladaRepository.existsByNameEqualNormalized(trimmed)) {
+            throw new IllegalArgumentException("Já existe uma pelada com este nome.");
+        }
         Pelada p = Pelada.builder()
-                .name(name)
+                .name(trimmed)
                 .createdAt(Instant.now())
                 .active(true)
                 .build();
@@ -178,6 +185,13 @@ public class PeladaService {
                 throw new IllegalArgumentException("Horário inválido. Use o formato HH:mm (24 horas).");
             }
         }
+        if (request.getMonthlyDueDay() != null) {
+            int d = request.getMonthlyDueDay();
+            if (d < 1 || d > 31) {
+                throw new IllegalArgumentException("Dia de vencimento deve ser entre 1 e 31.");
+            }
+            p.setMonthlyDueDay(d);
+        }
         if (request.getScheduleWeekdays() != null) {
             if (request.getScheduleWeekdays().isEmpty()) {
                 p.setScheduleWeekdays(null);
@@ -203,6 +217,10 @@ public class PeladaService {
         }
         if (request.getTeamCount() != null) {
             p.setTeamCount(request.getTeamCount());
+        }
+        if (request.getLinePlayersPerTeam() != null) {
+            int lp = request.getLinePlayersPerTeam();
+            p.setLinePlayersPerTeam(lp <= 0 ? null : lp);
         }
         if (request.getTeamNames() != null) {
             p.setTeamNames(request.getTeamNames().isBlank() ? null : request.getTeamNames());
@@ -252,11 +270,13 @@ public class PeladaService {
                 .location(p.getLocation())
                 .scheduleLabel(formatScheduleSummary(p))
                 .scheduleTime(p.getScheduleTime())
+                .monthlyDueDay(p.getMonthlyDueDay())
                 .scheduleWeekdays(weekdays.isEmpty() ? null : weekdays)
                 .scheduleLegacyLabel(scheduleLegacyForApi(p, weekdays))
                 .monthlyFeeCents(p.getMonthlyFeeCents())
                 .dailyFeeCents(p.getDailyFeeCents())
                 .teamCount(p.getTeamCount())
+                .linePlayersPerTeam(p.getLinePlayersPerTeam())
                 .teamNames(p.getTeamNames())
                 .matchDurationMinutes(p.getMatchDurationMinutes())
                 .matchGoalsToEnd(p.getMatchGoalsToEnd())

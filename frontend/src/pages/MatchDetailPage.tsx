@@ -194,6 +194,11 @@ function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSele
   return out;
 }
 
+/** Na pelada indicada: mensalista se não estiver explícito como diarista (`billingMonthlyByPelada[id] === false`). */
+function isMensalistaOnPelada(u: UserSummary, peladaId: number): boolean {
+  return u.billingMonthlyByPelada?.[String(peladaId)] !== false;
+}
+
 function formatCountdown(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
   const h = Math.floor(safe / 3600);
@@ -452,6 +457,23 @@ export function MatchDetailPage() {
     return list;
   }, [draftPeladaUsers]);
 
+  const presenceByBilling = useMemo(() => {
+    const pid = match?.peladaId;
+    if (pid == null) {
+      return { monthly: [] as UserSummary[], daily: [] as UserSummary[] };
+    }
+    const monthly: UserSummary[] = [];
+    const daily: UserSummary[] = [];
+    for (const u of draftMembersSorted) {
+      if (isMensalistaOnPelada(u, pid)) {
+        monthly.push(u);
+      } else {
+        daily.push(u);
+      }
+    }
+    return { monthly, daily };
+  }, [draftMembersSorted, match?.peladaId]);
+
   const presentForDraftKey = useMemo(
     () =>
       [...presentForDraft]
@@ -514,7 +536,9 @@ export function MatchDetailPage() {
         goalkeeperUserIds: gkIds,
         teamNames: teams.map((t) => t.name),
         linePlayersPerTeam:
-          peladaForMatch?.teamCount != null && peladaForMatch.teamCount > 0 ? peladaForMatch.teamCount : undefined,
+          peladaForMatch?.linePlayersPerTeam != null && peladaForMatch.linePlayersPerTeam > 0
+            ? peladaForMatch.linePlayersPerTeam
+            : undefined,
       });
       const draftLines = Array.isArray(res) ? res : [];
       const linesPayload = draftLines.map((line) => ({
@@ -796,57 +820,168 @@ export function MatchDetailPage() {
             ) : canDraftPresence ? (
               <>
                 <p className={s.statsDetailMeta} style={{ marginBottom: '0.5rem' }}>
-                  Marque quem compareceu à pelada neste dia.
+                  Marque quem compareceu à pelada neste dia. Mensalistas e diaristas aparecem em colunas distintas; os
+                  dois grupos entram no sorteio normalmente.
                 </p>
-                <ul
+                <div
                   style={{
-                    listStyle: 'none',
-                    margin: 0,
-                    padding: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
+                    gap: '1.25rem',
+                    alignItems: 'start',
                   }}
                 >
-                  {draftMembersSorted.map((u) => (
-                    <li key={u.id}>
-                      <label className={s.checkboxRow}>
-                        <input
-                          type="checkbox"
-                          checked={presentForDraft.has(u.id)}
-                          onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
-                        />
-                        <span>{u.name}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+                  <div>
+                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
+                      Mensalistas
+                    </p>
+                    {presenceByBilling.monthly.length === 0 ? (
+                      <p className={s.statsDetailMeta}>Nenhum mensalista nesta pelada.</p>
+                    ) : (
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        {presenceByBilling.monthly.map((u) => (
+                          <li key={u.id}>
+                            <label className={s.checkboxRow}>
+                              <input
+                                type="checkbox"
+                                checked={presentForDraft.has(u.id)}
+                                onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
+                              />
+                              <span>{u.name}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
+                      Diaristas
+                    </p>
+                    {presenceByBilling.daily.length === 0 ? (
+                      <p className={s.statsDetailMeta}>Nenhum diarista nesta pelada.</p>
+                    ) : (
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        {presenceByBilling.daily.map((u) => (
+                          <li key={u.id}>
+                            <label className={s.checkboxRow}>
+                              <input
+                                type="checkbox"
+                                checked={presentForDraft.has(u.id)}
+                                onChange={(ev) => togglePresentOnMatchDraft(u.id, ev.target.checked)}
+                              />
+                              <span>{u.name}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </>
             ) : draftMembersSorted.length === 0 ? (
               <p className={s.lead}>Nenhum jogador cadastrado nesta pelada.</p>
             ) : (
-              <ul
-                style={{
-                  listStyle: 'none',
-                  margin: 0,
-                  padding: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.35rem',
-                }}
-              >
-                {draftMembersSorted.map((u) => {
-                  const isPresent = presentForDraft.has(u.id);
-                  return (
-                  <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <span style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }} aria-hidden>
-                      {isPresent ? '✓' : '✕'}
-                    </span>
-                    <span>{u.name}</span>
-                  </li>
-                  );
-                })}
-              </ul>
+              <>
+                <p className={s.statsDetailMeta} style={{ marginBottom: '0.5rem' }}>
+                  Mensalistas e diaristas em colunas; ambos podem ser sorteados quando marcados como presentes.
+                </p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
+                    gap: '1.25rem',
+                    alignItems: 'start',
+                  }}
+                >
+                  <div>
+                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
+                      Mensalistas
+                    </p>
+                    {presenceByBilling.monthly.length === 0 ? (
+                      <p className={s.statsDetailMeta}>Nenhum mensalista nesta pelada.</p>
+                    ) : (
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        {presenceByBilling.monthly.map((u) => {
+                          const isPresent = presentForDraft.has(u.id);
+                          return (
+                            <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span
+                                style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }}
+                                aria-hidden
+                              >
+                                {isPresent ? '✓' : '✕'}
+                              </span>
+                              <span>{u.name}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className={s.fieldLabel} style={{ marginBottom: '0.45rem' }}>
+                      Diaristas
+                    </p>
+                    {presenceByBilling.daily.length === 0 ? (
+                      <p className={s.statsDetailMeta}>Nenhum diarista nesta pelada.</p>
+                    ) : (
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        {presenceByBilling.daily.map((u) => {
+                          const isPresent = presentForDraft.has(u.id);
+                          return (
+                            <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span
+                                style={{ color: isPresent ? '#00e676' : '#ff5252', fontWeight: 700 }}
+                                aria-hidden
+                              >
+                                {isPresent ? '✓' : '✕'}
+                              </span>
+                              <span>{u.name}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
         </div>
       )}
