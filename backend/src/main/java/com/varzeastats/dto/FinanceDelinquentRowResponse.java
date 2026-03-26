@@ -22,4 +22,5 @@ public class FinanceDelinquentRowResponse {
     private String billingType;
     private List<String> overdueMonths;
     private List<String> overdueDailyDates;
+    private Long pendingReceiptId;
 }

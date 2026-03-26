@@ -117,6 +117,11 @@ public class FinanceService {
                 }
                 List<LocalDate> overdueMonths = listOverdueMonthsForUser(peladaId, uid, pelada, monthStart);
                 if (!overdueMonths.isEmpty()) {
+                    Long pendingReceiptId = peladaPaymentReceiptRepository
+                            .findFirstByPelada_IdAndUser_IdAndStatusOrderBySubmittedAtDesc(
+                                    peladaId, uid, PaymentReceiptStatus.PENDING)
+                            .map(PeladaPaymentReceipt::getId)
+                            .orElse(null);
                     out.add(FinanceDelinquentRowResponse.builder()
                             .userId(u.getId())
                             .userName(u.getName())
@@ -129,6 +134,7 @@ public class FinanceService {
                                     .orElse(null))
                             .billingType(PaymentKind.MONTHLY.name())
                             .overdueMonths(overdueMonths.stream().map(LocalDate::toString).toList())
+                            .pendingReceiptId(pendingReceiptId)
                             .build());
                 }
             } else {
@@ -231,7 +237,7 @@ public class FinanceService {
 
     @Transactional
     public FinanceReceiptResponse submitMonthlyReceipt(
-            Long peladaId, LocalDate paidAt, List<String> referenceMonthsRaw, MultipartFile file, AppUserDetails caller) {
+            Long peladaId, List<String> referenceMonthsRaw, MultipartFile file, AppUserDetails caller) {
         if (caller.getUserId() == null) {
             throw new AccessDeniedException("Sem usuário autenticado.");
         }
@@ -252,7 +258,7 @@ public class FinanceService {
         PeladaPaymentReceipt receipt = new PeladaPaymentReceipt();
         receipt.setPelada(pelada);
         receipt.setUser(user);
-        receipt.setPaidAt(paidAt);
+        receipt.setPaidAt(null);
         receipt.setStatus(PaymentReceiptStatus.PENDING);
         receipt.setOriginalFilename(
                 stored.originalFilename() != null && !stored.originalFilename().isBlank()
@@ -284,7 +290,7 @@ public class FinanceService {
     }
 
     @Transactional
-    public void approveReceipt(Long receiptId, String note, AppUserDetails caller) {
+    public void approveReceipt(Long receiptId, LocalDate paidAt, String note, AppUserDetails caller) {
         PeladaPaymentReceipt receipt = peladaPaymentReceiptRepository
                 .findById(receiptId)
                 .orElseThrow(() -> new IllegalArgumentException("Comprovante não encontrado."));
@@ -292,7 +298,11 @@ public class FinanceService {
         if (receipt.getStatus() != PaymentReceiptStatus.PENDING) {
             throw new IllegalArgumentException("Comprovante já foi analisado.");
         }
+        if (paidAt == null) {
+            throw new IllegalArgumentException("Informe a data do pagamento para aprovar o comprovante.");
+        }
         receipt.setStatus(PaymentReceiptStatus.APPROVED);
+        receipt.setPaidAt(paidAt);
         receipt.setReviewedAt(Instant.now());
         receipt.setReviewNote(note);
         User reviewer = userRepository.findById(caller.getUserId()).orElse(null);
@@ -306,7 +316,7 @@ public class FinanceService {
             pay.setUser(receipt.getUser());
             pay.setKind(PaymentKind.MONTHLY);
             pay.setReferenceMonth(ref);
-            pay.setPaidAt(receipt.getPaidAt());
+            pay.setPaidAt(paidAt);
             pay.setAmountCents(receipt.getPelada().getMonthlyFeeCents());
             pay.setReceipt(receipt);
             peladaPaymentRepository.save(pay);

@@ -77,12 +77,11 @@ public class FinanceController {
     @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','FINANCEIRO','PLAYER')")
     public ResponseEntity<FinanceReceiptResponse> submitReceipt(
             @RequestParam Long peladaId,
-            @RequestParam LocalDate paidAt,
             @RequestParam List<String> referenceMonths,
             @RequestParam("file") MultipartFile file,
             Authentication authentication) {
         return ResponseEntity.ok(financeService.submitMonthlyReceipt(
-                peladaId, paidAt, referenceMonths, file, (AppUserDetails) authentication.getPrincipal()));
+                peladaId, referenceMonths, file, (AppUserDetails) authentication.getPrincipal()));
     }
 
     @GetMapping("/receipts/pending")
@@ -106,7 +105,11 @@ public class FinanceController {
             @PathVariable Long receiptId,
             @Valid @RequestBody(required = false) FinanceReceiptReviewRequest request,
             Authentication authentication) {
-        financeService.approveReceipt(receiptId, request != null ? request.getNote() : null, (AppUserDetails) authentication.getPrincipal());
+        financeService.approveReceipt(
+                receiptId,
+                request != null ? request.getPaidAt() : null,
+                request != null ? request.getNote() : null,
+                (AppUserDetails) authentication.getPrincipal());
         return ResponseEntity.ok().build();
     }
 

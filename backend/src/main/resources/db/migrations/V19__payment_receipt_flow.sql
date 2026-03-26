@@ -2,7 +2,7 @@ create table if not exists pelada_payment_receipt (
     id bigserial primary key,
     user_id bigint not null references users(id),
     pelada_id bigint not null references peladas(id),
-    paid_at date not null,
+    paid_at date null,
     status varchar(20) not null,
     original_filename varchar(255) not null,
     stored_filename varchar(255) not null,

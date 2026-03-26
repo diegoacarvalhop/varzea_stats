@@ -6,9 +6,9 @@ import { maskCurrencyBRInput, parseMaskedMoneyToCents } from '@/lib/moneyMask';
 import { hasAnyRole, hasRole } from '@/lib/roles';
 import {
   approveReceipt,
+  fetchReceiptBlob,
   listMyMonthlyPayments,
   listMonthlyPaymentsByUser,
-  listPendingReceipts,
   listReceiptsByUser,
   receiptFileUrl,
   rejectReceipt,
@@ -22,6 +22,7 @@ import {
   type PaymentKind,
 } from '@/services/financeService';
 import { listUsers, type UserSummary } from '@/services/userService';
+import { FormModal } from '@/components/FormModal';
 import s from '@/styles/pageShared.module.scss';
 
 function monthStartIso(d: Date) {
@@ -75,7 +76,6 @@ export function FinancePage() {
   const isPlayer = hasRole(roles, 'PLAYER');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [delinquent, setDelinquent] = useState<FinanceDelinquentRow[]>([]);
-  const [pendingReceipts, setPendingReceipts] = useState<FinanceReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [payUserId, setPayUserId] = useState<number | ''>('');
   const [kind, setKind] = useState<PaymentKind>('MONTHLY');
@@ -89,12 +89,17 @@ export function FinancePage() {
   const [monthlyHistory, setMonthlyHistory] = useState<FinanceMonthlyPayment[]>([]);
   const [receiptHistory, setReceiptHistory] = useState<FinanceReceipt[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [receiptPaidAt, setReceiptPaidAt] = useState(todayIso());
-  const [receiptMonths, setReceiptMonths] = useState<string[]>([monthStartIso(new Date()).slice(0, 7)]);
-  const [receiptMonthInput, setReceiptMonthInput] = useState(monthStartIso(new Date()).slice(0, 7));
+  const [receiptMonths, setReceiptMonths] = useState<string[]>([]);
+  const [receiptMonthInput, setReceiptMonthInput] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptSubmitting, setReceiptSubmitting] = useState(false);
   const [reviewingReceiptById, setReviewingReceiptById] = useState<Record<number, boolean>>({});
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState<FinanceReceipt | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [receiptPreviewType, setReceiptPreviewType] = useState<string>('');
+  const [receiptPreviewLoading, setReceiptPreviewLoading] = useState(false);
+  const [financePaidAt, setFinancePaidAt] = useState(todayIso());
 
   const load = useCallback(async () => {
     if (peladaId == null) {
@@ -106,18 +111,14 @@ export function FinancePage() {
     setLoading(true);
     try {
       const promises: Array<Promise<unknown>> = [listUsers()];
-      if (canManageFinance) {
-        promises.push(listDelinquent(peladaId), listPendingReceipts(peladaId));
-      }
+      if (canManageFinance) promises.push(listDelinquent(peladaId));
       const result = await Promise.all(promises);
       const uList = result[0] as UserSummary[];
       setUsers(uList);
       if (canManageFinance) {
         setDelinquent(result[1] as FinanceDelinquentRow[]);
-        setPendingReceipts(result[2] as FinanceReceipt[]);
       } else {
         setDelinquent([]);
-        setPendingReceipts([]);
       }
     } catch {
       appToast.error('Não foi possível carregar dados financeiros.');
@@ -132,6 +133,13 @@ export function FinancePage() {
     document.title = 'Financeiro · VARzea Stats';
     void load();
   }, [load]);
+
+  useEffect(
+    () => () => {
+      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+    },
+    [receiptPreviewUrl],
+  );
 
   const filteredUsers = useMemo(() => {
     if (peladaId == null) return [];
@@ -238,11 +246,11 @@ export function FinancePage() {
     }
     setReceiptSubmitting(true);
     try {
-      await submitReceipt({ peladaId, paidAt: receiptPaidAt, referenceMonths: cleanMonths, file: receiptFile });
+      await submitReceipt({ peladaId, referenceMonths: cleanMonths, file: receiptFile });
       appToast.success('Comprovante enviado para análise.');
       setReceiptFile(null);
-      setReceiptMonths([monthStartIso(new Date()).slice(0, 7)]);
-      setReceiptMonthInput(monthStartIso(new Date()).slice(0, 7));
+      setReceiptMonths([]);
+      setReceiptMonthInput('');
       if (canManageFinance) {
         await load();
       }
@@ -265,17 +273,59 @@ export function FinancePage() {
     setReceiptMonths((prev) => prev.filter((m) => m !== month));
   }
 
+  async function openReceiptModal(row: FinanceDelinquentRow) {
+    if (!row.pendingReceiptId) return;
+    setReceiptModalOpen(true);
+    setReceiptPreviewLoading(true);
+    setFinancePaidAt(todayIso());
+    const receiptMeta: FinanceReceipt = {
+      id: row.pendingReceiptId,
+      userId: row.userId,
+      userName: row.userName,
+      peladaId: row.peladaId,
+      referenceMonths: (row.overdueMonths ?? []).map((m) => m.slice(0, 7)),
+      status: 'PENDING',
+      originalFilename: 'comprovante',
+      contentType: '',
+      fileSizeBytes: 0,
+      submittedAt: '',
+    };
+    setActiveReceipt(receiptMeta);
+    try {
+      const blob = await fetchReceiptBlob(row.pendingReceiptId);
+      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+      const nextUrl = URL.createObjectURL(blob);
+      setReceiptPreviewUrl(nextUrl);
+      setReceiptPreviewType(blob.type);
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível carregar o comprovante.'));
+      setReceiptModalOpen(false);
+      setActiveReceipt(null);
+    } finally {
+      setReceiptPreviewLoading(false);
+    }
+  }
+
+  function closeReceiptModal() {
+    setReceiptModalOpen(false);
+    setActiveReceipt(null);
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+    setReceiptPreviewUrl(null);
+    setReceiptPreviewType('');
+  }
+
   async function onReviewReceipt(receiptId: number, action: 'approve' | 'reject') {
     setReviewingReceiptById((prev) => ({ ...prev, [receiptId]: true }));
     try {
       if (action === 'approve') {
-        await approveReceipt(receiptId);
+        await approveReceipt(receiptId, { paidAt: financePaidAt });
         appToast.success('Comprovante aprovado e baixa realizada.');
       } else {
         await rejectReceipt(receiptId);
         appToast.success('Comprovante rejeitado.');
       }
       await load();
+      closeReceiptModal();
     } catch (err) {
       appToast.error(getApiErrorMessage(err, 'Não foi possível analisar o comprovante.'));
     } finally {
@@ -404,19 +454,6 @@ export function FinancePage() {
               <h2 className={s.cardTitle}>Enviar comprovante de mensalidade</h2>
               <form className={`${s.form} ${s.financeFormWide}`} onSubmit={(e) => void onSubmitReceipt(e)}>
                 <div className={s.field}>
-                  <label className={s.fieldLabel} htmlFor="receipt-paid">
-                    Data do pagamento
-                  </label>
-                  <input
-                    id="receipt-paid"
-                    className={s.input}
-                    type="date"
-                    value={receiptPaidAt}
-                    onChange={(ev) => setReceiptPaidAt(ev.target.value)}
-                    required
-                  />
-                </div>
-                <div className={s.field}>
                   <label className={s.fieldLabel} htmlFor="receipt-month">
                     Meses quitados
                   </label>
@@ -499,7 +536,12 @@ export function FinancePage() {
                             : formatOverdueMonths(row.overdueMonths)}
                         </td>
                         <td>{formatReminderSentAt(row.reminderSentAt)}</td>
-                        <td>
+                        <td className={s.financeActionRow}>
+                          {row.pendingReceiptId ? (
+                            <button type="button" className={s.btnPrimary} onClick={() => void openReceiptModal(row)}>
+                              Ver comprovante
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className={s.btn}
@@ -519,60 +561,6 @@ export function FinancePage() {
                 </table>
               </div>
             )}
-            </section>
-          )}
-          {canManageFinance && (
-            <section className={`${s.card} ${s.financeSectionTop}`}>
-              <h2 className={s.cardTitle}>Comprovantes pendentes</h2>
-              {pendingReceipts.length === 0 ? (
-                <p className={s.lead}>Nenhum comprovante pendente.</p>
-              ) : (
-                <div className={s.trajectoryTableWrap}>
-                  <table className={s.userListTable}>
-                    <thead>
-                      <tr>
-                        <th>Jogador</th>
-                        <th>Pagamento</th>
-                        <th>Meses</th>
-                        <th>Arquivo</th>
-                        <th>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingReceipts.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.userName}</td>
-                          <td>{new Date(`${r.paidAt}T00:00:00`).toLocaleDateString('pt-BR')}</td>
-                          <td>{formatOverdueMonths(r.referenceMonths)}</td>
-                          <td>
-                            <a className={s.btn} href={receiptFileUrl(r.id)} target="_blank" rel="noreferrer">
-                              Ver comprovante
-                            </a>
-                          </td>
-                          <td className={s.financeActionRow}>
-                            <button
-                              type="button"
-                              className={s.btnPrimary}
-                              disabled={Boolean(reviewingReceiptById[r.id])}
-                              onClick={() => void onReviewReceipt(r.id, 'approve')}
-                            >
-                              Aprovar
-                            </button>
-                            <button
-                              type="button"
-                              className={s.btn}
-                              disabled={Boolean(reviewingReceiptById[r.id])}
-                              onClick={() => void onReviewReceipt(r.id, 'reject')}
-                            >
-                              Rejeitar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </section>
           )}
           <section className={`${s.card} ${s.financeSectionTop}`}>
@@ -672,6 +660,52 @@ export function FinancePage() {
           </section>
         </>
       )}
+      <FormModal open={receiptModalOpen} onClose={closeReceiptModal} title="Comprovante pendente">
+        {receiptPreviewLoading ? (
+          <p className={s.lead}>Carregando comprovante…</p>
+        ) : receiptPreviewUrl ? (
+          <div className={s.form}>
+            {receiptPreviewType.includes('image/') ? (
+              <img src={receiptPreviewUrl} alt="Comprovante" style={{ maxWidth: '100%', borderRadius: 8 }} />
+            ) : (
+              <iframe title="Comprovante" src={receiptPreviewUrl} style={{ width: '100%', height: 520, border: 'none' }} />
+            )}
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="modal-paid-at">
+                Data do pagamento (baixa financeira)
+              </label>
+              <input
+                id="modal-paid-at"
+                className={s.input}
+                type="date"
+                value={financePaidAt}
+                onChange={(ev) => setFinancePaidAt(ev.target.value)}
+                required
+              />
+            </div>
+            <div className={s.financeActionRow}>
+              <button
+                type="button"
+                className={s.btnPrimary}
+                disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
+                onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'approve')}
+              >
+                Aprovar
+              </button>
+              <button
+                type="button"
+                className={s.btn}
+                disabled={!activeReceipt || Boolean(reviewingReceiptById[activeReceipt.id])}
+                onClick={() => activeReceipt && void onReviewReceipt(activeReceipt.id, 'reject')}
+              >
+                Recusar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className={s.lead}>Não foi possível exibir o comprovante.</p>
+        )}
+      </FormModal>
     </div>
   );
 }

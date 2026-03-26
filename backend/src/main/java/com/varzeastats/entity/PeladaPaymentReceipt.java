@@ -39,7 +39,7 @@ public class PeladaPaymentReceipt {
     @JoinColumn(name = "pelada_id")
     private Pelada pelada;
 
-    @Column(name = "paid_at", nullable = false)
+    @Column(name = "paid_at")
     private LocalDate paidAt;
 
     @Enumerated(EnumType.STRING)

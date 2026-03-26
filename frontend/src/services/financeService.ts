@@ -21,6 +21,7 @@ export interface FinanceDelinquentRow {
   billingType?: 'MONTHLY' | 'DAILY';
   overdueMonths?: string[];
   overdueDailyDates?: string[];
+  pendingReceiptId?: number | null;
 }
 
 export interface FinanceMonthlyPayment {
@@ -43,7 +44,7 @@ export interface FinanceReceipt {
   userId: number;
   userName: string;
   peladaId: number;
-  paidAt: string;
+  paidAt?: string | null;
   referenceMonths: string[];
   status: PaymentReceiptStatus;
   originalFilename: string;
@@ -83,13 +84,11 @@ export async function listMyMonthlyPayments(peladaId: number): Promise<FinanceMo
 
 export async function submitReceipt(payload: {
   peladaId: number;
-  paidAt: string;
   referenceMonths: string[];
   file: File;
 }): Promise<FinanceReceipt> {
   const fd = new FormData();
   fd.append('peladaId', String(payload.peladaId));
-  fd.append('paidAt', payload.paidAt);
   payload.referenceMonths.forEach((m) => fd.append('referenceMonths', m));
   fd.append('file', payload.file);
   const { data } = await api.post<FinanceReceipt>('/finance/receipts', fd, {
@@ -108,8 +107,8 @@ export async function listReceiptsByUser(payload: { peladaId: number; userId: nu
   return data;
 }
 
-export async function approveReceipt(receiptId: number, note?: string): Promise<void> {
-  await api.post(`/finance/receipts/${receiptId}/approve`, { note: note ?? null });
+export async function approveReceipt(receiptId: number, payload: { paidAt: string; note?: string }): Promise<void> {
+  await api.post(`/finance/receipts/${receiptId}/approve`, { paidAt: payload.paidAt, note: payload.note ?? null });
 }
 
 export async function rejectReceipt(receiptId: number, note?: string): Promise<void> {
@@ -118,4 +117,9 @@ export async function rejectReceipt(receiptId: number, note?: string): Promise<v
 
 export function receiptFileUrl(receiptId: number): string {
   return api.getUri({ url: `/finance/receipts/${receiptId}/file` });
+}
+
+export async function fetchReceiptBlob(receiptId: number): Promise<Blob> {
+  const { data } = await api.get(`/finance/receipts/${receiptId}/file`, { responseType: 'blob' });
+  return data as Blob;
 }
