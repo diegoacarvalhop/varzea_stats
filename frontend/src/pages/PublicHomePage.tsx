@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { appToast } from '@/lib/appToast';
+import { clearPeladaContext } from '@/lib/peladaContext';
 import { getPublicPeladaCards, type PeladaPublicCard } from '@/services/peladaService';
 import styles from './LoginPage.module.scss';
 import grid from './PublicHomePage.module.scss';
@@ -23,6 +24,10 @@ export function PublicHomePage() {
   }, []);
 
   useEffect(() => {
+    // Home pública sempre inicia nova sessão: limpa autenticação e contexto de pelada.
+    localStorage.removeItem('varzea_token');
+    localStorage.removeItem('varzea_user');
+    clearPeladaContext();
     document.title = 'VARzea Stats';
     void load();
   }, [load]);
