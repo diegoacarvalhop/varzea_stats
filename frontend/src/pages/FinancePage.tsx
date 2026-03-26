@@ -101,6 +101,7 @@ export function FinancePage() {
   const [receiptModalTitle, setReceiptModalTitle] = useState('Comprovante');
   const [canReviewActiveReceipt, setCanReviewActiveReceipt] = useState(false);
   const [financePaidAt, setFinancePaidAt] = useState(todayIso());
+  const [playerMonthsLoading, setPlayerMonthsLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (peladaId == null) {
@@ -199,38 +200,43 @@ export function FinancePage() {
     }
   }
 
+  const loadMonthlyHistoryForUser = useCallback(async (userToLoad: number, showEmptyToast = true) => {
+    setHistoryLoading(true);
+    try {
+      if (!Number.isFinite(userToLoad) || userToLoad <= 0) {
+        if (showEmptyToast) appToast.warning('Não foi possível identificar seu usuário para carregar o histórico.');
+        return;
+      }
+      if (peladaId == null) return;
+      const [rows, receipts] = await Promise.all([
+        canManageFinance ? listMonthlyPaymentsByUser({ peladaId, userId: userToLoad }) : listMyMonthlyPayments(peladaId),
+        listReceiptsByUser({ peladaId, userId: userToLoad }),
+      ]);
+      setMonthlyHistory(rows);
+      setReceiptHistory(receipts);
+      setHistoryLoaded(true);
+      if (rows.length === 0 && showEmptyToast) {
+        appToast.success('Nenhuma mensalidade registrada para este jogador nesta pelada.');
+      }
+    } catch (err) {
+      if (showEmptyToast) {
+        appToast.error(getApiErrorMessage(err, 'Não foi possível listar as mensalidades do jogador.'));
+      }
+      setMonthlyHistory([]);
+      setHistoryLoaded(false);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [canManageFinance, peladaId]);
+
   async function onListMonthlyHistory(e: FormEvent) {
     e.preventDefault();
     if (peladaId == null || (canManageFinance && historyUserId === '')) {
       appToast.warning('Selecione o jogador para listar as mensalidades.');
       return;
     }
-    setHistoryLoading(true);
-    try {
-      const userToLoad = canManageFinance ? Number(historyUserId) : Number(currentUserId);
-      if (!Number.isFinite(userToLoad) || userToLoad <= 0) {
-        appToast.warning('Não foi possível identificar seu usuário para carregar o histórico.');
-        return;
-      }
-      const [rows, receipts] = canManageFinance
-        ? await Promise.all([
-            listMonthlyPaymentsByUser({ peladaId, userId: userToLoad }),
-            listReceiptsByUser({ peladaId, userId: userToLoad }),
-          ])
-        : await Promise.all([listMyMonthlyPayments(peladaId), listReceiptsByUser({ peladaId, userId: userToLoad })]);
-      setMonthlyHistory(rows);
-      setReceiptHistory(receipts);
-      setHistoryLoaded(true);
-      if (rows.length === 0) {
-        appToast.success('Nenhuma mensalidade registrada para este jogador nesta pelada.');
-      }
-    } catch (err) {
-      appToast.error(getApiErrorMessage(err, 'Não foi possível listar as mensalidades do jogador.'));
-      setMonthlyHistory([]);
-      setHistoryLoaded(false);
-    } finally {
-      setHistoryLoading(false);
-    }
+    const userToLoad = canManageFinance ? Number(historyUserId) : Number(currentUserId);
+    await loadMonthlyHistoryForUser(userToLoad, true);
   }
 
   async function onSubmitReceipt(e: FormEvent) {
@@ -402,6 +408,12 @@ export function FinancePage() {
     }
     return map;
   }, [receiptHistory]);
+
+  useEffect(() => {
+    if (!isPlayer || peladaId == null || currentUserId == null) return;
+    setPlayerMonthsLoading(true);
+    void loadMonthlyHistoryForUser(Number(currentUserId), false).finally(() => setPlayerMonthsLoading(false));
+  }, [isPlayer, peladaId, currentUserId, loadMonthlyHistoryForUser]);
 
   if (peladaId == null) {
     return (
@@ -627,6 +639,7 @@ export function FinancePage() {
               <p className={s.lead} style={{ marginTop: 0 }}>
                 Acompanhe sua situação mensal e o status dos comprovantes enviados.
               </p>
+              {playerMonthsLoading ? <p className={s.lead}>Carregando meses…</p> : null}
               <div className={s.financeHistoryWrap}>
                 <h3 className={s.cardTitle} style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                   Meses pagos
