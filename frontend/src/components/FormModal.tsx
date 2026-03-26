@@ -54,8 +54,9 @@ export function FormModal({ open, title, onClose, closeDisabled = false, childre
             onClick={() => !closeDisabled && onClose()}
             disabled={closeDisabled}
             aria-label="Fechar modal"
+            title="Fechar modal"
           >
-            Fechar
+            ×
           </button>
         </div>
         <div className={styles.body}>{children}</div>
