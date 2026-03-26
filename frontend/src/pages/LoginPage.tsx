@@ -93,10 +93,6 @@ export function LoginPage() {
       <div className={styles.card}>
         <p className={styles.badge}>Acesso ao sistema</p>
         <h1 className={styles.title}>Entrar</h1>
-        <p className={styles.subtitle}>
-          VARzea Stats — análise de partidas em tempo real.{' '}
-          <Link to="/">Voltar ao início</Link>
-        </p>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="login-email">
