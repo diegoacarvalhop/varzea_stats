@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createMatch, formatMatchPlacar, listMatches, type Match } from '@/services/matchService';
+import { createMatch, formatMatchPlacar, listMatches, type Match, type TeamScore } from '@/services/matchService';
 import { useAuth } from '@/hooks/useAuth';
 import { hasAnyRole, MATCH_MANAGER_ROLES } from '@/lib/roles';
 import { appToast } from '@/lib/appToast';
@@ -52,6 +52,28 @@ export function MatchesPage() {
   const [goalkeeperPickByTeam, setGoalkeeperPickByTeam] = useState<Record<string, string>>({});
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
+  const [pregameHydrated, setPregameHydrated] = useState(false);
+
+  function resolveMatchListPlacar(m: Match): string {
+    if (!m.teamScores || m.teamScores.length === 0) return '';
+    if (m.finishedAt) return formatMatchPlacar(m.teamScores);
+    const key = `match:selected-teams:${m.id}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw) as { teamA?: string; teamB?: string };
+      const teamA = typeof parsed.teamA === 'string' ? parsed.teamA : '';
+      const teamB = typeof parsed.teamB === 'string' ? parsed.teamB : '';
+      if (!teamA || !teamB || teamA === teamB) return '';
+      const byName = new Map<string, TeamScore>();
+      for (const score of m.teamScores) byName.set(score.teamName, score);
+      const filtered = [byName.get(teamA), byName.get(teamB)].filter((s): s is TeamScore => s != null);
+      if (filtered.length === 0) return '';
+      return formatMatchPlacar(filtered);
+    } catch {
+      return '';
+    }
+  }
 
   const loadMatches = useCallback(async () => {
     try {
@@ -218,11 +240,14 @@ export function MatchesPage() {
       }
     } catch {
       // no-op
+    } finally {
+      setPregameHydrated(true);
     }
   }, [pregameStorageKey]);
 
   useEffect(() => {
     if (!pregameStorageKey) return;
+    if (!pregameHydrated) return;
     try {
       window.localStorage.setItem(
         pregameStorageKey,
@@ -235,7 +260,7 @@ export function MatchesPage() {
     } catch {
       // no-op
     }
-  }, [pregameStorageKey, date, pregameTeams, goalkeeperByTeam]);
+  }, [pregameStorageKey, pregameHydrated, date, pregameTeams, goalkeeperByTeam]);
 
   useEffect(() => {
     if (selectedGoalkeeperIds.length === 0) return;
@@ -610,7 +635,7 @@ export function MatchesPage() {
               {m.finishedAt && <span className={s.matchFinishedTag}>Encerrada</span>}
               <span className={s.matchMeta}>{new Date(m.date).toLocaleString('pt-BR')}</span>
               <span className={s.matchMeta}>{m.location}</span>
-              <span className={s.matchPlacar}>{formatMatchPlacar(m.teamScores)}</span>
+              <span className={s.matchPlacar}>{resolveMatchListPlacar(m)}</span>
               <span className={s.matchChevron}>→</span>
             </Link>
           </li>

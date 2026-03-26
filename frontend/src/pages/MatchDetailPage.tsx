@@ -110,6 +110,7 @@ export function MatchDetailPage() {
   const [peladaForMatch, setPeladaForMatch] = useState<Pelada | null | undefined>(undefined);
   const [startingTeamA, setStartingTeamA] = useState('');
   const [startingTeamB, setStartingTeamB] = useState('');
+  const [selectedTeamsHydrated, setSelectedTeamsHydrated] = useState(false);
 
   const [eventType, setEventType] = useState<EventType>('GOAL');
   const [eventPlayerId, setEventPlayerId] = useState('');
@@ -298,6 +299,8 @@ export function MatchDetailPage() {
       if (typeof parsed.teamB === 'string') setStartingTeamB(parsed.teamB);
     } catch {
       // no-op
+    } finally {
+      setSelectedTeamsHydrated(true);
     }
   }, [selectedTeamsStorageKey]);
 
@@ -308,6 +311,7 @@ export function MatchDetailPage() {
 
   useEffect(() => {
     if (!selectedTeamsStorageKey) return;
+    if (!selectedTeamsHydrated) return;
     try {
       window.localStorage.setItem(
         selectedTeamsStorageKey,
@@ -316,7 +320,7 @@ export function MatchDetailPage() {
     } catch {
       // no-op
     }
-  }, [selectedTeamsStorageKey, startingTeamA, startingTeamB]);
+  }, [selectedTeamsStorageKey, selectedTeamsHydrated, startingTeamA, startingTeamB]);
 
   useEffect(() => {
     if (!timerConfigured) {
@@ -428,6 +432,13 @@ export function MatchDetailPage() {
     setFinishing(true);
     try {
       await finishMatch(matchId);
+      if (selectedTeamsStorageKey) {
+        try {
+          window.localStorage.removeItem(selectedTeamsStorageKey);
+        } catch {
+          // no-op
+        }
+      }
       appToast.success('Partida finalizada.');
       navigate('/matches#nova-partida');
     } catch {
