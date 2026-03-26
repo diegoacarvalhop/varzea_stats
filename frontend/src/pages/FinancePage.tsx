@@ -70,7 +70,7 @@ function formatOverdueDailyDates(days?: string[]): string {
 }
 
 export function FinancePage() {
-  const { peladaId, peladaName, roles, email } = useAuth();
+  const { peladaId, peladaName, roles, email, peladaMonthlyDueDay } = useAuth();
   const canManageFinance = hasAnyRole(roles, ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO']);
   const isPlayer = hasRole(roles, 'PLAYER');
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -361,6 +361,48 @@ export function FinancePage() {
     return map;
   }, [receiptHistory]);
 
+  const playerMonthRows = useMemo(() => {
+    if (!isPlayer) return { paid: [] as string[], pending: [] as string[] };
+    const today = new Date();
+    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const dueDay = peladaMonthlyDueDay ?? 15;
+    const paidSet = new Set(monthlyHistory.map((r) => r.referenceMonth));
+
+    const dataMonths = new Set<string>();
+    for (const p of monthlyHistory) dataMonths.add(p.referenceMonth);
+    for (const r of receiptHistory) {
+      for (const month of r.referenceMonths) dataMonths.add(`${month}-01`);
+    }
+    for (let m = 0; m <= today.getMonth(); m += 1) {
+      dataMonths.add(`${today.getFullYear()}-${String(m + 1).padStart(2, '0')}-01`);
+    }
+
+    const months = Array.from(dataMonths).sort((a, b) => b.localeCompare(a));
+    const pending = months.filter((monthIso) => {
+      if (paidSet.has(monthIso)) return false;
+      const monthDate = new Date(`${monthIso}T00:00:00`);
+      if (monthDate < currentMonth) return true;
+      if (monthDate.getFullYear() === currentMonth.getFullYear() && monthDate.getMonth() === currentMonth.getMonth()) {
+        return today.getDate() > dueDay;
+      }
+      return false;
+    });
+    const paid = months.filter((monthIso) => paidSet.has(monthIso));
+    return { paid, pending };
+  }, [isPlayer, monthlyHistory, receiptHistory, peladaMonthlyDueDay]);
+
+  const receiptInfoByMonth = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of receiptHistory) {
+      const statusLabel =
+        r.status === 'PENDING' ? 'Comprovante enviado (em análise)' : r.status === 'APPROVED' ? 'Comprovante aprovado' : 'Comprovante rejeitado';
+      for (const month of r.referenceMonths) {
+        if (!map.has(month)) map.set(month, statusLabel);
+      }
+    }
+    return map;
+  }, [receiptHistory]);
+
   if (peladaId == null) {
     return (
       <div className={s.page}>
@@ -579,6 +621,89 @@ export function FinancePage() {
               </form>
             </section>
           )}
+          {isPlayer && (
+            <section className={`${s.card} ${s.financeSectionTop}`}>
+              <h2 className={s.cardTitle}>Meses pagos e pendentes</h2>
+              <p className={s.lead} style={{ marginTop: 0 }}>
+                Acompanhe sua situação mensal e o status dos comprovantes enviados.
+              </p>
+              <div className={s.financeHistoryWrap}>
+                <h3 className={s.cardTitle} style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                  Meses pagos
+                </h3>
+                {playerMonthRows.paid.length === 0 ? (
+                  <p className={s.statsDetailMeta}>Nenhum mês pago encontrado.</p>
+                ) : (
+                  <div className={s.trajectoryTableWrap}>
+                    <table className={s.userListTable}>
+                      <thead>
+                        <tr>
+                          <th>Mês</th>
+                          <th>Situação</th>
+                          <th>Comprovante</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {playerMonthRows.paid.map((monthIso) => {
+                          const monthKey = monthIso.slice(0, 7);
+                          return (
+                            <tr key={`paid-${monthIso}`}>
+                              <td>
+                                {new Date(`${monthIso}T00:00:00`).toLocaleDateString('pt-BR', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </td>
+                              <td>Pago</td>
+                              <td>{receiptInfoByMonth.get(monthKey) ?? '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className={s.financeHistoryWrap}>
+                <h3 className={s.cardTitle} style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                  Meses pendentes
+                </h3>
+                {playerMonthRows.pending.length === 0 ? (
+                  <p className={s.statsDetailMeta}>Nenhum mês pendente no momento.</p>
+                ) : (
+                  <div className={s.trajectoryTableWrap}>
+                    <table className={s.userListTable}>
+                      <thead>
+                        <tr>
+                          <th>Mês</th>
+                          <th>Situação</th>
+                          <th>Comprovante</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {playerMonthRows.pending.map((monthIso) => {
+                          const monthKey = monthIso.slice(0, 7);
+                          return (
+                            <tr key={`pending-${monthIso}`}>
+                              <td>
+                                {new Date(`${monthIso}T00:00:00`).toLocaleDateString('pt-BR', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </td>
+                              <td>Pendente</td>
+                              <td>{receiptInfoByMonth.get(monthKey) ?? '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+          {!isPlayer && (
           <section className={`${s.card} ${s.financeSectionTop}`}>
             <h2 className={s.cardTitle}>Mensalidades por jogador</h2>
             <p className={s.lead} style={{ marginTop: 0 }}>
@@ -687,6 +812,7 @@ export function FinancePage() {
               )}
             </div>
           </section>
+          )}
         </>
       )}
       <FormModal open={receiptModalOpen} onClose={closeReceiptModal} title={receiptModalTitle}>

@@ -37,6 +37,11 @@ export interface MembershipUpdatePayload {
   billingMonthlyByPelada?: Record<string, boolean>;
 }
 
+export interface ProfileUpdatePayload {
+  name: string;
+  email: string;
+}
+
 export async function login(payload: LoginPayload): Promise<LoginResult> {
   const { data } = await api.post<LoginResult>('/auth/login', payload);
   return data;
@@ -49,6 +54,11 @@ export async function fetchProfile(): Promise<LoginResult> {
 
 export async function updateMemberships(payload: MembershipUpdatePayload): Promise<LoginResult> {
   const { data } = await api.put<LoginResult>('/auth/me/memberships', payload);
+  return data;
+}
+
+export async function updateProfile(payload: ProfileUpdatePayload): Promise<LoginResult> {
+  const { data } = await api.put<LoginResult>('/auth/me', payload);
   return data;
 }
 

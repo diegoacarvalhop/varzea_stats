@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PasswordField } from '@/components/PasswordField';
 import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
@@ -31,19 +31,38 @@ const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
 };
 
 export function ProfilePage() {
-  const { name, email, roles, peladaId, peladaName, membershipPeladaIds, billingMonthlyByPelada, updateMemberships, changePassword } =
-    useAuth();
+  const {
+    name,
+    email,
+    roles,
+    peladaId,
+    peladaName,
+    membershipPeladaIds,
+    billingMonthlyByPelada,
+    updateMemberships,
+    updateProfile,
+    changePassword,
+  } = useAuth();
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarNovaSenha, setConfirmarNovaSenha] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingBillingMode, setSavingBillingMode] = useState(false);
+  const [editName, setEditName] = useState(name ?? '');
+  const [editEmail, setEditEmail] = useState(email ?? '');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const isPlayerContext = useMemo(() => (roles ?? []).includes('PLAYER') && peladaId != null, [roles, peladaId]);
+  const isPlayer = useMemo(() => (roles ?? []).includes('PLAYER'), [roles]);
   const billingMonthlyCurrent = useMemo(() => {
     if (peladaId == null) return true;
     return billingMonthlyByPelada[String(peladaId)] !== false;
   }, [peladaId, billingMonthlyByPelada]);
+
+  useEffect(() => {
+    setEditName(name ?? '');
+    setEditEmail(email ?? '');
+  }, [name, email]);
 
   const capabilities = useMemo(() => {
     const roleList = roles ?? [];
@@ -55,6 +74,30 @@ export function ProfilePage() {
     }
     return Array.from(set);
   }, [roles]);
+
+  async function onSaveProfile(e: FormEvent) {
+    e.preventDefault();
+    if (!isPlayer) return;
+    const nextName = editName.trim();
+    const nextEmail = editEmail.trim();
+    if (!nextName) {
+      appToast.warning('Informe seu nome.');
+      return;
+    }
+    if (!nextEmail) {
+      appToast.warning('Informe seu e-mail.');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateProfile({ name: nextName, email: nextEmail });
+      appToast.success('Dados da conta atualizados.');
+    } catch {
+      appToast.error('Não foi possível atualizar seus dados. Verifique se o e-mail já está em uso.');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   async function onChangePassword(e: FormEvent) {
     e.preventDefault();
@@ -108,22 +151,63 @@ export function ProfilePage() {
         <h2 className={s.cardTitle} id="profile-data-title">
           Dados da conta
         </h2>
-        <div className={s.form} style={{ gap: '0.75rem' }}>
-          <p>
-            <strong>Nome:</strong> {name ?? '—'}
-          </p>
-          <p>
-            <strong>E-mail:</strong> {email ?? '—'}
-          </p>
-          <div>
-            <strong>Perfis:</strong>{' '}
-            {(roles ?? []).map((role) => (
-              <span key={role} className={s.rolePill} style={{ marginLeft: '0.35rem' }}>
-                {roleDisplayLabel(role)}
-              </span>
-            ))}
+        {isPlayer ? (
+          <form className={s.form} onSubmit={(e) => void onSaveProfile(e)} style={{ maxWidth: '32rem' }}>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="profile-edit-name">
+                Nome
+              </label>
+              <input
+                id="profile-edit-name"
+                className={s.input}
+                value={editName}
+                onChange={(ev) => setEditName(ev.target.value)}
+                required
+              />
+            </div>
+            <div className={s.field}>
+              <label className={s.fieldLabel} htmlFor="profile-edit-email">
+                E-mail
+              </label>
+              <input
+                id="profile-edit-email"
+                className={s.input}
+                type="email"
+                value={editEmail}
+                onChange={(ev) => setEditEmail(ev.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <strong>Perfis:</strong>{' '}
+              {(roles ?? []).map((role) => (
+                <span key={role} className={s.rolePill} style={{ marginLeft: '0.35rem' }}>
+                  {roleDisplayLabel(role)}
+                </span>
+              ))}
+            </div>
+            <button className={s.btnPrimary} type="submit" disabled={savingProfile}>
+              {savingProfile ? 'Salvando…' : 'Salvar dados da conta'}
+            </button>
+          </form>
+        ) : (
+          <div className={s.form} style={{ gap: '0.75rem' }}>
+            <p>
+              <strong>Nome:</strong> {name ?? '—'}
+            </p>
+            <p>
+              <strong>E-mail:</strong> {email ?? '—'}
+            </p>
+            <div>
+              <strong>Perfis:</strong>{' '}
+              {(roles ?? []).map((role) => (
+                <span key={role} className={s.rolePill} style={{ marginLeft: '0.35rem' }}>
+                  {roleDisplayLabel(role)}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className={s.card} style={{ marginTop: '1.25rem' }} aria-labelledby="profile-perms-title">

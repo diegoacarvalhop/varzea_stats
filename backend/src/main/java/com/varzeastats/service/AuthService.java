@@ -3,6 +3,7 @@ package com.varzeastats.service;
 import com.varzeastats.dto.ChangePasswordRequest;
 import com.varzeastats.dto.LoginRequest;
 import com.varzeastats.dto.LoginResponse;
+import com.varzeastats.dto.UpdateProfileRequest;
 import com.varzeastats.entity.Role;
 import com.varzeastats.entity.User;
 import com.varzeastats.repository.UserPeladaMembershipRepository;
@@ -86,6 +87,35 @@ public class AuthService {
         userRepository.save(user);
         Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
         String token = jwtService.generateToken(user.getEmail(), user.getRoles(), peladaId, false);
+        return toLoginResponse(user, token);
+    }
+
+    @Transactional
+    public LoginResponse updateProfile(String email, UpdateProfileRequest request) {
+        User user = userRepository
+                .findByEmailIgnoreCase(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+
+        if (request.getName() != null) {
+            String name = request.getName().trim();
+            if (name.isBlank()) {
+                throw new IllegalArgumentException("Nome é obrigatório.");
+            }
+            user.setName(name);
+        }
+
+        if (request.getEmail() != null) {
+            String normalized = normalizeEmail(request.getEmail());
+            boolean sameEmail = user.getEmail() != null && user.getEmail().equalsIgnoreCase(normalized);
+            if (!sameEmail && userRepository.existsByEmailIgnoreCase(normalized)) {
+                throw new IllegalArgumentException("E-mail já cadastrado");
+            }
+            user.setEmail(normalized);
+        }
+
+        user = userRepository.save(user);
+        Long peladaId = user.getPelada() != null ? user.getPelada().getId() : null;
+        String token = jwtService.generateToken(user.getEmail(), user.getRoles(), peladaId, user.isMustChangePassword());
         return toLoginResponse(user, token);
     }
 

@@ -6,6 +6,7 @@ import com.varzeastats.dto.LoginRequest;
 import com.varzeastats.dto.LoginResponse;
 import com.varzeastats.dto.MembershipUpdateRequest;
 import com.varzeastats.dto.PublicRegistrationRequest;
+import com.varzeastats.dto.UpdateProfileRequest;
 import com.varzeastats.dto.UserResponse;
 import com.varzeastats.dto.RedefinirSenhaRequest;
 import com.varzeastats.security.AppUserDetails;
@@ -54,6 +55,13 @@ public class AuthController {
         userService.updateMyMemberships(request, authentication);
         AppUserDetails details = (AppUserDetails) authentication.getPrincipal();
         return ResponseEntity.ok(authService.reissueToken(details.getEmail()));
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<LoginResponse> updateMe(
+            @Valid @RequestBody UpdateProfileRequest request, Authentication authentication) {
+        AppUserDetails details = (AppUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.updateProfile(details.getEmail(), request));
     }
 
     @PostMapping("/cadastro")

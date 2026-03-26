@@ -17,11 +17,12 @@ import {
   setPeladaContext,
 } from '@/lib/peladaContext';
 import { isAdminGeral } from '@/lib/roles';
-import type { LoginResult, MembershipUpdatePayload, Role } from '@/services/authService';
+import type { LoginResult, MembershipUpdatePayload, ProfileUpdatePayload, Role } from '@/services/authService';
 import {
   changePassword as changePasswordRequest,
   fetchProfile,
   login as loginRequest,
+  updateProfile as updateProfileRequest,
   updateMemberships as updateMembershipsRequest,
 } from '@/services/authService';
 import { api } from '@/services/api';
@@ -100,6 +101,7 @@ interface AuthContextValue extends AuthState {
   changePassword: (senhaAtual: string, novaSenha: string) => Promise<LoginResult>;
   refreshProfile: () => Promise<LoginResult>;
   updateMemberships: (payload: MembershipUpdatePayload) => Promise<LoginResult>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<LoginResult>;
   switchPelada: (id: number, name: string, hasLogo: boolean, monthlyDueDay?: number | null) => void;
   logout: () => void;
   isAuthenticated: boolean;
@@ -461,6 +463,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyLoginResult],
   );
 
+  const updateProfile = useCallback(
+    async (payload: ProfileUpdatePayload) => {
+      const epoch = authEpochRef.current;
+      const res = await updateProfileRequest(payload);
+      if (epoch !== authEpochRef.current) {
+        return res;
+      }
+      await applyLoginResult(res);
+      return res;
+    },
+    [applyLoginResult],
+  );
+
   const switchPelada = useCallback((id: number, name: string, hasLogo: boolean, monthlyDueDay?: number | null) => {
     setPeladaContext(id, name, hasLogo);
     const raw = localStorage.getItem(USER_KEY);
@@ -518,11 +533,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       refreshProfile,
       updateMemberships,
+      updateProfile,
       switchPelada,
       logout,
       isAuthenticated: Boolean(state.token),
     }),
-    [state, login, changePassword, refreshProfile, updateMemberships, switchPelada, logout],
+    [state, login, changePassword, refreshProfile, updateMemberships, updateProfile, switchPelada, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
