@@ -41,6 +41,8 @@ export function MatchesPage() {
   const [draftLines, setDraftLines] = useState<DraftTeamLine[]>([]);
   const [teamNameToAdd, setTeamNameToAdd] = useState('');
   const [pregameTeams, setPregameTeams] = useState<string[]>([]);
+  const [goalkeeperByTeam, setGoalkeeperByTeam] = useState<Record<string, number>>({});
+  const [goalkeeperForNewTeam, setGoalkeeperForNewTeam] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
 
@@ -105,6 +107,15 @@ export function MatchesPage() {
     );
   }, [peladaForMatch, pregameTeams]);
 
+  const presentUsersSorted = useMemo(() => {
+    return draftMembersSorted.filter((u) => presentForDraft.has(u.id));
+  }, [draftMembersSorted, presentForDraft]);
+
+  const selectedGoalkeeperIds = useMemo(
+    () => Object.values(goalkeeperByTeam).filter((id): id is number => Number.isFinite(id)),
+    [goalkeeperByTeam],
+  );
+
   const loadPregame = useCallback(async () => {
     if (!canCreate || peladaId == null) return;
     setLoadingPregame(true);
@@ -168,6 +179,10 @@ export function MatchesPage() {
       appToast.warning('Adicione ao menos 2 times na preparação.');
       return;
     }
+    if (pregameTeams.some((team) => !goalkeeperByTeam[team])) {
+      appToast.warning('Defina o goleiro de cada time antes de criar a partida.');
+      return;
+    }
     if (draftLines.length === 0) {
       appToast.warning('Faça o sorteio antes de criar a partida.');
       return;
@@ -182,7 +197,13 @@ export function MatchesPage() {
       await applyDraftToMatch(created.id, {
         lines: draftLines.map((line) => ({
           teamName: line.teamName,
-          slots: line.players.map((slot) => ({ userId: slot.userId, goalkeeper: false })),
+          slots: [
+            {
+              userId: goalkeeperByTeam[line.teamName],
+              goalkeeper: true,
+            },
+            ...line.players.map((slot) => ({ userId: slot.userId, goalkeeper: false })),
+          ],
         })),
       });
       setLocation('');
@@ -208,14 +229,30 @@ export function MatchesPage() {
 
   function addTeamToPregame() {
     const name = teamNameToAdd.trim();
+    const goalkeeperId = Number(goalkeeperForNewTeam);
     if (!name) return;
+    if (!Number.isFinite(goalkeeperId) || goalkeeperId <= 0) {
+      appToast.warning('Selecione o goleiro ao adicionar o time.');
+      return;
+    }
+    if (!presentForDraft.has(goalkeeperId)) {
+      appToast.warning('O goleiro precisa estar marcado como presente.');
+      return;
+    }
     setPregameTeams((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setGoalkeeperByTeam((prev) => ({ ...prev, [name]: goalkeeperId }));
     setTeamNameToAdd('');
+    setGoalkeeperForNewTeam('');
     setDraftLines([]);
   }
 
   function removeTeamFromPregame(name: string) {
     setPregameTeams((prev) => prev.filter((x) => x !== name));
+    setGoalkeeperByTeam((prev) => {
+      const out = { ...prev };
+      delete out[name];
+      return out;
+    });
     setDraftLines([]);
   }
 
@@ -225,13 +262,21 @@ export function MatchesPage() {
       appToast.warning('Adicione ao menos 2 times para sortear.');
       return;
     }
+    if (pregameTeams.some((team) => !goalkeeperByTeam[team])) {
+      appToast.warning('Defina o goleiro de cada time antes de sortear.');
+      return;
+    }
     if (presentForDraft.size < 2) {
       appToast.warning('Marque ao menos 2 presentes para sortear.');
       return;
     }
     setRunningDraft(true);
     try {
-      const result = await runDraft(peladaId, { date: presenceDateForDraft, teamNames: pregameTeams });
+      const result = await runDraft(peladaId, {
+        date: presenceDateForDraft,
+        teamNames: pregameTeams,
+        goalkeeperUserIds: selectedGoalkeeperIds,
+      });
       setDraftLines(result);
       appToast.success('Times sorteados.');
     } catch {
@@ -301,6 +346,16 @@ export function MatchesPage() {
               <p className={s.statsDetailMeta}>
                 Data de referência: <strong>{presenceDateForDraft}</strong>
               </p>
+              <div style={{ marginTop: '1rem' }}>
+                <p className={s.fieldLabel}>1) Sorteio</p>
+                <p className={s.statsDetailMeta} style={{ marginTop: 0 }}>
+                  O goleiro de cada time fica fora do sorteio. O mesmo goleiro pode ser usado em mais de um time.
+                </p>
+                <button type="button" className={s.btnPrimary} disabled={runningDraft} onClick={() => void onRunDraft()}>
+                  {runningDraft ? 'Sorteando…' : 'Sortear times'}
+                </button>
+              </div>
+
               <div
                 style={{
                   display: 'grid',
@@ -310,7 +365,7 @@ export function MatchesPage() {
                 }}
               >
                 <div>
-                  <p className={s.fieldLabel}>Mensalistas</p>
+                  <p className={s.fieldLabel}>2) Presença - Mensalistas</p>
                   {presenceByBilling.monthly.map((u) => (
                     <label key={u.id} className={s.checkboxRow}>
                       <input
@@ -323,7 +378,7 @@ export function MatchesPage() {
                   ))}
                 </div>
                 <div>
-                  <p className={s.fieldLabel}>Diaristas</p>
+                  <p className={s.fieldLabel}>2) Presença - Diaristas</p>
                   {presenceByBilling.daily.map((u) => (
                     <label key={u.id} className={s.checkboxRow}>
                       <input
@@ -338,7 +393,7 @@ export function MatchesPage() {
               </div>
 
               <div style={{ marginTop: '1rem' }}>
-                <p className={s.fieldLabel}>Times do dia</p>
+                <p className={s.fieldLabel}>3) Times do dia (com goleiro)</p>
                 <div className={s.formInline}>
                   <select
                     className={`${s.input} ${s.select}`}
@@ -352,27 +407,54 @@ export function MatchesPage() {
                       </option>
                     ))}
                   </select>
+                  <select
+                    className={`${s.input} ${s.select}`}
+                    value={goalkeeperForNewTeam}
+                    onChange={(ev) => setGoalkeeperForNewTeam(ev.target.value)}
+                  >
+                    <option value="">Goleiro do time…</option>
+                    {presentUsersSorted.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
                   <button type="button" className={s.btn} onClick={addTeamToPregame}>
                     Adicionar
                   </button>
                 </div>
                 {pregameTeams.length > 0 ? (
-                  <div className={s.financeMonthChips}>
-                    {pregameTeams.map((name) => (
-                      <button key={name} type="button" className={s.btn} onClick={() => removeTeamFromPregame(name)}>
-                        {name} ×
-                      </button>
-                    ))}
+                  <div style={{ marginTop: '0.75rem' }} className={s.trajectoryTableWrap}>
+                    <table className={s.userListTable}>
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Goleiro</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pregameTeams.map((name) => {
+                          const gkId = goalkeeperByTeam[name];
+                          const gkName = draftPeladaUsers.find((u) => u.id === gkId)?.name ?? '—';
+                          return (
+                            <tr key={name}>
+                              <td>{name}</td>
+                              <td>{gkName}</td>
+                              <td>
+                                <button type="button" className={s.btn} onClick={() => removeTeamFromPregame(name)}>
+                                  Remover
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <p className={s.statsDetailMeta}>Nenhum time definido.</p>
                 )}
-              </div>
-
-              <div style={{ marginTop: '1rem' }}>
-                <button type="button" className={s.btnPrimary} disabled={runningDraft} onClick={() => void onRunDraft()}>
-                  {runningDraft ? 'Sorteando…' : 'Sortear times'}
-                </button>
               </div>
 
               {draftLines.length > 0 && (
