@@ -39,6 +39,7 @@ public class PeladaService {
     private final PeladaLogoStorageService peladaLogoStorageService;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public List<PeladaResponse> findAll() {
@@ -127,6 +128,13 @@ public class PeladaService {
             p = peladaRepository.save(p);
         }
         bindCreatorIfNeeded(caller, p);
+        auditLogService.record(
+                caller.getUserId(),
+                "PELADA_CREATE",
+                "PELADA",
+                String.valueOf(p.getId()),
+                p.getId(),
+                "{\"name\":\"" + p.getName().replace("\"", "'") + "\"}");
         return toResponse(p);
     }
 
@@ -225,13 +233,21 @@ public class PeladaService {
         if (request.getTeamNames() != null) {
             p.setTeamNames(request.getTeamNames().isBlank() ? null : request.getTeamNames());
         }
-        if (request.getMatchDurationMinutes() != null) {
-            p.setMatchDurationMinutes(request.getMatchDurationMinutes());
+        if (request.getMatchDurationSeconds() != null) {
+            p.setMatchDurationSeconds(request.getMatchDurationSeconds());
         }
         if (request.getMatchGoalsToEnd() != null) {
             p.setMatchGoalsToEnd(request.getMatchGoalsToEnd());
         }
         p = peladaRepository.save(p);
+        AppUserDetails actor = (AppUserDetails) authentication.getPrincipal();
+        auditLogService.record(
+                actor.getUserId(),
+                "PELADA_UPDATE_SETTINGS",
+                "PELADA",
+                String.valueOf(p.getId()),
+                p.getId(),
+                "{\"active\":" + p.isActive() + "}");
         return toResponse(p);
     }
 
@@ -278,7 +294,7 @@ public class PeladaService {
                 .teamCount(p.getTeamCount())
                 .linePlayersPerTeam(p.getLinePlayersPerTeam())
                 .teamNames(p.getTeamNames())
-                .matchDurationMinutes(p.getMatchDurationMinutes())
+                .matchDurationSeconds(p.getMatchDurationSeconds())
                 .matchGoalsToEnd(p.getMatchGoalsToEnd())
                 .build();
     }

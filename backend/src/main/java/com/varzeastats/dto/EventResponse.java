@@ -17,4 +17,5 @@ public class EventResponse {
     private Long playerId;
     private Long targetId;
     private Long matchId;
+    private Integer clockElapsedSeconds;
 }

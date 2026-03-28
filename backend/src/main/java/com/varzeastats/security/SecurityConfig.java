@@ -1,5 +1,6 @@
 package com.varzeastats.security;
 
+import com.varzeastats.config.CorrelationIdFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +24,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CorrelationIdFilter correlationIdFilter;
     private final AccountInactiveEnforcementFilter accountInactiveEnforcementFilter;
     private final MustChangePasswordEnforcementFilter mustChangePasswordEnforcementFilter;
     private final PeladaResolver peladaResolver;
@@ -52,7 +54,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/peladas", "/peladas/**")
                         .authenticated()
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthenticationFilter, CorrelationIdFilter.class)
                 .addFilterAfter(accountInactiveEnforcementFilter, JwtAuthenticationFilter.class)
                 .addFilterAfter(mustChangePasswordEnforcementFilter, AccountInactiveEnforcementFilter.class)
                 .addFilterAfter(peladaScopeFilter, MustChangePasswordEnforcementFilter.class);

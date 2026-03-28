@@ -20,6 +20,4 @@ public class PlayerStatsResponse {
     private long goalsConceded;
     private long foulsSuffered;
     private Map<String, Long> eventsByType;
-    private long bolaCheiaVotes;
-    private long bolaMurchaVotes;
 }

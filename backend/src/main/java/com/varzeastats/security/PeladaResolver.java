@@ -33,10 +33,14 @@ public class PeladaResolver {
             if (!peladaRepository.existsById(target)) {
                 throw new IllegalArgumentException("Pelada não encontrada.");
             }
-            if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(u.getUserId(), target)) {
-                throw new IllegalArgumentException("Você não participa desta pelada.");
+            if (userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(u.getUserId(), target)) {
+                return target;
             }
-            return target;
+            // Conta vinculada à pelada no cadastro, mas sem linha em user_pelada (bases antigas ou perfis de staff).
+            if (u.getPeladaId() != null && u.getPeladaId().equals(target)) {
+                return target;
+            }
+            throw new IllegalArgumentException("Você não participa desta pelada.");
         }
         return parseHeaderRequired(request);
     }

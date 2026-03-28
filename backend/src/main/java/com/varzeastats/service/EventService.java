@@ -35,14 +35,34 @@ public class EventService {
         Player player = resolvePlayerInMatch(request.getPlayerId(), matchId);
         Player target = resolvePlayerInMatch(request.getTargetId(), matchId);
         validateEventSemantics(request.getType(), player, target);
+        Integer clockElapsed = request.getClockElapsedSeconds();
+        if (clockElapsed != null && clockElapsed < 0) {
+            throw new IllegalArgumentException("Tempo decorrido no cronômetro não pode ser negativo.");
+        }
         Event event = Event.builder()
                 .type(request.getType())
                 .player(player)
                 .target(target)
                 .match(match)
+                .clockElapsedSeconds(clockElapsed)
                 .build();
         event = eventRepository.save(event);
         return toResponse(event);
+    }
+
+    @Transactional
+    public void deleteForMatch(Long matchId, Long eventId, long peladaId) {
+        Match match = matchAccessHelper.requireInPelada(matchId, peladaId);
+        if (match.getFinishedAt() != null) {
+            throw new IllegalArgumentException("Não é possível excluir lances de uma partida já encerrada.");
+        }
+        Event latest = eventRepository
+                .findFirstByMatch_IdOrderByIdDesc(matchId)
+                .orElseThrow(() -> new IllegalArgumentException("Nenhum lance nesta partida."));
+        if (!latest.getId().equals(eventId)) {
+            throw new IllegalArgumentException("Só é possível excluir o último lance registrado.");
+        }
+        eventRepository.delete(latest);
     }
 
     private Player resolvePlayerInMatch(Long playerId, Long matchId) {
@@ -169,6 +189,7 @@ public class EventService {
                 .playerId(event.getPlayer() != null ? event.getPlayer().getId() : null)
                 .targetId(event.getTarget() != null ? event.getTarget().getId() : null)
                 .matchId(event.getMatch().getId())
+                .clockElapsedSeconds(event.getClockElapsedSeconds())
                 .build();
     }
 }

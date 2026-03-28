@@ -13,7 +13,7 @@ describe('formatMatchPlacar', () => {
         { teamId: 1, teamName: 'A', goals: 2 },
         { teamId: 2, teamName: 'B', goals: 1 },
       ]),
-    ).toBe('A 2 × 1 B');
+    ).toBe('A (2 x 1) B');
   });
 
   it('mais de dois times', () => {
@@ -23,6 +23,6 @@ describe('formatMatchPlacar', () => {
         { teamId: 2, teamName: 'B', goals: 0 },
         { teamId: 3, teamName: 'C', goals: 3 },
       ]),
-    ).toBe('A 1 · B 0 · C 3');
+    ).toBe('A (1) · B (0) · C (3)');
   });
 });

@@ -61,6 +61,20 @@ class PeladaResolverTest {
         return new AppUserDetails(u);
     }
 
+    /** Conta com pelada no cadastro mas sem linha em user_pelada (ex.: staff antigo). */
+    private AppUserDetails adminNoMembershipRow(long peladaId) {
+        Pelada p = Pelada.builder().id(peladaId).name("Pelada").build();
+        User u = User.builder()
+                .id(7L)
+                .name("Admin Pelada")
+                .email("ap@a")
+                .password("x")
+                .roles(Set.of(Role.ADMIN))
+                .pelada(p)
+                .build();
+        return new AppUserDetails(u);
+    }
+
     @BeforeEach
     void headerDefaults() {
         when(request.getHeader("X-Pelada-Id")).thenReturn("10");
@@ -89,6 +103,15 @@ class PeladaResolverTest {
         when(peladaRepository.existsById(10L)).thenReturn(true);
         when(userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(2L, 10L)).thenReturn(true);
         Authentication auth = new UsernamePasswordAuthenticationToken(scoutWithPelada(99L), null, null);
+
+        assertThat(peladaResolver.resolvePeladaId(request, auth)).isEqualTo(10L);
+    }
+
+    @Test
+    void resolve_whenNoMembershipButUserPeladaMatchesHeader_ok() {
+        when(peladaRepository.existsById(10L)).thenReturn(true);
+        when(userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(7L, 10L)).thenReturn(false);
+        Authentication auth = new UsernamePasswordAuthenticationToken(adminNoMembershipRow(10L), null, null);
 
         assertThat(peladaResolver.resolvePeladaId(request, auth)).isEqualTo(10L);
     }

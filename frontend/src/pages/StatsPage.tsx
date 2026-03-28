@@ -177,7 +177,7 @@ export function StatsPage() {
       <p className={s.lead}>
         Análise por <strong>jogador</strong>: ficha do cadastro na partida, <strong>evolução ao longo das peladas</strong>{' '}
         (todos os registros com o <strong>mesmo nome</strong>) e uma <strong>previsão informal</strong> para a próxima
-        partida com base no ritmo recente. Classificações globais e votos ficam em{' '}
+        partida com base no ritmo recente. Classificações globais por tipo de lance ficam em{' '}
         <Link to="/ranking">Ranking</Link>.
       </p>
 
@@ -237,15 +237,6 @@ export function StatsPage() {
                 <span className={s.statVal}>{stats.foulsSuffered}</span>
               </li>
             </ul>
-            <h4 className={s.statsDetailSub}>Votos recebidos</h4>
-            <div className={s.voteRow}>
-              <p>
-                Bola cheia: <strong>{stats.bolaCheiaVotes}</strong>
-              </p>
-              <p>
-                Bola murcha: <strong>{stats.bolaMurchaVotes}</strong>
-              </p>
-            </div>
           </div>
         )}
 
@@ -424,7 +415,7 @@ export function StatsPage() {
       </section>
 
       <p className={s.lead} style={{ marginTop: '1.25rem' }}>
-        <Link to="/ranking">Abrir ranking global e votar →</Link>
+        <Link to="/ranking">Abrir ranking global →</Link>
       </p>
     </div>
   );

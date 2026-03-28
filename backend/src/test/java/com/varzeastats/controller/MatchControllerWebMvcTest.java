@@ -62,6 +62,7 @@ class MatchControllerWebMvcTest {
                 .location("Campo")
                 .finishedAt(null)
                 .teamScores(List.of())
+                .players(List.of())
                 .build();
         when(matchService.findAll(PELADA_ID)).thenReturn(List.of(m));
 
@@ -83,6 +84,7 @@ class MatchControllerWebMvcTest {
                 .date(req.getDate())
                 .location("Arena")
                 .teamScores(List.of())
+                .players(List.of())
                 .build();
         when(matchService.create(any(MatchRequest.class), eq(PELADA_ID))).thenReturn(created);
 

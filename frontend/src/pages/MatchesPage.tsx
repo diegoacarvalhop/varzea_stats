@@ -1,7 +1,17 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createMatch, formatMatchPlacar, listMatches, type Match, type TeamScore } from '@/services/matchService';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import {
+  cancelMatch,
+  createMatch,
+  deleteMatchPermanently,
+  formatMatchPlacarForListItem,
+  getCurrentOpenMatch,
+  listMatches,
+  type Match,
+} from '@/services/matchService';
 import { useAuth } from '@/hooks/useAuth';
+import { getApiErrorMessage } from '@/lib/apiError';
 import { hasAnyRole, MATCH_MANAGER_ROLES } from '@/lib/roles';
 import { appToast } from '@/lib/appToast';
 import { fromDatetimeLocalToUtcIso, toDatetimeLocalString } from '@/utils/datetimeLocal';
@@ -55,6 +65,8 @@ export function MatchesPage() {
   const canCreate = isAuthenticated && hasAnyRole(roles, MATCH_MANAGER_ROLES);
 
   const [matches, setMatches] = useState<Match[]>([]);
+  /** Mesma regra do GET /matches/open: partida aberta mais recente da pelada (em andamento). */
+  const [currentOpenMatchId, setCurrentOpenMatchId] = useState<number | null>(null);
   const [location, setLocation] = useState('');
   const [date, setDate] = useState(() => toDatetimeLocalString());
   const [peladaForMatch, setPeladaForMatch] = useState<Pelada | null | undefined>(undefined);
@@ -70,39 +82,26 @@ export function MatchesPage() {
   const [playerPickByTeam, setPlayerPickByTeam] = useState<Record<string, string>>({});
   const [creatingMatch, setCreatingMatch] = useState(false);
   const lastSavedPresenceKeyRef = useRef<string>('');
+  /** Só permite gravar presença no servidor depois de carregar o dia (evita apagar tudo antes do GET). */
+  const presenceAllowAutosaveRef = useRef(false);
+  const pregameLoadGenRef = useRef(0);
   const [pregameHydrated, setPregameHydrated] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [cancelTargetId, setCancelTargetId] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [cancelingMatch, setCancelingMatch] = useState(false);
+  const [deletingMatch, setDeletingMatch] = useState(false);
 
   useEffect(() => {
     const tid = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(tid);
   }, []);
 
-  function resolveMatchListPlacar(m: Match): string {
-    if (!m.teamScores || m.teamScores.length === 0) return '';
-    if (m.finishedAt) return formatMatchPlacar(m.teamScores);
-    const key = `match:selected-teams:${m.id}`;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return '';
-      const parsed = JSON.parse(raw) as { teamA?: string; teamB?: string };
-      const teamA = typeof parsed.teamA === 'string' ? parsed.teamA : '';
-      const teamB = typeof parsed.teamB === 'string' ? parsed.teamB : '';
-      if (!teamA || !teamB || teamA === teamB) return '';
-      const byName = new Map<string, TeamScore>();
-      for (const score of m.teamScores) byName.set(score.teamName, score);
-      const filtered = [byName.get(teamA), byName.get(teamB)].filter((s): s is TeamScore => s != null);
-      if (filtered.length === 0) return '';
-      return formatMatchPlacar(filtered);
-    } catch {
-      return '';
-    }
-  }
-
   const loadMatches = useCallback(async () => {
     try {
-      const data = await listMatches();
+      const [data, open] = await Promise.all([listMatches(), getCurrentOpenMatch()]);
       setMatches(data);
+      setCurrentOpenMatchId(open?.id ?? null);
     } catch {
       appToast.error('Não foi possível carregar as partidas.');
     }
@@ -199,6 +198,8 @@ export function MatchesPage() {
 
   const loadPregame = useCallback(async () => {
     if (!canCreate || peladaId == null) return;
+    const gen = ++pregameLoadGenRef.current;
+    presenceAllowAutosaveRef.current = false;
     setLoadingPregame(true);
     try {
       const [users, presenceIds, draftResult, peladas] = await Promise.all([
@@ -207,6 +208,9 @@ export function MatchesPage() {
         getDraftResult(peladaId, presenceDateForDraft).catch(() => [] as DraftTeamLine[]),
         listPeladas(),
       ]);
+      if (gen !== pregameLoadGenRef.current) {
+        return;
+      }
       const memberIds = new Set(
         users
           .filter(
@@ -233,14 +237,22 @@ export function MatchesPage() {
         setGoalkeeperByTeam((prev) => ({ ...prev, ...fromDraft }));
       }
       setPeladaForMatch(peladas.find((p) => p.id === peladaId) ?? null);
+      presenceAllowAutosaveRef.current = true;
     } catch {
+      if (gen !== pregameLoadGenRef.current) {
+        return;
+      }
       setDraftPeladaUsers([]);
       setPresentForDraft(new Set());
       setDraftLines([]);
       setPeladaForMatch(null);
+      lastSavedPresenceKeyRef.current = '';
+      presenceAllowAutosaveRef.current = true;
       appToast.error('Não foi possível carregar a preparação da partida.');
     } finally {
-      setLoadingPregame(false);
+      if (gen === pregameLoadGenRef.current) {
+        setLoadingPregame(false);
+      }
     }
   }, [canCreate, peladaId, presenceDateForDraft]);
 
@@ -250,6 +262,7 @@ export function MatchesPage() {
 
   useEffect(() => {
     if (!canCreate || peladaId == null) return;
+    if (!presenceAllowAutosaveRef.current) return;
     if (presentForDraftKey === lastSavedPresenceKeyRef.current) return;
     const tid = window.setTimeout(() => {
       void (async () => {
@@ -265,11 +278,18 @@ export function MatchesPage() {
     return () => window.clearTimeout(tid);
   }, [canCreate, peladaId, presenceDateForDraft, presentForDraftKey]);
 
-  useEffect(() => {
-    if (!pregameStorageKey) return;
+  /** Restaura data / times / sorteio do armazenamento local ANTES do primeiro fetch (mesmo dia da API). */
+  useLayoutEffect(() => {
+    if (!pregameStorageKey) {
+      setPregameHydrated(true);
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(pregameStorageKey);
-      if (!raw) return;
+      if (!raw) {
+        setPregameHydrated(true);
+        return;
+      }
       const parsed = JSON.parse(raw) as {
         date?: string;
         teams?: string[];
@@ -440,8 +460,10 @@ export function MatchesPage() {
           },
         ];
       }
+      // Ao trocar o goleiro, o anterior sai do time (não vira jogador de linha).
       const filtered = existing.players
         .filter((p) => p.userId !== pick)
+        .filter((p) => !p.goalkeeper)
         .map((p) => ({ ...p, goalkeeper: false }));
       const updated = { ...existing, players: [nextPlayer, ...filtered] };
       return prev.map((line) => (line.teamName === teamName ? updated : line));
@@ -527,6 +549,9 @@ export function MatchesPage() {
     }
     setRunningDraft(true);
     try {
+      const presentIds = [...presentForDraft].sort((a, b) => a - b);
+      await savePresence(peladaId, { date: presenceDateForDraft, presentUserIds: presentIds });
+      lastSavedPresenceKeyRef.current = presentIds.join(',');
       const result = await runDraft(peladaId, {
         date: presenceDateForDraft,
         teamNames: pregameTeams,
@@ -535,13 +560,44 @@ export function MatchesPage() {
       });
       setDraftLines(result);
       appToast.success('Times sorteados.');
-    } catch {
-      appToast.error('Falha ao sortear times.');
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Falha ao sortear times.'));
     } finally {
       setRunningDraft(false);
     }
   }
-  
+
+  async function executeCancelMatch() {
+    if (cancelTargetId == null) return;
+    const id = cancelTargetId;
+    setCancelTargetId(null);
+    setCancelingMatch(true);
+    try {
+      await cancelMatch(id);
+      appToast.success('Partida cancelada.');
+      await loadMatches();
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível cancelar a partida.'));
+    } finally {
+      setCancelingMatch(false);
+    }
+  }
+
+  async function executeDeleteMatch() {
+    if (deleteTargetId == null) return;
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+    setDeletingMatch(true);
+    try {
+      await deleteMatchPermanently(id);
+      appToast.success('Partida excluída.');
+      await loadMatches();
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível excluir a partida.'));
+    } finally {
+      setDeletingMatch(false);
+    }
+  }
 
   return (
     <div className={s.page}>
@@ -798,25 +854,96 @@ export function MatchesPage() {
       <h2 className={s.cardTitle} style={{ marginTop: '0.5rem' }}>
         Jogos
       </h2>
+      {canCreate && (
+        <p className={s.statsDetailMeta} style={{ marginBottom: '0.75rem' }}>
+          Em cada partida: <strong>Cancelar</strong> (só aberta) ou <strong>Excluir</strong> (apaga tudo na base). Partidas
+          encerradas só podem ser excluídas.
+        </p>
+      )}
       <ul className={s.matchList}>
-        {matches.map((m) => (
-          <li key={m.id} className={s.matchItem}>
-            <Link to={`/matches/${m.id}`} className={s.matchLink}>
-              <span className={s.matchId}>#{m.id}</span>
-              {m.finishedAt && <span className={s.matchFinishedTag}>Encerrada</span>}
-              <span className={s.matchMeta}>{new Date(m.date).toLocaleString('pt-BR')}</span>
-              <span className={s.matchMeta}>{m.location}</span>
-              <span className={s.matchPlacar}>
-                {resolveMatchListPlacar(m)}
-                {!m.finishedAt && resolveLiveTimerFromStorage(m.id, nowMs) && (
-                  <span className={s.matchTimerInline}>{resolveLiveTimerFromStorage(m.id, nowMs)}</span>
+        {matches.map((m) => {
+          const isOpen =
+            (m.finishedAt == null || m.finishedAt === '') && (m.cancelledAt == null || m.cancelledAt === '');
+          return (
+            <li key={m.id} className={s.matchItem}>
+              <div className={s.matchRow}>
+                <Link to={`/matches/${m.id}`} className={s.matchLink}>
+                  <span className={s.matchId}>#{m.id}</span>
+                  {m.cancelledAt != null && m.cancelledAt !== '' && (
+                    <span className={s.matchCancelledTag}>Cancelada</span>
+                  )}
+                  {m.finishedAt != null && m.finishedAt !== '' && (m.cancelledAt == null || m.cancelledAt === '') && (
+                    <span className={s.matchFinishedTag}>Encerrada</span>
+                  )}
+                  {isOpen && currentOpenMatchId === m.id && (
+                    <span className={s.matchInProgressTag}>Em andamento</span>
+                  )}
+                  <span className={s.matchMeta}>{new Date(m.date).toLocaleString('pt-BR')}</span>
+                  <span className={s.matchMeta}>{m.location}</span>
+                  <span className={s.matchPlacar}>
+                    {formatMatchPlacarForListItem(m)}
+                    {!m.finishedAt &&
+                      (m.cancelledAt == null || m.cancelledAt === '') &&
+                      resolveLiveTimerFromStorage(m.id, nowMs) && (
+                        <span className={s.matchTimerInline}>{resolveLiveTimerFromStorage(m.id, nowMs)}</span>
+                      )}
+                  </span>
+                  <span className={s.matchChevron}>→</span>
+                </Link>
+                {canCreate && (
+                  <div
+                    className={s.matchActions}
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                    }}
+                  >
+                    {isOpen && (
+                      <button
+                        type="button"
+                        className={s.btn}
+                        disabled={cancelingMatch || deletingMatch}
+                        onClick={() => setCancelTargetId(m.id)}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={s.btnRemove}
+                      disabled={cancelingMatch || deletingMatch}
+                      onClick={() => setDeleteTargetId(m.id)}
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 )}
-              </span>
-              <span className={s.matchChevron}>→</span>
-            </Link>
-          </li>
-        ))}
+              </div>
+            </li>
+          );
+        })}
       </ul>
+
+      <ConfirmModal
+        open={cancelTargetId != null}
+        title="Cancelar partida"
+        message="A partida ficará com status CANCELADA. Não haverá placar de encerramento normal para esta partida."
+        confirmLabel={cancelingMatch ? 'Cancelando…' : 'Confirmar cancelamento'}
+        cancelLabel="Voltar"
+        danger
+        onCancel={() => !cancelingMatch && setCancelTargetId(null)}
+        onConfirm={() => void executeCancelMatch()}
+      />
+      <ConfirmModal
+        open={deleteTargetId != null}
+        title="Excluir partida permanentemente"
+        message="Todos os registros desta partida serão apagados na base de dados: lances, pênaltis, jogadores, equipes, placar e mídia vinculada. Esta ação não pode ser desfeita."
+        confirmLabel={deletingMatch ? 'Excluindo…' : 'Excluir tudo'}
+        cancelLabel="Voltar"
+        danger
+        onCancel={() => !deletingMatch && setDeleteTargetId(null)}
+        onConfirm={() => void executeDeleteMatch()}
+      />
     </div>
   );
 }

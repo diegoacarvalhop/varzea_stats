@@ -57,6 +57,7 @@ public class FinanceService {
     private final EmailService emailService;
     private final PeladaPaymentReceiptRepository peladaPaymentReceiptRepository;
     private final PaymentReceiptStorageService paymentReceiptStorageService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public void recordPayment(PaymentRecordRequest request, AppUserDetails caller) {
@@ -81,6 +82,13 @@ public class FinanceService {
         pay.setPaidAt(request.getPaidAt());
         pay.setReferenceMonth(ref);
         peladaPaymentRepository.save(pay);
+        auditLogService.record(
+                caller.getUserId(),
+                "FINANCE_RECORD_PAYMENT",
+                "PELADA_PAYMENT",
+                pay.getId() != null ? String.valueOf(pay.getId()) : null,
+                pelada.getId(),
+                "{\"userId\":" + user.getId() + ",\"kind\":\"" + request.getKind().name() + "\",\"referenceMonth\":\"" + ref + "\"}");
         if (request.getKind() == PaymentKind.DAILY) {
             peladaDailyDebitRepository
                     .findByPelada_IdAndUser_IdAndDebitDate(pelada.getId(), user.getId(), request.getPaidAt())
@@ -326,6 +334,13 @@ public class FinanceService {
             peladaPaymentRepository.save(pay);
         }
         peladaPaymentReceiptRepository.save(receipt);
+        auditLogService.record(
+                caller.getUserId(),
+                "FINANCE_APPROVE_RECEIPT",
+                "PELADA_PAYMENT_RECEIPT",
+                String.valueOf(receipt.getId()),
+                receipt.getPelada().getId(),
+                "{\"paidAt\":\"" + paidAt + "\"}");
     }
 
     @Transactional
@@ -343,6 +358,13 @@ public class FinanceService {
         User reviewer = userRepository.findById(caller.getUserId()).orElse(null);
         receipt.setReviewedBy(reviewer);
         peladaPaymentReceiptRepository.save(receipt);
+        auditLogService.record(
+                caller.getUserId(),
+                "FINANCE_REJECT_RECEIPT",
+                "PELADA_PAYMENT_RECEIPT",
+                String.valueOf(receipt.getId()),
+                receipt.getPelada().getId(),
+                "{\"note\":\"" + (note == null ? "" : note.replace("\"", "'")) + "\"}");
     }
 
     @Transactional(readOnly = true)
@@ -402,6 +424,13 @@ public class FinanceService {
         reminder.setReferenceMonth(monthStart);
         reminder.setSentAt(Instant.now());
         peladaDelinquentReminderRepository.save(reminder);
+        auditLogService.record(
+                caller.getUserId(),
+                "FINANCE_SEND_DELINQUENT_REMINDER",
+                "PELADA_DELINQUENT_REMINDER",
+                reminder.getId() != null ? String.valueOf(reminder.getId()) : null,
+                pelada.getId(),
+                "{\"userId\":" + user.getId() + ",\"referenceMonth\":\"" + monthStart + "\"}");
     }
 
     private void authorizeForPelada(AppUserDetails caller, Long peladaId) {

@@ -7,8 +7,6 @@ export interface PlayerStats {
   teamName: string | null;
   goalkeeper: boolean;
   eventsByType: Record<string, number>;
-  bolaCheiaVotes: number;
-  bolaMurchaVotes: number;
 }
 
 export async function getPlayerStats(playerId: number): Promise<PlayerStats> {

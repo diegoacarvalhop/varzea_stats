@@ -246,6 +246,11 @@ public class DraftService {
                 && caller.getPeladaId().equals(peladaId)) {
             return;
         }
+        if (caller.hasRole(Role.MEDIA)
+                && caller.getPeladaId() != null
+                && caller.getPeladaId().equals(peladaId)) {
+            return;
+        }
         throw new AccessDeniedException("Sem permissão para sortear times nesta pelada.");
     }
 
@@ -296,7 +301,11 @@ public class DraftService {
                 JOIN user_pelada up ON up.user_id = u.id AND up.pelada_id = :peladaId
                 JOIN matches m ON m.pelada_id = :peladaId
                 JOIN teams tm ON tm.match_id = m.id
-                JOIN players pl ON pl.team_id = tm.id AND lower(trim(pl.name)) = lower(trim(u.name))
+                JOIN players pl ON pl.team_id = tm.id
+                  AND (
+                    pl.source_user_id = u.id
+                    OR (pl.source_user_id IS NULL AND lower(trim(pl.name)) = lower(trim(u.name)))
+                  )
                 LEFT JOIN events e ON e.match_id = m.id AND e.player_id = pl.id
                 WHERE u.id IN (:uids)
                 GROUP BY u.id

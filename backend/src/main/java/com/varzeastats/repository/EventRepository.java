@@ -3,7 +3,9 @@ package com.varzeastats.repository;
 import com.varzeastats.entity.Event;
 import com.varzeastats.entity.EventType;
 import com.varzeastats.entity.Player;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -12,19 +14,69 @@ import org.springframework.data.repository.query.Param;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
+    /**
+     * Gols a favor por equipe: {@code GOAL}/{@code PENALTY_PLAY} contam para o time do artilheiro;
+     * {@code OWN_GOAL} conta para o adversário (partidas com exatamente dois times na partida).
+     */
     @Query(
             value =
                     """
-            SELECT t.id, t.name, COALESCE(COUNT(e.id), 0)
+            SELECT t.id, t.name,
+                COALESCE((
+                    SELECT COUNT(e.id)
+                    FROM events e
+                    INNER JOIN players p ON e.player_id = p.id
+                    WHERE e.match_id = :matchId
+                      AND e.type IN ('GOAL', 'PENALTY_PLAY')
+                      AND p.team_id = t.id
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(e.id)
+                    FROM events e
+                    INNER JOIN players p ON e.player_id = p.id
+                    WHERE e.match_id = :matchId
+                      AND e.type = 'OWN_GOAL'
+                      AND p.team_id <> t.id
+                      AND (SELECT COUNT(*) FROM teams t2 WHERE t2.match_id = :matchId) = 2
+                ), 0) AS goals
             FROM teams t
-            LEFT JOIN players p ON p.team_id = t.id
-            LEFT JOIN events e ON e.player_id = p.id AND e.match_id = :matchId AND e.type IN ('GOAL', 'PENALTY_PLAY')
             WHERE t.match_id = :matchId
-            GROUP BY t.id, t.name
             ORDER BY t.id
             """,
             nativeQuery = true)
     List<Object[]> sumGoalsByTeamForMatch(@Param("matchId") long matchId);
+
+    /**
+     * Mesma regra de {@link #sumGoalsByTeamForMatch(long)}, em lote, para evitar N+1 na listagem de partidas.
+     * Colunas: {@code match_id}, {@code team_id}, {@code team_name}, {@code goals}.
+     */
+    @Query(
+            value =
+                    """
+            SELECT t.match_id, t.id, t.name,
+                COALESCE((
+                    SELECT COUNT(e.id)
+                    FROM events e
+                    INNER JOIN players p ON e.player_id = p.id
+                    WHERE e.match_id = t.match_id
+                      AND e.type IN ('GOAL', 'PENALTY_PLAY')
+                      AND p.team_id = t.id
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(e.id)
+                    FROM events e
+                    INNER JOIN players p ON e.player_id = p.id
+                    WHERE e.match_id = t.match_id
+                      AND e.type = 'OWN_GOAL'
+                      AND p.team_id <> t.id
+                      AND (SELECT COUNT(*) FROM teams t2 WHERE t2.match_id = t.match_id) = 2
+                ), 0) AS goals
+            FROM teams t
+            WHERE t.match_id IN (:matchIds)
+            ORDER BY t.match_id, t.id
+            """,
+            nativeQuery = true)
+    List<Object[]> sumGoalsByTeamForMatchIds(@Param("matchIds") Collection<Long> matchIds);
 
     @Modifying
     @Query("UPDATE Event e SET e.player = null WHERE e.player.id = :playerId")
@@ -38,42 +90,79 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     long countByPlayerAndType(Player player, EventType type);
 
+    /** Contagem só em partidas encerradas normalmente (não canceladas). */
+    @Query(
+            """
+            SELECT COUNT(e) FROM Event e
+            WHERE e.player = :player AND e.type = :type
+            AND e.match.finishedAt IS NOT NULL
+            AND e.match.cancelledAt IS NULL
+            """)
+    long countByPlayerAndTypeFinishedMatchOnly(
+            @Param("player") Player player, @Param("type") EventType type);
+
     List<Event> findByMatch_IdOrderByIdDesc(Long matchId);
 
+    Optional<Event> findFirstByMatch_IdOrderByIdDesc(Long matchId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM Event e WHERE e.match.id = :matchId")
+    void deleteByMatch_Id(@Param("matchId") Long matchId);
+
+    /**
+     * Soma lances por jogador principal agregando pelo nome (mesmo cadastro em partidas diferentes =
+     * um único {@code players.id} por partida).
+     */
     @Query(
-            """
-            SELECT e.player.id, e.player.name, COUNT(e.id)
-            FROM Event e
-            WHERE e.type = :type AND e.player IS NOT NULL AND e.match.pelada.id = :peladaId
-            GROUP BY e.player.id, e.player.name
+            value =
+                    """
+            SELECT MIN(p.id), MAX(p.name), COUNT(e.id)
+            FROM events e
+            INNER JOIN players p ON e.player_id = p.id
+            INNER JOIN teams t ON p.team_id = t.id
+            INNER JOIN matches m ON t.match_id = m.id
+            WHERE e.type = :eventType AND m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
+            GROUP BY LOWER(TRIM(p.name))
             ORDER BY COUNT(e.id) DESC
-            """)
+            """,
+            nativeQuery = true)
     List<Object[]> findTopPlayersByEventType(
-            @Param("type") EventType type, @Param("peladaId") long peladaId, Pageable pageable);
+            @Param("eventType") String eventType, @Param("peladaId") long peladaId, Pageable pageable);
 
     @Query(
-            """
-            SELECT e.target.id, e.target.name, COUNT(e.id)
-            FROM Event e
-            WHERE e.type = com.varzeastats.entity.EventType.FOUL AND e.target IS NOT NULL AND e.match.pelada.id = :peladaId
-            GROUP BY e.target.id, e.target.name
+            value =
+                    """
+            SELECT MIN(p.id), MAX(p.name), COUNT(e.id)
+            FROM events e
+            INNER JOIN players p ON e.target_id = p.id
+            INNER JOIN teams t ON p.team_id = t.id
+            INNER JOIN matches m ON t.match_id = m.id
+            WHERE e.type = 'FOUL' AND m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
+            GROUP BY LOWER(TRIM(p.name))
             ORDER BY COUNT(e.id) DESC
-            """)
+            """,
+            nativeQuery = true)
     List<Object[]> findTopPlayersByFoulsSuffered(@Param("peladaId") long peladaId, Pageable pageable);
 
     @Query(
             value =
                     """
-            SELECT gk.id, gk.name, COALESCE(COUNT(e.id), 0) AS conceded
+            SELECT MIN(gk.id), MAX(gk.name), COALESCE(COUNT(e.id), 0) AS conceded
             FROM players gk
-            JOIN teams t ON t.id = gk.team_id
-            JOIN matches m ON m.id = t.match_id
+            INNER JOIN teams t ON t.id = gk.team_id
+            INNER JOIN matches m ON m.id = t.match_id
             LEFT JOIN events e ON e.target_id = gk.id AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
             WHERE m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
               AND gk.goalkeeper = true
-            GROUP BY gk.id, gk.name
+            GROUP BY LOWER(TRIM(gk.name))
             HAVING COALESCE(COUNT(e.id), 0) > 0
-            ORDER BY conceded DESC, gk.name ASC
+            ORDER BY conceded DESC, MAX(gk.name) ASC
             """,
             nativeQuery = true)
     List<Object[]> findGoalkeepersByGoalsConceded(@Param("peladaId") long peladaId);
@@ -95,6 +184,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             INNER JOIN players p ON e.player_id = p.id
             INNER JOIN matches m ON e.match_id = m.id
             WHERE LOWER(TRIM(p.name)) = LOWER(TRIM(:playerName)) AND m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
             GROUP BY m.id, m.date, m.location
             ORDER BY m.date ASC
             """,
@@ -110,6 +201,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             JOIN events e ON e.match_id = m.id
             JOIN players p_target ON p_target.id = e.target_id
             WHERE m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
               AND e.type = 'FOUL'
               AND LOWER(TRIM(p_target.name)) = LOWER(TRIM(:playerName))
             GROUP BY m.id, m.date, m.location
@@ -128,6 +221,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             JOIN players p_gk ON p_gk.team_id = t_gk.id AND p_gk.goalkeeper = true
             LEFT JOIN events e ON e.target_id = p_gk.id AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
             WHERE m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
               AND LOWER(TRIM(p_gk.name)) = LOWER(TRIM(:playerName))
             GROUP BY m.id, m.date, m.location
             HAVING COALESCE(COUNT(e.id), 0) > 0
@@ -145,6 +240,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             JOIN matches m ON e.match_id = m.id
             JOIN players p_target ON e.target_id = p_target.id
             WHERE m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
               AND e.type IN ('GOAL', 'OWN_GOAL', 'PENALTY_PLAY')
               AND LOWER(TRIM(p_target.name)) = LOWER(TRIM(:playerName))
             """,
@@ -160,6 +257,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             JOIN matches m ON e.match_id = m.id
             JOIN players p_target ON p_target.id = e.target_id
             WHERE m.pelada_id = :peladaId
+              AND m.finished_at IS NOT NULL
+              AND m.cancelled_at IS NULL
               AND e.type = 'FOUL'
               AND LOWER(TRIM(p_target.name)) = LOWER(TRIM(:playerName))
             """,

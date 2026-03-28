@@ -9,8 +9,6 @@ export interface PlayerStats {
   goalsConceded: number;
   foulsSuffered: number;
   eventsByType: Record<string, number>;
-  bolaCheiaVotes: number;
-  bolaMurchaVotes: number;
 }
 
 export async function getPlayerStats(playerId: number): Promise<PlayerStats> {
@@ -67,22 +65,6 @@ export async function getPlayerTrajectory(playerId: number): Promise<PlayerTraje
   return data;
 }
 
-export interface VoteRankingEntry {
-  playerId: number;
-  playerName: string;
-  voteCount: number;
-}
-
-export interface VoteRanking {
-  bolaCheia: VoteRankingEntry[];
-  bolaMurcha: VoteRankingEntry[];
-}
-
-export async function getVoteRanking(limit = 20): Promise<VoteRanking> {
-  const { data } = await api.get<VoteRanking>('/stats/ranking/votes', { params: { limit } });
-  return data;
-}
-
 export interface LanceRankingEntry {
   playerId: number;
   playerName: string;
@@ -102,4 +84,33 @@ export interface LanceRankings {
 export async function getLanceRankings(limit = 20): Promise<LanceRankings> {
   const { data } = await api.get<LanceRankings>('/stats/ranking/lances', { params: { limit } });
   return data;
+}
+
+/** Dados agregados da página de ranking (uma requisição lógica; deduplica chamadas duplicadas do React Strict Mode). */
+export interface RankingPageBundle {
+  lanceRankings: LanceRankings | null;
+  failed: string[];
+}
+
+let rankingBundleInFlight: Promise<RankingPageBundle> | null = null;
+
+export async function fetchRankingPageBundle(): Promise<RankingPageBundle> {
+  if (!rankingBundleInFlight) {
+    rankingBundleInFlight = getLanceRankings(30)
+      .then((lanceRankings) => {
+        rankingBundleInFlight = null;
+        return {
+          lanceRankings,
+          failed: [],
+        };
+      })
+      .catch(() => {
+        rankingBundleInFlight = null;
+        return {
+          lanceRankings: null,
+          failed: ['ranking de lances'],
+        };
+      });
+  }
+  return rankingBundleInFlight;
 }

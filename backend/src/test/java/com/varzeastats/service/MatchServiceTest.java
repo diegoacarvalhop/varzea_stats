@@ -2,6 +2,7 @@ package com.varzeastats.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import com.varzeastats.repository.EventRepository;
 import com.varzeastats.repository.MatchRepository;
 import com.varzeastats.repository.MatchTeamScoreRepository;
 import com.varzeastats.repository.PeladaRepository;
+import com.varzeastats.repository.PlayerRepository;
 import com.varzeastats.repository.TeamRepository;
 import java.time.Instant;
 import java.util.Collections;
@@ -42,6 +44,9 @@ class MatchServiceTest {
     @Mock
     private PeladaRepository peladaRepository;
 
+    @Mock
+    private PlayerRepository playerRepository;
+
     @InjectMocks
     private MatchService matchService;
 
@@ -56,6 +61,8 @@ class MatchServiceTest {
 
         when(peladaRepository.getReferenceById(5L)).thenReturn(peladaRef);
         when(eventRepository.sumGoalsByTeamForMatch(anyLong())).thenReturn(Collections.emptyList());
+        when(playerRepository.findByTeam_Match_IdOrderByGoalkeeperDescTeam_IdAscIdAsc(anyLong()))
+                .thenReturn(Collections.emptyList());
         when(matchRepository.save(any(Match.class)))
                 .thenAnswer(invocation -> {
                     Match m = invocation.getArgument(0);
@@ -82,6 +89,9 @@ class MatchServiceTest {
                 .pelada(peladaRef)
                 .build();
         when(matchRepository.findAllByPelada_IdOrderByDateDesc(5L)).thenReturn(List.of(m));
+        when(eventRepository.sumGoalsByTeamForMatchIds(anyList())).thenReturn(Collections.emptyList());
+        when(playerRepository.findByMatch_IdInWithTeamAndMatchFetched(anyList()))
+                .thenReturn(Collections.emptyList());
 
         List<MatchResponse> list = matchService.findAll(5L);
 

@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { appToast } from '@/lib/appToast';
 import { getApiErrorMessage } from '@/lib/apiError';
-import { durationTimeValueToMinutes, minutesToDurationTimeValue } from '@/lib/durationTime';
+import { hmsDurationValueToSeconds, secondsToHmsDurationValue } from '@/lib/durationTime';
 import { centsToMasked, maskCurrencyBRInput, parseMaskedMoneyToCents } from '@/lib/moneyMask';
 import { listPeladas, updatePeladaSettings, type Pelada } from '@/services/peladaService';
 import s from '@/styles/pageShared.module.scss';
@@ -62,7 +62,7 @@ export function PeladaSettingsPage() {
           p.linePlayersPerTeam != null && p.linePlayersPerTeam > 0 ? String(p.linePlayersPerTeam) : '',
         );
         setTeamNames(p.teamNames ?? '');
-        setMatchDuration(minutesToDurationTimeValue(p.matchDurationMinutes ?? null));
+        setMatchDuration(secondsToHmsDurationValue(p.matchDurationSeconds ?? null));
         setMatchGoals(p.matchGoalsToEnd != null ? String(p.matchGoalsToEnd) : '');
       }
     } catch {
@@ -122,7 +122,7 @@ export function PeladaSettingsPage() {
       appToast.warning('Valor da diária inválido.');
       return;
     }
-    const md = durationTimeValueToMinutes(matchDuration);
+    const durationSec = hmsDurationValueToSeconds(matchDuration);
     const mg = matchGoals.trim() === '' ? null : Number(matchGoals);
     const weekdayList = [...weekdays].sort((a, b) => a - b);
     const dueTrim = monthlyDueDay.trim();
@@ -144,7 +144,7 @@ export function PeladaSettingsPage() {
         teamCount: tc,
         linePlayersPerTeam: linePlayersPayload,
         teamNames: teamNames.trim() || null,
-        matchDurationMinutes: md,
+        matchDurationSeconds: durationSec,
         matchGoalsToEnd: mg != null && Number.isFinite(mg) ? mg : null,
       });
       appToast.success('Configurações salvas.');
@@ -355,13 +355,13 @@ export function PeladaSettingsPage() {
         </div>
         <div className={s.field}>
           <label className={s.fieldLabel} htmlFor="ps-md">
-            Duração de cada partida (horas e minutos), opcional
+            Duração de cada partida (HH:MM:SS), opcional
           </label>
           <input
             id="ps-md"
             className={s.input}
             type="time"
-            step={60}
+            step={1}
             value={matchDuration}
             onChange={(ev) => setMatchDuration(ev.target.value)}
           />

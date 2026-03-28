@@ -78,8 +78,6 @@ export function StatsScreen() {
                 {stats.goalkeeper ? ' (Goleiro)' : ''}
               </Text>
               {stats.teamName ? <Text style={styles.muted}>{stats.teamName}</Text> : null}
-              <Text style={styles.sub}>Bola cheia: {stats.bolaCheiaVotes}</Text>
-              <Text style={styles.sub}>Bola murcha: {stats.bolaMurchaVotes}</Text>
               <Text style={styles.eventsTitle}>Lances (principal)</Text>
               {Object.entries(stats.eventsByType).map(([k, v]) => (
                 <Text key={k} style={styles.sub}>

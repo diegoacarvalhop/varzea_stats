@@ -1,5 +1,6 @@
 package com.varzeastats.controller;
 
+import com.varzeastats.dto.MatchFocusTeamsRequest;
 import com.varzeastats.dto.MatchRequest;
 import com.varzeastats.dto.MatchResponse;
 import com.varzeastats.dto.MediaResponse;
@@ -13,9 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,10 +63,34 @@ public class MatchController {
         return ResponseEntity.status(HttpStatus.CREATED).body(matchService.create(request, peladaId));
     }
 
+    @PutMapping("/{id}/focus-teams")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
+    public ResponseEntity<MatchResponse> updateFocusTeams(
+            @PathVariable Long id,
+            @Valid @RequestBody MatchFocusTeamsRequest request,
+            @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
+        return ResponseEntity.ok(matchService.updateFocusTeams(id, request, peladaId));
+    }
+
     @PostMapping("/{id}/finish")
     @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
     public ResponseEntity<MatchResponse> finish(
             @PathVariable Long id, @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
         return ResponseEntity.ok(matchService.finish(id, peladaId));
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
+    public ResponseEntity<MatchResponse> cancel(
+            @PathVariable Long id, @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
+        return ResponseEntity.ok(matchService.cancel(id, peladaId));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id, @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
+        matchService.deletePermanently(id, peladaId);
+        return ResponseEntity.noContent().build();
     }
 }

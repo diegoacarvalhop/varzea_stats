@@ -38,7 +38,21 @@ public class Match {
     @Column(name = "finished_at")
     private Instant finishedAt;
 
+    /** Quando preenchido, a partida foi cancelada (não conta como encerramento normal). */
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pelada_id", nullable = false)
     private Pelada pelada;
+
+    /** Time “1” do confronto para placar e telas (opcional). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "focus_team_a_id")
+    private Team focusTeamA;
+
+    /** Time “2” do confronto para placar e telas (opcional). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "focus_team_b_id")
+    private Team focusTeamB;
 }

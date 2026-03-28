@@ -34,6 +34,6 @@ public class PeladaResponse {
     private Integer teamCount;
     private Integer linePlayersPerTeam;
     private String teamNames;
-    private Integer matchDurationMinutes;
+    private Integer matchDurationSeconds;
     private Integer matchGoalsToEnd;
 }

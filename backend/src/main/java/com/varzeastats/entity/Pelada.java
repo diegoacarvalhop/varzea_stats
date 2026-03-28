@@ -76,8 +76,9 @@ public class Pelada {
     @Column(name = "team_names", columnDefinition = "TEXT")
     private String teamNames;
 
-    @Column(name = "match_duration_minutes")
-    private Integer matchDurationMinutes;
+    /** Duração regulamentar da partida (segundos); ex.: 90 min → 5400. */
+    @Column(name = "match_duration_seconds")
+    private Integer matchDurationSeconds;
 
     @Column(name = "match_goals_to_end")
     private Integer matchGoalsToEnd;

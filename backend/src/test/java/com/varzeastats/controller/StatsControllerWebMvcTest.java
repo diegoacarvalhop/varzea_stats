@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.varzeastats.dto.LanceRankingsResponse;
 import com.varzeastats.dto.PlayerStatsResponse;
-import com.varzeastats.dto.VoteRankingResponse;
 import com.varzeastats.security.CustomUserDetailsService;
 import com.varzeastats.security.JwtService;
 import com.varzeastats.security.PeladaResolver;
@@ -51,8 +50,6 @@ class StatsControllerWebMvcTest {
                 .teamName("Time A")
                 .goalkeeper(false)
                 .eventsByType(Map.of("GOAL", 3L))
-                .bolaCheiaVotes(1)
-                .bolaMurchaVotes(0)
                 .build();
         when(statsService.playerStats(1L, PELADA_ID)).thenReturn(stats);
 
@@ -62,19 +59,6 @@ class StatsControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.playerName").value("João"))
                 .andExpect(jsonPath("$.eventsByType.GOAL").value(3));
-    }
-
-    @Test
-    void voteRanking_passesLimit() throws Exception {
-        VoteRankingResponse empty =
-                VoteRankingResponse.builder().bolaCheia(List.of()).bolaMurcha(List.of()).build();
-        when(statsService.voteRanking(15, PELADA_ID)).thenReturn(empty);
-
-        mockMvc.perform(
-                        get("/stats/ranking/votes")
-                                .param("limit", "15")
-                                .requestAttr(PeladaResolver.REQUEST_ATTR_PELADA_ID, PELADA_ID))
-                .andExpect(status().isOk());
     }
 
     @Test

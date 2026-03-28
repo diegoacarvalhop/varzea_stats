@@ -1,13 +1,30 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createEventForMatch,
+  deleteEventForMatch,
   listEventsByMatch,
   type EventType,
   type MatchEvent,
 } from '@/services/eventService';
 import { listMediaForMatch, type MatchMediaItem } from '@/services/mediaService';
-import { finishMatch, formatMatchPlacar, getMatch, type Match, type TeamScore } from '@/services/matchService';
+import {
+  finishMatch,
+  formatMatchPlacar,
+  formatMatchPlacarFromFocus,
+  getMatch,
+  updateMatchFocusTeams,
+  type Match,
+  type TeamScore,
+} from '@/services/matchService';
 import {
   listPlayersByMatch,
   type Player,
@@ -18,12 +35,14 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { MatchMediaGallery } from '@/components/MatchMediaGallery';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/SearchableSelect';
 import { useAuth } from '@/hooks/useAuth';
+import { getApiErrorMessage } from '@/lib/apiError';
 import { appToast } from '@/lib/appToast';
 import {
   EVENT_RECORDER_ROLES,
   hasAnyRole,
   MATCH_MANAGER_ROLES,
 } from '@/lib/roles';
+import { formatSecondsAsHms } from '@/lib/durationTime';
 import s from '@/styles/pageShared.module.scss';
 
 const EVENT_TYPES: { value: EventType; label: string }[] = [
@@ -41,6 +60,64 @@ const EVENT_TYPES: { value: EventType; label: string }[] = [
 const EVENT_LABELS: Record<EventType, string> = Object.fromEntries(
   EVENT_TYPES.map((x) => [x.value, x.label]),
 ) as Record<EventType, string>;
+
+const TIMER_ICON_SIZE = 20;
+
+function IconPlay() {
+  return (
+    <svg width={TIMER_ICON_SIZE} height={TIMER_ICON_SIZE} viewBox="0 0 24 24" aria-hidden>
+      <path fill="currentColor" d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function IconSquare() {
+  return (
+    <svg width={TIMER_ICON_SIZE} height={TIMER_ICON_SIZE} viewBox="0 0 24 24" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconClock() {
+  return (
+    <svg width={TIMER_ICON_SIZE} height={TIMER_ICON_SIZE} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 7v6l4 2" />
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg width={TIMER_ICON_SIZE} height={TIMER_ICON_SIZE} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function IconReset() {
+  return (
+    <svg width={TIMER_ICON_SIZE} height={TIMER_ICON_SIZE} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 12a9 9 0 1 0 2.64-6.36M3 4v4h4"
+      />
+    </svg>
+  );
+}
+
+const timerIconButtonStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: '2.4rem',
+  minHeight: '2.4rem',
+  padding: '0.35rem',
+};
 
 function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSelectOption[] {
   const knownIds = new Set(teams.map((t) => t.id));
@@ -82,14 +159,7 @@ function buildPlayerOptionsByTeam(list: Player[], teams: Team[]): SearchableSele
 }
 
 function formatCountdown(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(safe / 3600);
-  const m = Math.floor((safe % 3600) / 60);
-  const s = safe % 60;
-  if (h > 0) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return formatSecondsAsHms(seconds);
 }
 
 type PersistedMatchTimer = {
@@ -97,6 +167,8 @@ type PersistedMatchTimer = {
   running: boolean;
   savedAtMs: number;
   completed?: boolean;
+  /** Total do período no cronômetro (inicial + acréscimos), para calcular tempo decorrido. */
+  totalPeriodSeconds?: number;
 };
 
 function resolveTimerFromStorage(raw: string | null): PersistedMatchTimer | null {
@@ -145,6 +217,10 @@ export function MatchDetailPage() {
   const [mediaItems, setMediaItems] = useState<MatchMediaItem[]>([]);
 
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const [deleteEventConfirmOpen, setDeleteEventConfirmOpen] = useState(false);
+  const [deleteEventId, setDeleteEventId] = useState<number | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState(false);
+  const deleteEventInFlightRef = useRef(false);
   const [peladaForMatch, setPeladaForMatch] = useState<Pelada | null | undefined>(undefined);
   const [startingTeamA, setStartingTeamA] = useState('');
   const [startingTeamB, setStartingTeamB] = useState('');
@@ -158,13 +234,24 @@ export function MatchDetailPage() {
   const [finishing, setFinishing] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(0);
   const [countdownRunning, setCountdownRunning] = useState(false);
+  /** Total do período (regulamento + acréscimos), em segundos — usado para tempo decorrido = total - restante. */
+  const [totalPeriodSeconds, setTotalPeriodSeconds] = useState(0);
   const [extraMinutesInput, setExtraMinutesInput] = useState('0');
   const [timerHydrated, setTimerHydrated] = useState(false);
 
   const matchFinished = Boolean(match?.finishedAt);
-  const configuredDurationMinutes = peladaForMatch?.matchDurationMinutes ?? 0;
-  const timerConfigured = configuredDurationMinutes > 0;
+  const matchCancelled = Boolean(match?.cancelledAt);
+  const matchEnded = matchFinished || matchCancelled;
+  const focusPairReady =
+    match != null &&
+    match.focusTeamAId != null &&
+    match.focusTeamBId != null &&
+    match.focusTeamAId !== match.focusTeamBId;
+  const canDeleteEvents = canRecord && !matchEnded;
+  const configuredDurationSeconds = peladaForMatch?.matchDurationSeconds ?? 0;
+  const timerConfigured = configuredDurationSeconds > 0;
   const timerEnded = timerConfigured && countdownSeconds === 0;
+  const timerControlsEnabled = timerConfigured && focusPairReady && !matchEnded;
   const teamsByName = useMemo(() => {
     const map = new Map<string, Team>();
     for (const t of teams) map.set(t.name, t);
@@ -193,8 +280,10 @@ export function MatchDetailPage() {
     return players.filter((p) => p.teamId != null && activeTeamIds.has(p.teamId));
   }, [players, activeTeamIds, activeTeams.length]);
 
-  const selectedPlacar = useMemo(() => {
+  const headerPlacar = useMemo(() => {
     if (!match?.teamScores || match.teamScores.length === 0) return '';
+    const fromApi = formatMatchPlacarFromFocus(match);
+    if (fromApi) return fromApi;
     if (!selectedPairValid) return '';
     const scoreByName = new Map<string, TeamScore>();
     for (const s of match.teamScores) scoreByName.set(s.teamName, s);
@@ -203,7 +292,7 @@ export function MatchDetailPage() {
       .filter((s): s is TeamScore => s != null);
     if (filtered.length === 0) return '';
     return formatMatchPlacar(filtered);
-  }, [match?.teamScores, activeTeams, selectedPairValid]);
+  }, [match, activeTeams, selectedPairValid]);
 
   const selectedTeamsStorageKey = useMemo(() => {
     if (!Number.isFinite(matchId)) return '';
@@ -241,6 +330,17 @@ export function MatchDetailPage() {
     return opponents;
   }, [eventMainPlayer, activePlayers, eventType]);
 
+  /** Gol contra: o alvo é sempre o goleiro da própria equipe (gol “sofrido” por ele); não pedimos escolha manual. */
+  const ownGoalAutoTargetPlayer = useMemo(() => {
+    if (eventType !== 'OWN_GOAL' || !eventMainPlayer) return null;
+    const gks = activePlayers.filter(
+      (p) => p.teamId === eventMainPlayer.teamId && p.goalkeeper && p.id !== eventMainPlayer.id,
+    );
+    if (gks.length === 0) return null;
+    const sorted = [...gks].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return sorted[0];
+  }, [eventType, eventMainPlayer, activePlayers]);
+
   const penaltyMainPlayer = useMemo(() => {
     if (!penaltyPlayerId) return null;
     const id = Number(penaltyPlayerId);
@@ -260,6 +360,15 @@ export function MatchDetailPage() {
     const ok = targetPlayerOptions.some((p) => p.id === tid);
     if (!ok) setEventTargetId('');
   }, [eventTargetId, targetPlayerOptions]);
+
+  useEffect(() => {
+    if (eventType !== 'OWN_GOAL') return;
+    if (ownGoalAutoTargetPlayer) {
+      setEventTargetId(String(ownGoalAutoTargetPlayer.id));
+    } else {
+      setEventTargetId('');
+    }
+  }, [eventType, ownGoalAutoTargetPlayer]);
 
   useEffect(() => {
     const acceptsTarget =
@@ -360,10 +469,29 @@ export function MatchDetailPage() {
   }, [matchId, refresh]);
 
   useEffect(() => {
-    if (!selectedTeamsStorageKey) return;
+    if (!selectedTeamsStorageKey || teams.length === 0) return;
+    const m = match;
+    if (
+      m != null &&
+      m.focusTeamAId != null &&
+      m.focusTeamBId != null &&
+      m.focusTeamAId !== m.focusTeamBId
+    ) {
+      const ta = teams.find((t) => t.id === m.focusTeamAId);
+      const tb = teams.find((t) => t.id === m.focusTeamBId);
+      if (ta && tb) {
+        setStartingTeamA(ta.name);
+        setStartingTeamB(tb.name);
+        setSelectedTeamsHydrated(true);
+        return;
+      }
+    }
     try {
       const raw = window.localStorage.getItem(selectedTeamsStorageKey);
-      if (!raw) return;
+      if (!raw) {
+        setSelectedTeamsHydrated(true);
+        return;
+      }
       const parsed = JSON.parse(raw) as { teamA?: string; teamB?: string };
       if (typeof parsed.teamA === 'string') setStartingTeamA(parsed.teamA);
       if (typeof parsed.teamB === 'string') setStartingTeamB(parsed.teamB);
@@ -372,7 +500,7 @@ export function MatchDetailPage() {
     } finally {
       setSelectedTeamsHydrated(true);
     }
-  }, [selectedTeamsStorageKey]);
+  }, [selectedTeamsStorageKey, teams, match?.focusTeamAId, match?.focusTeamBId, match?.id]);
 
   useEffect(() => {
     if (teams.length === 0) return;
@@ -393,26 +521,59 @@ export function MatchDetailPage() {
     }
   }, [selectedTeamsStorageKey, selectedTeamsHydrated, startingTeamA, startingTeamB]);
 
+  async function persistFocusPair(nameA: string, nameB: string) {
+    if (!Number.isFinite(matchId) || teams.length < 2) return;
+    const ta = teams.find((t) => t.name === nameA);
+    const tb = teams.find((t) => t.name === nameB);
+    if (!ta || !tb || ta.id === tb.id) return;
+    try {
+      const updated = await updateMatchFocusTeams(matchId, { teamAId: ta.id, teamBId: tb.id });
+      setMatch(updated);
+    } catch {
+      appToast.error('Não foi possível salvar o confronto no servidor.');
+    }
+  }
+
   useEffect(() => {
     if (!timerStorageKey) return;
     if (peladaForMatch === undefined) return;
     if (!timerConfigured) {
       setCountdownRunning(false);
       setCountdownSeconds(0);
+      setTotalPeriodSeconds(0);
       setTimerHydrated(true);
       return;
     }
-    const restored = resolveTimerFromStorage(window.localStorage.getItem(timerStorageKey));
+    const rawStr = window.localStorage.getItem(timerStorageKey);
+    const restored = resolveTimerFromStorage(rawStr);
+    const initialPeriod = configuredDurationSeconds;
     if (restored) {
       setCountdownSeconds(restored.remainingSeconds);
       setCountdownRunning(restored.running);
+      let total = initialPeriod;
+      try {
+        const raw = JSON.parse(rawStr || '{}') as { totalPeriodSeconds?: number };
+        if (
+          typeof raw.totalPeriodSeconds === 'number' &&
+          Number.isFinite(raw.totalPeriodSeconds) &&
+          raw.totalPeriodSeconds >= restored.remainingSeconds
+        ) {
+          total = Math.floor(raw.totalPeriodSeconds);
+        } else {
+          total = Math.max(initialPeriod, restored.remainingSeconds);
+        }
+      } catch {
+        total = Math.max(initialPeriod, restored.remainingSeconds);
+      }
+      setTotalPeriodSeconds(total);
     } else {
       setCountdownRunning(false);
-      setCountdownSeconds(configuredDurationMinutes * 60);
+      setCountdownSeconds(initialPeriod);
+      setTotalPeriodSeconds(initialPeriod);
     }
     setExtraMinutesInput('0');
     setTimerHydrated(true);
-  }, [timerStorageKey, timerConfigured, configuredDurationMinutes, peladaForMatch]);
+  }, [timerStorageKey, timerConfigured, configuredDurationSeconds, peladaForMatch]);
 
   useEffect(() => {
     if (!timerStorageKey || !timerHydrated) return;
@@ -423,12 +584,13 @@ export function MatchDetailPage() {
         running: countdownRunning && countdownSeconds > 0,
         savedAtMs: Date.now(),
         completed: timerConfigured && !countdownRunning && countdownSeconds === 0,
+        totalPeriodSeconds: Math.max(0, Math.floor(totalPeriodSeconds)),
       };
       window.localStorage.setItem(timerStorageKey, JSON.stringify(payload));
     } catch {
       // no-op
     }
-  }, [timerStorageKey, timerHydrated, countdownSeconds, countdownRunning, peladaForMatch]);
+  }, [timerStorageKey, timerHydrated, countdownSeconds, countdownRunning, totalPeriodSeconds, peladaForMatch]);
 
   useEffect(() => {
     if (!countdownRunning || countdownSeconds <= 0) return;
@@ -466,12 +628,25 @@ export function MatchDetailPage() {
       appToast.warning('Cadastre jogadores nas equipes antes de registrar lances.');
       return;
     }
-    if ((eventType === 'GOAL' || eventType === 'ASSIST' || eventType === 'PENALTY_PLAY') && !eventPlayerId) {
-      appToast.warning('Selecione o jogador principal para registrar este lance.');
+    if (
+      (eventType === 'GOAL' || eventType === 'ASSIST' || eventType === 'PENALTY_PLAY' || eventType === 'OWN_GOAL') &&
+      !eventPlayerId
+    ) {
+      appToast.warning(
+        eventType === 'OWN_GOAL'
+          ? 'Selecione o jogador que fez o gol contra.'
+          : 'Selecione o jogador principal para registrar este lance.',
+      );
       return;
     }
-    if ((eventType === 'GOAL' || eventType === 'OWN_GOAL' || eventType === 'PENALTY_PLAY') && !eventTargetId) {
-      appToast.warning('Selecione o goleiro/alvo para este lance.');
+    if ((eventType === 'GOAL' || eventType === 'PENALTY_PLAY') && !eventTargetId) {
+      appToast.warning('Selecione o goleiro adversário para este lance.');
+      return;
+    }
+    if (eventType === 'OWN_GOAL' && !ownGoalAutoTargetPlayer) {
+      appToast.warning(
+        'Gol contra exige um goleiro da mesma equipe na escalação (além de quem fez o gol contra). Ajuste os jogadores.',
+      );
       return;
     }
     if (eventType === 'FOUL' && eventTargetId && !eventPlayerId) {
@@ -486,11 +661,19 @@ export function MatchDetailPage() {
         eventType === 'GOAL' ||
         eventType === 'OWN_GOAL' ||
         eventType === 'PENALTY_PLAY';
-      const tid = acceptsTarget && eventTargetId ? Number(eventTargetId) : null;
+      let tid: number | null = null;
+      if (acceptsTarget) {
+        if (eventType === 'OWN_GOAL') {
+          tid = ownGoalAutoTargetPlayer!.id;
+        } else if (eventTargetId) {
+          tid = Number(eventTargetId);
+        }
+      }
       await createEventForMatch(matchId, {
         type: eventType,
         playerId: pid,
         targetId: tid,
+        clockElapsedSeconds: clockElapsedSecondsNow(),
       });
       setEventPlayerId('');
       setEventTargetId('');
@@ -528,6 +711,7 @@ export function MatchDetailPage() {
         type: 'PENALTY',
         playerId: Number(penaltyPlayerId),
         targetId: Number(penaltyTargetId),
+        clockElapsedSeconds: clockElapsedSecondsNow(),
       });
       setPenaltyPlayerId('');
       setPenaltyTargetId('');
@@ -559,10 +743,28 @@ export function MatchDetailPage() {
       }
       appToast.success('Partida finalizada.');
       navigate('/matches#nova-partida');
-    } catch {
-      appToast.error('Falha ao finalizar partida.');
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Falha ao finalizar partida.'));
     } finally {
       setFinishing(false);
+    }
+  }
+
+  async function executeDeleteEvent() {
+    if (deleteEventId == null || deleteEventInFlightRef.current) return;
+    deleteEventInFlightRef.current = true;
+    setDeletingEvent(true);
+    try {
+      await deleteEventForMatch(matchId, deleteEventId);
+      appToast.success('Lance excluído.');
+      setDeleteEventConfirmOpen(false);
+      setDeleteEventId(null);
+      await refresh();
+    } catch (err) {
+      appToast.error(getApiErrorMessage(err, 'Não foi possível excluir o lance.'));
+    } finally {
+      deleteEventInFlightRef.current = false;
+      setDeletingEvent(false);
     }
   }
 
@@ -573,8 +775,26 @@ export function MatchDetailPage() {
       return;
     }
     const secondsToAdd = Math.floor(mins * 60);
+    setTotalPeriodSeconds((prev) => prev + secondsToAdd);
     setCountdownSeconds((prev) => prev + secondsToAdd);
     appToast.success(`Acréscimo aplicado: +${mins} min.`);
+  }
+
+  /** Volta ao tempo inicial da pelada (duração configurada), sem acréscimos, e pausa o cronômetro. */
+  function resetTimerToInitial() {
+    if (!timerConfigured) return;
+    const initial = configuredDurationSeconds;
+    setCountdownSeconds(initial);
+    setTotalPeriodSeconds(initial);
+    setCountdownRunning(false);
+    setExtraMinutesInput('0');
+    appToast.success('Cronômetro zerado (tempo inicial da pelada).');
+  }
+
+  /** Tempo já decorrido no cronômetro (crescente), em segundos, para gravar no lance. */
+  function clockElapsedSecondsNow(): number | null {
+    if (!timerConfigured || totalPeriodSeconds <= 0) return null;
+    return Math.max(0, Math.floor(totalPeriodSeconds - countdownSeconds));
   }
 
   function eventLine(ev: MatchEvent) {
@@ -587,8 +807,16 @@ export function MatchDetailPage() {
       ev.targetId != null
         ? (players.find((p) => p.id === ev.targetId)?.name ?? 'Jogador removido')
         : null;
+    const clockPrefix =
+      ev.clockElapsedSeconds != null && ev.clockElapsedSeconds >= 0 ? (
+        <>
+          <strong>{formatCountdown(ev.clockElapsedSeconds)}</strong>
+          {' · '}
+        </>
+      ) : null;
     return (
       <span>
+        {clockPrefix}
         <strong>{typeLabel}</strong>
         {main !== '—' && (
           <>
@@ -604,6 +832,11 @@ export function MatchDetailPage() {
 
   const penalties = useMemo(() => events.filter((ev) => ev.type === 'PENALTY'), [events]);
   const nonPenaltyEvents = useMemo(() => events.filter((ev) => ev.type !== 'PENALTY'), [events]);
+  /** Maior id = último lance registrado na partida (pênaltis e stats no mesmo fluxo). */
+  const lastEventId = useMemo(() => {
+    if (events.length === 0) return null;
+    return Math.max(...events.map((e) => e.id));
+  }, [events]);
 
   if (!Number.isFinite(matchId)) {
     return (
@@ -624,72 +857,123 @@ export function MatchDetailPage() {
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem 1rem' }}>
             <h1 style={{ margin: 0 }}>Partida #{match.id}</h1>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.35rem 0.55rem',
-                borderRadius: 10,
-                border: `1px solid ${timerEnded ? 'rgba(255,82,82,0.6)' : 'rgba(105,240,174,0.35)'}`,
-                background: timerEnded ? 'rgba(255,82,82,0.12)' : 'rgba(0,0,0,0.22)',
-              }}
-            >
-              <span
+            {!matchEnded && (
+              <div
                 style={{
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  fontSize: '1.05rem',
-                  color: timerEnded ? '#ff8a80' : 'rgba(230,255,240,0.95)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.35rem 0.55rem',
+                  borderRadius: 10,
+                  border: `1px solid ${timerEnded ? 'rgba(255,82,82,0.6)' : 'rgba(105,240,174,0.35)'}`,
+                  background: timerEnded ? 'rgba(255,82,82,0.12)' : 'rgba(0,0,0,0.22)',
                 }}
               >
-                {timerConfigured ? formatCountdown(countdownSeconds) : '--:--'}
-              </span>
-              <button
-                type="button"
-                className={s.btnPrimary}
-                onClick={() => setCountdownRunning((v) => !v)}
-                disabled={!timerConfigured}
-              >
-                {countdownRunning ? 'Pausar' : 'Iniciar'}
-              </button>
-              <input
-                className={s.input}
-                style={{ width: '5.5rem' }}
-                type="number"
-                min={1}
-                step={1}
-                value={extraMinutesInput}
-                onChange={(ev) => setExtraMinutesInput(ev.target.value)}
-                aria-label="Minutos de acréscimo"
-                placeholder="Acréscimo"
-              />
-              <button type="button" className={s.btn} onClick={applyExtraTime} disabled={!timerConfigured}>
-                Acréscimos
-              </button>
-            </div>
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    fontSize: '1.05rem',
+                    color: timerEnded ? '#ff8a80' : 'rgba(230,255,240,0.95)',
+                  }}
+                >
+                  {timerConfigured ? formatCountdown(countdownSeconds) : '--:--'}
+                </span>
+                <button
+                  type="button"
+                  className={s.btnPrimary}
+                  style={timerIconButtonStyle}
+                  onClick={() => setCountdownRunning((v) => !v)}
+                  disabled={!timerControlsEnabled}
+                  aria-label={countdownRunning ? 'Pausar cronômetro' : 'Iniciar cronômetro'}
+                  title={
+                    !focusPairReady
+                      ? 'Selecione os dois times do confronto na seção Equipes abaixo.'
+                      : countdownRunning
+                        ? 'Pausar'
+                        : 'Iniciar'
+                  }
+                >
+                  {countdownRunning ? <IconSquare /> : <IconPlay />}
+                </button>
+                <button
+                  type="button"
+                  className={s.btn}
+                  style={timerIconButtonStyle}
+                  onClick={resetTimerToInitial}
+                  disabled={!timerControlsEnabled}
+                  aria-label="Zerar cronômetro"
+                  title="Volta ao tempo inicial da pelada (sem acréscimos) e pausa o cronômetro."
+                >
+                  <IconReset />
+                </button>
+                <input
+                  className={s.input}
+                  style={{ width: '5.5rem' }}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={extraMinutesInput}
+                  onChange={(ev) => setExtraMinutesInput(ev.target.value)}
+                  aria-label="Minutos de acréscimo"
+                  placeholder="Acréscimo"
+                  disabled={!timerControlsEnabled}
+                />
+                <button
+                  type="button"
+                  className={s.btn}
+                  style={{ ...timerIconButtonStyle, gap: 1 }}
+                  onClick={applyExtraTime}
+                  disabled={!timerControlsEnabled}
+                  aria-label="Aplicar acréscimos"
+                  title="Aplicar minutos de acréscimo"
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                    <IconClock />
+                    <IconPlus />
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
-          {!timerConfigured && (
+          {!matchEnded && !timerConfigured && (
             <p className={s.statsDetailMeta} style={{ marginTop: '0.45rem' }}>
               Defina a duração da partida nas configurações da pelada para habilitar o cronômetro.
+            </p>
+          )}
+          {!matchEnded && timerConfigured && !focusPairReady && (
+            <p className={s.statsDetailMeta} style={{ marginTop: '0.45rem' }}>
+              Selecione os <strong>dois times do confronto</strong> na seção &quot;Equipes desta partida&quot; abaixo para
+              liberar o cronômetro e o encerramento.
             </p>
           )}
           <p className={s.lead}>
             {new Date(match.date).toLocaleString('pt-BR')} · {match.location}
           </p>
-          <p className={s.statsDetailMeta} style={{ marginTop: '-0.15rem' }}>
-            {selectedPairValid
-              ? `${startingTeamA} x ${startingTeamB}`
-              : 'Selecione os 2 times desta partida na seção de equipes.'}
-          </p>
-          {selectedPlacar && <p className={s.placarHighlight}>{selectedPlacar}</p>}
+          {matchCancelled ? (
+            <p className={s.lead} style={{ marginTop: '0.35rem' }}>
+              <strong>Cancelada</strong>
+              {match.cancelledAt ? ` em ${new Date(match.cancelledAt).toLocaleString('pt-BR')}` : ''}.
+            </p>
+          ) : matchFinished ? (
+            headerPlacar ? <p className={s.placarHighlight}>{headerPlacar}</p> : null
+          ) : (
+            <>
+              <p className={s.statsDetailMeta} style={{ marginTop: '-0.15rem' }}>
+                {selectedPairValid
+                  ? `${startingTeamA} x ${startingTeamB}`
+                  : 'Selecione os 2 times desta partida na seção de equipes.'}
+              </p>
+              {headerPlacar ? <p className={s.placarHighlight}>{headerPlacar}</p> : null}
+            </>
+          )}
         </>
       )}
 
       {matchFinished && match?.finishedAt && (
         <p className={s.finishedBanner}>
           Partida encerrada em {new Date(match.finishedAt).toLocaleString('pt-BR')}. Resultado registrado:{' '}
-          <strong>{selectedPlacar || '—'}</strong>. Escalação e novos lances estão bloqueados.
+          <strong>{headerPlacar || '—'}</strong>. Escalação e novos lances estão bloqueados.
         </p>
       )}
 
@@ -703,14 +987,18 @@ export function MatchDetailPage() {
 
         {teams.length === 0 && <p className={s.lead}>Nenhuma equipe ainda.</p>}
 
-        {teams.length >= 2 && (
+        {teams.length >= 2 && !matchEnded && (
           <div className={s.formInline} style={{ marginBottom: '0.5rem' }}>
             <div className={s.field} style={{ flex: '1 1 220px' }}>
               <label className={s.fieldLabel}>Time 1 (início)</label>
               <select
                 className={`${s.input} ${s.select}`}
                 value={startingTeamA}
-                onChange={(ev) => setStartingTeamA(ev.target.value)}
+                onChange={(ev) => {
+                  const v = ev.target.value;
+                  setStartingTeamA(v);
+                  void persistFocusPair(v, startingTeamB);
+                }}
               >
                 <option value="">Selecione…</option>
                 {teams.map((team) => (
@@ -725,7 +1013,11 @@ export function MatchDetailPage() {
               <select
                 className={`${s.input} ${s.select}`}
                 value={startingTeamB}
-                onChange={(ev) => setStartingTeamB(ev.target.value)}
+                onChange={(ev) => {
+                  const v = ev.target.value;
+                  setStartingTeamB(v);
+                  void persistFocusPair(startingTeamA, v);
+                }}
               >
                 <option value="">Selecione…</option>
                 {teams.map((team) => (
@@ -737,7 +1029,7 @@ export function MatchDetailPage() {
             </div>
           </div>
         )}
-        {teams.length >= 2 && !selectedPairValid && (
+        {teams.length >= 2 && !selectedPairValid && !matchEnded && (
           <p className={s.statsDetailMeta} style={{ marginBottom: '1rem' }}>
             Selecione 2 times diferentes para iniciar esta partida.
           </p>
@@ -785,8 +1077,8 @@ export function MatchDetailPage() {
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
           Sessão específica para marcação de pênaltis. Use esta seção somente quando a partida terminar empatada.
         </p>
-        {matchFinished ? (
-          <p className={s.lead}>Não é possível registrar pênaltis nesta partida encerrada.</p>
+        {matchEnded ? (
+          <p className={s.lead}>Não é possível registrar pênaltis nesta partida encerrada ou cancelada.</p>
         ) : canRecord ? (
           <form className={s.form} onSubmit={onRegisterPenalty}>
             <SearchableSelect
@@ -834,7 +1126,19 @@ export function MatchDetailPage() {
             {penalties.map((ev) => (
               <li key={ev.id} className={s.timelineItem}>
                 <span className={s.timelineId}>#{ev.id}</span>
-                {eventLine(ev)}
+                <span style={{ flex: '1 1 12rem', minWidth: 0 }}>{eventLine(ev)}</span>
+                {canDeleteEvents && lastEventId !== null && ev.id === lastEventId && (
+                  <button
+                    type="button"
+                    className={s.btnRemove}
+                    onClick={() => {
+                      setDeleteEventId(ev.id);
+                      setDeleteEventConfirmOpen(true);
+                    }}
+                  >
+                    Excluir
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -846,8 +1150,8 @@ export function MatchDetailPage() {
         <p className={s.lead} style={{ marginBottom: '1rem' }}>
           Registre o que acontece no jogo; as estatísticas por jogador usam estes eventos.
         </p>
-        {matchFinished ? (
-          <p className={s.lead}>Não é possível registrar novos lances nesta partida encerrada.</p>
+        {matchEnded ? (
+          <p className={s.lead}>Não é possível registrar novos lances nesta partida encerrada ou cancelada.</p>
         ) : canRecord ? (
           <form className={s.form} onSubmit={onCreateEvent}>
             <SearchableSelect
@@ -869,13 +1173,24 @@ export function MatchDetailPage() {
               id="ev-player"
               label={
                 <>
-                  {eventType === 'FOUL' ? 'Infrator (quem cometeu a falta)' : 'Jogador principal'}
-                  {(eventType === 'GOAL' || eventType === 'ASSIST') && (
-                    <span className={s.requiredMark} aria-hidden title="Obrigatório para gol e assistência">
+                  {eventType === 'FOUL'
+                    ? 'Infrator (quem cometeu a falta)'
+                    : eventType === 'OWN_GOAL'
+                      ? 'Quem fez o gol contra'
+                      : 'Jogador principal'}
+                  {(eventType === 'GOAL' ||
+                    eventType === 'ASSIST' ||
+                    eventType === 'PENALTY_PLAY' ||
+                    eventType === 'OWN_GOAL') && (
+                    <span className={s.requiredMark} aria-hidden title="Obrigatório para este tipo de lance">
                       *
                     </span>
                   )}
-                  {eventType !== 'GOAL' && eventType !== 'ASSIST' && ' (opcional)'}
+                  {eventType !== 'GOAL' &&
+                    eventType !== 'ASSIST' &&
+                    eventType !== 'PENALTY_PLAY' &&
+                    eventType !== 'OWN_GOAL' &&
+                    ' (opcional)'}
                 </>
               }
               value={eventPlayerId}
@@ -888,45 +1203,61 @@ export function MatchDetailPage() {
                 Time que fez gol contra: <strong>{eventMainPlayer.teamName}</strong>
               </p>
             ) : null}
-            <SearchableSelect
-              id="ev-target"
-              label={
-                eventType === 'PENALTY_PLAY'
-                  ? 'Goleiro adversário (alvo do pênalti)'
-                  : eventType === 'GOAL'
-                    ? 'Goleiro adversário (alvo do gol)'
-                    : eventType === 'OWN_GOAL'
-                      ? 'Goleiro da própria equipe (gol contra)'
-                      : 'Jogador alvo (time adversário ao jogador principal)'
-              }
-              value={eventTargetId}
-              onChange={setEventTargetId}
-              options={targetPlayerSelectOptions}
-              disabled={
-                !eventMainPlayer ||
-                !(
-                  eventType === 'FOUL' ||
-                  eventType === 'SUBSTITUTION' ||
-                  eventType === 'GOAL' ||
-                  eventType === 'OWN_GOAL' ||
+            {eventType === 'OWN_GOAL' ? (
+              <div className={s.field}>
+                <span className={s.fieldLabel}>Goleiro da própria equipe (gol sofrido — automático)</span>
+                <p className={s.statsDetailMeta} style={{ margin: 0 }}>
+                  {ownGoalAutoTargetPlayer ? (
+                    <>
+                      <strong>{ownGoalAutoTargetPlayer.name}</strong> — contabilizado automaticamente; não é o goleiro
+                      adversário.
+                    </>
+                  ) : eventMainPlayer ? (
+                    <>
+                      Cadastre outro goleiro na mesma equipe (além de quem fez o contra) para registrar o gol sofrido.
+                    </>
+                  ) : (
+                    <>Escolha acima quem fez o gol contra; o goleiro alvo será o da mesma equipe.</>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <SearchableSelect
+                id="ev-target"
+                label={
                   eventType === 'PENALTY_PLAY'
-                )
-              }
-              emptyOption={{
-                value: '',
-                label:
+                    ? 'Goleiro adversário (alvo do pênalti)'
+                    : eventType === 'GOAL'
+                      ? 'Goleiro adversário (alvo do gol)'
+                      : 'Jogador alvo (time adversário ao jogador principal)'
+                }
+                value={eventTargetId}
+                onChange={setEventTargetId}
+                options={targetPlayerSelectOptions}
+                disabled={
                   !eventMainPlayer ||
                   !(
                     eventType === 'FOUL' ||
                     eventType === 'SUBSTITUTION' ||
                     eventType === 'GOAL' ||
-                    eventType === 'OWN_GOAL' ||
                     eventType === 'PENALTY_PLAY'
                   )
-                    ? '— Não se aplica para este tipo de lance —'
-                    : '— Nenhum —',
-              }}
-            />
+                }
+                emptyOption={{
+                  value: '',
+                  label:
+                    !eventMainPlayer ||
+                    !(
+                      eventType === 'FOUL' ||
+                      eventType === 'SUBSTITUTION' ||
+                      eventType === 'GOAL' ||
+                      eventType === 'PENALTY_PLAY'
+                    )
+                      ? '— Não se aplica para este tipo de lance —'
+                      : '— Nenhum —',
+                }}
+              />
+            )}
             <button className={s.btnPrimary} type="submit">
               Registrar lance
             </button>
@@ -945,7 +1276,19 @@ export function MatchDetailPage() {
             {nonPenaltyEvents.map((ev) => (
               <li key={ev.id} className={s.timelineItem}>
                 <span className={s.timelineId}>#{ev.id}</span>
-                {eventLine(ev)}
+                <span style={{ flex: '1 1 12rem', minWidth: 0 }}>{eventLine(ev)}</span>
+                {canDeleteEvents && lastEventId !== null && ev.id === lastEventId && (
+                  <button
+                    type="button"
+                    className={s.btnRemove}
+                    onClick={() => {
+                      setDeleteEventId(ev.id);
+                      setDeleteEventConfirmOpen(true);
+                    }}
+                  >
+                    Excluir
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -958,7 +1301,7 @@ export function MatchDetailPage() {
           Quando o jogo acabar, finalize aqui. Você será levado à tela de <strong>nova partida</strong> para começar o
           próximo cadastro.
         </p>
-        {canFinish && !matchFinished && (
+        {canFinish && !matchEnded && focusPairReady && (
           <button
             type="button"
             className={s.btnPrimary}
@@ -968,12 +1311,18 @@ export function MatchDetailPage() {
             {finishing ? 'Finalizando…' : 'Finalizar partida e voltar'}
           </button>
         )}
-        {matchFinished && (
+        {canFinish && !matchEnded && !focusPairReady && (
+          <p className={s.lead}>
+            Selecione os <strong>dois times do confronto</strong> na seção &quot;Equipes desta partida&quot; para poder
+            encerrar a partida.
+          </p>
+        )}
+        {matchEnded && (
           <p className={s.lead}>
             <Link to="/matches#nova-partida">Ir para cadastrar nova partida</Link>
           </p>
         )}
-        {!canFinish && !matchFinished && (
+        {!canFinish && !matchEnded && (
           <p className={s.lead}>
             Faça login como <strong>administrador</strong>, <strong>SCOUT</strong> ou <strong>MEDIA</strong> para encerrar a
             partida.
@@ -989,6 +1338,21 @@ export function MatchDetailPage() {
         cancelLabel="Cancelar"
         onCancel={() => setFinishConfirmOpen(false)}
         onConfirm={() => void executeFinishMatch()}
+      />
+      <ConfirmModal
+        open={deleteEventConfirmOpen}
+        title="Excluir lance"
+        message="Só é possível excluir o último lance registrado. Ele será removido permanentemente e as estatísticas da partida serão atualizadas."
+        confirmLabel={deletingEvent ? 'Excluindo…' : 'Excluir'}
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => {
+          if (!deletingEvent) {
+            setDeleteEventConfirmOpen(false);
+            setDeleteEventId(null);
+          }
+        }}
+        onConfirm={() => void executeDeleteEvent()}
       />
     </div>
   );

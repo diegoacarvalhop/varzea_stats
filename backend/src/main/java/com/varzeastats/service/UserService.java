@@ -39,6 +39,7 @@ public class UserService {
     private final PeladaRepository peladaRepository;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     private static String normalizeEmail(String email) {
         if (email == null) {
@@ -109,6 +110,13 @@ public class UserService {
             }
             replaceMemberships(user.getId(), List.of(pelada.getId()), billingMap);
         }
+        auditLogService.record(
+                caller.getUserId(),
+                "USER_CREATE",
+                "USER",
+                String.valueOf(user.getId()),
+                pelada != null ? pelada.getId() : null,
+                "{\"email\":\"" + user.getEmail() + "\"}");
         return toResponse(user);
     }
 
@@ -238,6 +246,13 @@ public class UserService {
             target.setGoalkeeper(false);
         }
         target = userRepository.save(target);
+        auditLogService.record(
+                caller.getUserId(),
+                "USER_UPDATE",
+                "USER",
+                String.valueOf(target.getId()),
+                target.getPelada() != null ? target.getPelada().getId() : null,
+                "{\"email\":\"" + target.getEmail() + "\"}");
         return toResponse(target);
     }
 

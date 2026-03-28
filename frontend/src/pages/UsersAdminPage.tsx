@@ -87,15 +87,6 @@ const PERMISSION_MATRIX: MatrixRow[] = [
     financeiro: false,
   },
   {
-    feature: 'Votar bola cheia / bola murcha (administrador geral, administrador ou jogador)',
-    adminGeral: true,
-    adminPelada: true,
-    scout: false,
-    media: false,
-    player: true,
-    financeiro: false,
-  },
-  {
     feature: 'Registrar pagamentos e ver inadimplência na pelada',
     adminGeral: true,
     adminPelada: true,

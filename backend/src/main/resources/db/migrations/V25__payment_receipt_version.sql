@@ -1,0 +1,2 @@
+ALTER TABLE pelada_payment_receipt
+    ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;

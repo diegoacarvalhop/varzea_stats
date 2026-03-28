@@ -45,4 +45,8 @@ public class Event {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "match_id", nullable = false)
     private Match match;
+
+    /** Segundos decorridos no cronômetro (crescente) ao registrar o lance; nulo em registros antigos ou se não enviado. */
+    @Column(name = "clock_elapsed_seconds")
+    private Integer clockElapsedSeconds;
 }

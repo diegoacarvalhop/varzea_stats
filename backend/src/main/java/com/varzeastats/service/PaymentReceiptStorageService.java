@@ -59,6 +59,7 @@ public class PaymentReceiptStorageService {
         if (ct == null || !ALLOWED_TYPES.contains(ct.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Formato não permitido. Use PDF, PNG, JPEG, GIF ou WebP.");
         }
+        validateMagicBytes(file, ct);
         String ext = extensionForContentType(ct);
         String storedName = "pelada-" + peladaId + "-receipt-" + UUID.randomUUID() + ext;
         Path target = uploadDir.resolve(storedName).normalize();
@@ -72,6 +73,54 @@ public class PaymentReceiptStorageService {
             throw new IllegalArgumentException("Não foi possível salvar o comprovante.");
         }
         return new StoredFile(storedName, ct, file.getSize(), file.getOriginalFilename());
+    }
+
+    private static void validateMagicBytes(MultipartFile file, String contentType) {
+        try (InputStream in = file.getInputStream()) {
+            byte[] header = in.readNBytes(12);
+            String ct = contentType.toLowerCase(Locale.ROOT);
+            boolean ok;
+            if (ct.contains("pdf")) {
+                ok = header.length >= 4
+                        && header[0] == 0x25
+                        && header[1] == 0x50
+                        && header[2] == 0x44
+                        && header[3] == 0x46;
+            } else if (ct.contains("png")) {
+                ok = header.length >= 8
+                        && (header[0] & 0xFF) == 0x89
+                        && header[1] == 0x50
+                        && header[2] == 0x4E
+                        && header[3] == 0x47;
+            } else if (ct.contains("jpeg") || ct.contains("jpg")) {
+                ok = header.length >= 3
+                        && (header[0] & 0xFF) == 0xFF
+                        && (header[1] & 0xFF) == 0xD8
+                        && (header[2] & 0xFF) == 0xFF;
+            } else if (ct.contains("gif")) {
+                ok = header.length >= 6
+                        && header[0] == 0x47
+                        && header[1] == 0x49
+                        && header[2] == 0x46;
+            } else if (ct.contains("webp")) {
+                ok = header.length >= 12
+                        && header[0] == 0x52
+                        && header[1] == 0x49
+                        && header[2] == 0x46
+                        && header[3] == 0x46
+                        && header[8] == 0x57
+                        && header[9] == 0x45
+                        && header[10] == 0x42
+                        && header[11] == 0x50;
+            } else {
+                ok = false;
+            }
+            if (!ok) {
+                throw new IllegalArgumentException("Conteúdo do comprovante inválido para o formato informado.");
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Não foi possível validar o comprovante.");
+        }
     }
 
     public record LoadedFile(Resource resource, String contentType) {}

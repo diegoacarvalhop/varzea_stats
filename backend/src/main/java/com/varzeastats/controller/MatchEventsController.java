@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,5 +41,15 @@ public class MatchEventsController {
             @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(eventService.createForMatch(matchId, request, peladaId));
+    }
+
+    @DeleteMapping("/{eventId}")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
+    public ResponseEntity<Void> delete(
+            @PathVariable Long matchId,
+            @PathVariable Long eventId,
+            @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
+        eventService.deleteForMatch(matchId, eventId, peladaId);
+        return ResponseEntity.noContent().build();
     }
 }

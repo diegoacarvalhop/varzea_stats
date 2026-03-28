@@ -143,14 +143,14 @@ Configuração em `application.properties`:
 
 ## Peladas (vários grupos) e header `X-Pelada-Id`
 
-Partidas, jogadores, eventos, mídia, estatísticas e votos ficam **associados a uma pelada** (tabela `peladas`). As peladas são criadas pelo **administrador geral** pela API; não há registo automático na migration.
+Partidas, jogadores, eventos, mídia e estatísticas ficam **associados a uma pelada** (tabela `peladas`). As peladas são criadas pelo **administrador geral** pela API; não há registo automático na migration.
 
 - **`GET /peladas`** — lista peladas conforme o papel (visitante vê todas; **`ADMIN_GERAL`** vê todas; demais autenticados com pelada veem só a própria). Cada item inclui **`hasLogo`** quando existe imagem cadastrada.
 - **`POST /peladas`** (JSON) — cria pelada com `{ "name": "..." }`, apenas **`ADMIN_GERAL`** autenticado.
 - **`POST /peladas`** (`multipart/form-data`) — mesmo papel; partes **`name`** (texto) e **`logo`** (arquivo opcional): PNG, JPEG, GIF ou WebP, até **2 MB**. Arquivos ficam em **`varzea.pelada-logo.upload-dir`** (padrão `./data/pelada-logos`; em produção use **`VARZEA_PELADA_LOGO_DIR`** apontando para um volume persistente).
 - **`GET /peladas/{id}/logo`** — imagem pública (cache 1 h); **404** se não houver logo.
 
-Nas rotas escopadas (`/matches`, `/players`, `/stats`, `/media`, `/votes`, etc.), o backend resolve a pelada assim:
+Nas rotas escopadas (`/matches`, `/players`, `/stats`, `/media`, etc.), o backend resolve a pelada assim:
 
 - Usuário com pelada no cadastro (**`ADMIN` da pelada**, SCOUT, MEDIA, PLAYER): usa sempre **`users.pelada_id`**; o header `X-Pelada-Id` **não altera** o escopo.
 - **`ADMIN_GERAL`** ou requisição **anônima** em rotas que exigem contexto: envie **`X-Pelada-Id: <id numérico>`** (o cliente guarda após “Escolher pelada”).

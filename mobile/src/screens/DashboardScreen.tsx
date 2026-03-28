@@ -24,7 +24,7 @@ export function DashboardScreen() {
       </Pressable>
       <View style={[styles.card, styles.disabled]}>
         <Text style={styles.cardTitle}>🏆 Ranking</Text>
-        <Text style={styles.cardText}>Classificação por votos — use o painel web em /ranking.</Text>
+        <Text style={styles.cardText}>Classificação por tipo de lance — use o painel web em /ranking.</Text>
       </View>
       <View style={[styles.card, styles.disabled]}>
         <Text style={styles.cardTitle}>🎬 Mídia</Text>

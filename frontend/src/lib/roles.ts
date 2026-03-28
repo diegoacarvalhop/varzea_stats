@@ -50,6 +50,3 @@ export const USER_ADMIN_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
 export const FINANCE_MODULE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'FINANCEIRO', 'PLAYER'];
 
 export const PELADA_SETTINGS_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN'];
-
-/** Bola cheia / bola murcha na página de ranking. */
-export const BOLA_VOTE_ROLES: Role[] = ['ADMIN_GERAL', 'ADMIN', 'PLAYER'];

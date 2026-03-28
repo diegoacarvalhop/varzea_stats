@@ -66,8 +66,6 @@ public class PeladaScopeFilter extends OncePerRequestFilter {
         return uri.startsWith("/matches")
                 || uri.startsWith("/players")
                 || uri.startsWith("/stats")
-                || uri.startsWith("/media")
-                || uri.equals("/votes")
-                || uri.startsWith("/votes/");
+                || uri.startsWith("/media");
     }
 }

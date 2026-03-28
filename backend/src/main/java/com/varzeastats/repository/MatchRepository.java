@@ -9,7 +9,7 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
 
     List<Match> findAllByPelada_IdOrderByDateDesc(Long peladaId);
 
-    Optional<Match> findFirstByPelada_IdAndFinishedAtIsNullOrderByIdDesc(Long peladaId);
+    Optional<Match> findFirstByPelada_IdAndFinishedAtIsNullAndCancelledAtIsNullOrderByIdDesc(Long peladaId);
 
     Optional<Match> findByIdAndPelada_Id(Long id, Long peladaId);
 }

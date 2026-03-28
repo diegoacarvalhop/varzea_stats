@@ -48,9 +48,29 @@ export interface Player {
   goalkeeper: boolean;
 }
 
+function normalizePlayerRow(raw: unknown): Player {
+  const x = raw as Record<string, unknown>;
+  const tid = x.teamId ?? x.team_id;
+  const tn = x.teamName ?? x.team_name;
+  const idRaw = x.id ?? x.playerId ?? x.player_id;
+  const id = Number(idRaw);
+  return {
+    id,
+    name: String(x.name ?? x.player_name ?? x.playerName ?? ''),
+    teamId: tid == null || tid === '' ? null : Number(tid),
+    teamName: tn == null || tn === '' ? null : String(tn),
+    goalkeeper: Boolean(x.goalkeeper),
+  };
+}
+
+function mapPlayerRows(raw: unknown): Player[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizePlayerRow).filter((p) => Number.isFinite(p.id) && p.id > 0);
+}
+
 export async function listPlayersByMatch(matchId: number): Promise<Player[]> {
-  const { data } = await api.get<Player[]>(`/matches/${matchId}/players`);
-  return data;
+  const { data } = await api.get<unknown>(`/matches/${matchId}/players`);
+  return mapPlayerRows(data);
 }
 
 export async function applyDraftToMatch(

@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
@@ -76,4 +77,8 @@ public class PeladaPaymentReceipt {
 
     @Column(name = "review_note", length = 500)
     private String reviewNote;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 }

@@ -3,7 +3,6 @@ package com.varzeastats.controller;
 import com.varzeastats.dto.LanceRankingsResponse;
 import com.varzeastats.dto.PlayerStatsResponse;
 import com.varzeastats.dto.PlayerTrajectoryResponse;
-import com.varzeastats.dto.VoteRankingResponse;
 import com.varzeastats.security.PeladaResolver;
 import com.varzeastats.service.StatsService;
 import lombok.RequiredArgsConstructor;
@@ -32,13 +31,6 @@ public class StatsController {
     public ResponseEntity<PlayerStatsResponse> player(
             @PathVariable Long id, @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
         return ResponseEntity.ok(statsService.playerStats(id, peladaId));
-    }
-
-    @GetMapping("/ranking/votes")
-    public ResponseEntity<VoteRankingResponse> voteRanking(
-            @RequestParam(name = "limit", defaultValue = "20") int limit,
-            @RequestAttribute(PeladaResolver.REQUEST_ATTR_PELADA_ID) long peladaId) {
-        return ResponseEntity.ok(statsService.voteRanking(limit, peladaId));
     }
 
     @GetMapping("/ranking/lances")

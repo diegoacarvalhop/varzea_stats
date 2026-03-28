@@ -8,14 +8,10 @@ import com.varzeastats.dto.PlayerTrajectoryForecastResponse;
 import com.varzeastats.dto.PlayerTrajectoryResponse;
 import com.varzeastats.dto.TrajectoryCumulativePointResponse;
 import com.varzeastats.dto.TrajectoryMatchSliceResponse;
-import com.varzeastats.dto.VoteRankingEntryResponse;
-import com.varzeastats.dto.VoteRankingResponse;
 import com.varzeastats.entity.EventType;
 import com.varzeastats.entity.Player;
-import com.varzeastats.entity.VoteType;
 import com.varzeastats.repository.EventRepository;
 import com.varzeastats.repository.PlayerRepository;
-import com.varzeastats.repository.VoteRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -37,6 +33,7 @@ public class StatsService {
 
     private static final String TRAJECTORY_METHODOLOGY =
             "Agrupamos lances em que o jogador principal tem o mesmo nome em partidas diferentes. "
+                    + "Só entram partidas encerradas normalmente (não canceladas). "
                     + "Pessoas homônimas aparecem juntas. A previsão usa média móvel das últimas partidas com lance registrado — "
                     + "é uma estimativa informal para a pelada, não um modelo estatístico confiável.";
 
@@ -77,7 +74,6 @@ public class StatsService {
 
     private final PlayerRepository playerRepository;
     private final EventRepository eventRepository;
-    private final VoteRepository voteRepository;
 
     @Transactional(readOnly = true)
     public PlayerStatsResponse playerStats(Long playerId, long peladaId) {
@@ -87,10 +83,8 @@ public class StatsService {
         assertPlayerInPelada(player, peladaId);
         Map<String, Long> byType = new LinkedHashMap<>();
         for (EventType t : COUNTED_PLAYER_STATS_TYPES) {
-            byType.put(t.name(), eventRepository.countByPlayerAndType(player, t));
+            byType.put(t.name(), eventRepository.countByPlayerAndTypeFinishedMatchOnly(player, t));
         }
-        long cheia = voteRepository.countByPlayerAndType(player, VoteType.BOLA_CHEIA);
-        long murcha = voteRepository.countByPlayerAndType(player, VoteType.BOLA_MURCHA);
         long goalsConceded = eventRepository.countGoalsConcededByGoalkeeperNameInPelada(player.getName(), peladaId);
         long foulsSuffered = eventRepository.countFoulsSufferedByPlayerNameInPelada(player.getName(), peladaId);
         Long teamId = player.getTeam() != null ? player.getTeam().getId() : null;
@@ -104,8 +98,6 @@ public class StatsService {
                 .goalsConceded(goalsConceded)
                 .foulsSuffered(foulsSuffered)
                 .eventsByType(byType)
-                .bolaCheiaVotes(cheia)
-                .bolaMurchaVotes(murcha)
                 .build();
     }
 
@@ -307,32 +299,12 @@ public class StatsService {
     }
 
     @Transactional(readOnly = true)
-    public VoteRankingResponse voteRanking(int limit, long peladaId) {
-        int cap = Math.min(Math.max(limit, 1), 50);
-        PageRequest page = PageRequest.of(0, cap);
-        return VoteRankingResponse.builder()
-                .bolaCheia(mapVoteRows(voteRepository.findTopByVoteType(VoteType.BOLA_CHEIA, peladaId, page)))
-                .bolaMurcha(mapVoteRows(voteRepository.findTopByVoteType(VoteType.BOLA_MURCHA, peladaId, page)))
-                .build();
-    }
-
-    private List<VoteRankingEntryResponse> mapVoteRows(List<Object[]> rows) {
-        return rows.stream()
-                .map(row -> VoteRankingEntryResponse.builder()
-                        .playerId(((Number) row[0]).longValue())
-                        .playerName((String) row[1])
-                        .voteCount(((Number) row[2]).longValue())
-                        .build())
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public LanceRankingsResponse lanceRankings(int limit, long peladaId) {
         int cap = Math.min(Math.max(limit, 1), 100);
         PageRequest page = PageRequest.of(0, cap);
         List<EventTypeRankingBlockResponse> blocks = new ArrayList<>();
         for (EventType type : LANCE_RANKING_ORDER) {
-            List<Object[]> rows = eventRepository.findTopPlayersByEventType(type, peladaId, page);
+            List<Object[]> rows = eventRepository.findTopPlayersByEventType(type.name(), peladaId, page);
             blocks.add(EventTypeRankingBlockResponse.builder()
                     .eventType(type.name())
                     .label(labelForEventType(type))

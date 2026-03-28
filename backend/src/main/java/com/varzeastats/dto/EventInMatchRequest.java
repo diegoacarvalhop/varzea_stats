@@ -13,4 +13,7 @@ public class EventInMatchRequest {
     private Long playerId;
 
     private Long targetId;
+
+    /** Segundos decorridos desde o início do período (cronômetro crescente). Opcional. */
+    private Integer clockElapsedSeconds;
 }

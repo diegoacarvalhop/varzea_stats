@@ -200,34 +200,6 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   }
 }
 
-.btnVoteGood {
-  @include btn-base;
-  padding: 0.65rem 1.25rem;
-  background: linear-gradient(135deg, #00c853 0%, #009624 100%);
-  color: #fff;
-  box-shadow: 0 0 20px rgba(0, 200, 83, 0.35);
-
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 0 32px rgba(0, 230, 118, 0.5);
-  }
-}
-
-.btnVoteBad {
-  @include btn-base;
-  padding: 0.65rem 1.25rem;
-  background: linear-gradient(135deg, #37474f 0%, #263238 100%);
-  color: $text-muted;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    color: $text-primary;
-    border-color: rgba(255, 82, 82, 0.4);
-    box-shadow: 0 0 20px rgba(255, 82, 82, 0.15);
-  }
-}
-
 .error {
   color: $danger;
   font-weight: 600;
@@ -305,6 +277,51 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
     border-color: rgba(0, 255, 200, 0.42);
     box-shadow: 0 0 0 1px rgba(0, 230, 118, 0.12);
     background: color.adjust($bg-panel-solid, $lightness: 5%);
+  }
+}
+
+.matchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+
+  .matchLink {
+    flex: 1 1 14rem;
+    min-width: 0;
+    width: auto;
+  }
+}
+
+.matchActions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border-left: 1px solid rgba(105, 240, 174, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+
+  button {
+    font-size: 0.78rem;
+    padding: 0.38rem 0.7rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .matchRow {
+    flex-direction: column;
+
+    .matchActions {
+      border-left: none;
+      border-top: 1px solid rgba(105, 240, 174, 0.12);
+      justify-content: flex-start;
+      width: 100%;
+    }
   }
 }
 
@@ -397,6 +414,30 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   background: rgba(55, 71, 79, 0.5);
 }
 
+.matchCancelledTag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffab91;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 138, 128, 0.35);
+  background: rgba(183, 28, 28, 0.2);
+}
+
+.matchInProgressTag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $accent-bright;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 230, 118, 0.45);
+  background: rgba(0, 90, 60, 0.35);
+}
+
 .matchMeta {
   color: color.adjust($text-primary, $alpha: -0.12);
   font-size: 0.95rem;
@@ -460,23 +501,6 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 .statVal {
   color: $accent-bright;
   font-weight: 700;
-}
-
-.voteRow {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-
-  p {
-    margin: 0;
-    color: $text-muted;
-
-    strong {
-      color: $accent-bright;
-      font-family: $font-display;
-    }
-  }
 }
 
 .teamGrid {
@@ -772,12 +796,6 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rankingVotes {
-  font-family: $font-display;
-  font-size: 0.8rem;
-  color: $text-muted;
 }
 
 .rankingQty {
@@ -1277,9 +1295,7 @@ $picker-calendar-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
   .input,
   .select,
   .btn,
-  .btnPrimary,
-  .btnVoteGood,
-  .btnVoteBad {
+  .btnPrimary {
     width: 100%;
   }
 

@@ -27,7 +27,7 @@ public class PeladaDraftController {
     private final DraftService draftService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT')")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
     public ResponseEntity<List<DraftTeamLineResponse>> run(
             @PathVariable Long peladaId,
             @Valid @RequestBody DraftRunRequest body,
@@ -37,7 +37,7 @@ public class PeladaDraftController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT')")
+    @PreAuthorize("hasAnyRole('ADMIN_GERAL','ADMIN','SCOUT','MEDIA')")
     public ResponseEntity<List<DraftTeamLineResponse>> get(
             @PathVariable Long peladaId, @RequestParam LocalDate date, Authentication authentication) {
         AppUserDetails u = (AppUserDetails) authentication.getPrincipal();

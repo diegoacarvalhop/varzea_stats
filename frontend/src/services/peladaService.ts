@@ -19,7 +19,7 @@ export interface Pelada {
   /** Máx. jogadores de linha por equipe no sorteio; null = sem limite */
   linePlayersPerTeam?: number | null;
   teamNames?: string | null;
-  matchDurationMinutes?: number | null;
+  matchDurationSeconds?: number | null;
   matchGoalsToEnd?: number | null;
 }
 
@@ -45,7 +45,7 @@ export interface PeladaSettingsPayload {
   /** 0 = sem limite no sorteio; ≥1 = teto de jogadores de linha por equipe */
   linePlayersPerTeam?: number | null;
   teamNames?: string | null;
-  matchDurationMinutes?: number | null;
+  matchDurationSeconds?: number | null;
   matchGoalsToEnd?: number | null;
 }
 

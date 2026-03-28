@@ -14,7 +14,6 @@ import com.varzeastats.repository.PlayerRepository;
 import com.varzeastats.repository.TeamRepository;
 import com.varzeastats.repository.UserRepository;
 import com.varzeastats.repository.UserPeladaMembershipRepository;
-import com.varzeastats.repository.VoteRepository;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -33,7 +32,6 @@ public class PlayerService {
     private final PlayerRepository playerRepository;
     private final TeamRepository teamRepository;
     private final EventRepository eventRepository;
-    private final VoteRepository voteRepository;
     private final UserRepository userRepository;
     private final UserPeladaMembershipRepository userPeladaMembershipRepository;
 
@@ -90,6 +88,9 @@ public class PlayerService {
         if (match.getFinishedAt() != null) {
             throw new IllegalArgumentException("Partida encerrada: não é possível aplicar o sorteio no elenco.");
         }
+        if (match.getCancelledAt() != null) {
+            throw new IllegalArgumentException("Partida cancelada: não é possível aplicar o sorteio no elenco.");
+        }
         List<Team> teams = teamRepository.findByMatch_IdOrderByIdAsc(matchId);
         Map<String, Team> byName = new LinkedHashMap<>();
         for (Team t : teams) {
@@ -121,16 +122,17 @@ public class PlayerService {
         if (!team.getMatch().getId().equals(matchId)) {
             throw new IllegalArgumentException("Esta equipe não pertence a esta partida");
         }
-        String name = resolveNameFromDirectoryRef(directoryRef, peladaId);
+        PlayerSeed seed = resolveSeedFromDirectoryRef(directoryRef, peladaId);
         Player player = Player.builder()
-                .name(name)
+                .name(seed.name())
                 .team(team)
                 .goalkeeper(isGoalkeeper)
+                .sourceUser(seed.sourceUser())
                 .build();
         playerRepository.save(player);
     }
 
-    private String resolveNameFromDirectoryRef(long directoryRef, long peladaId) {
+    private PlayerSeed resolveSeedFromDirectoryRef(long directoryRef, long peladaId) {
         if (directoryRef > 0) {
             Player source = playerRepository
                     .findById(directoryRef)
@@ -141,7 +143,7 @@ public class PlayerService {
             if (!source.getTeam().getMatch().getPelada().getId().equals(peladaId)) {
                 throw new IllegalArgumentException("Este jogador não pertence a esta pelada.");
             }
-            return source.getName().trim();
+            return new PlayerSeed(source.getName().trim(), source.getSourceUser());
         }
         long userId = -directoryRef;
         User user = userRepository
@@ -150,14 +152,15 @@ public class PlayerService {
         if (!userPeladaMembershipRepository.existsById_UserIdAndId_PeladaId(userId, peladaId)) {
             throw new IllegalArgumentException("Este usuário não é membro desta pelada.");
         }
-        return user.getName().trim();
+        return new PlayerSeed(user.getName().trim(), user);
     }
+
+    private record PlayerSeed(String name, User sourceUser) {}
 
     private void removePlayerEntity(Player player) {
         Long pid = player.getId();
         eventRepository.clearPlayerAsMain(pid);
         eventRepository.clearPlayerAsTarget(pid);
-        voteRepository.deleteByPlayer_Id(pid);
         playerRepository.delete(player);
     }
 

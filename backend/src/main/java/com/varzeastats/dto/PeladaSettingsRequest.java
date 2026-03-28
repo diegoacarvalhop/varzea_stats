@@ -28,8 +28,10 @@ public class PeladaSettingsRequest {
     private Integer linePlayersPerTeam;
 
     private String teamNames;
+    /** Duração regulamentar em segundos (1 s a 24 h); null = não alterar. */
     @Min(1)
-    private Integer matchDurationMinutes;
+    @Max(86400)
+    private Integer matchDurationSeconds;
     @Min(1)
     private Integer matchGoalsToEnd;
 }

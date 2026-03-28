@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getLanceRankings, type LanceRankings } from '@/services/statsService';
 import {
-  getLanceRankings,
-  getVoteRanking,
-  type LanceRankings,
-  type VoteRanking,
-} from '@/services/statsService';
-import {
-  formatMatchPlacar,
+  formatMatchPlacarForListItem,
   getCurrentOpenMatch,
   type Match,
 } from '@/services/matchService';
@@ -24,23 +19,14 @@ function TempoRealPreview({ match, loading }: { match: Match | null; loading: bo
       <br />
       {new Date(match.date).toLocaleString('pt-BR')} · {match.location}
       <br />
-      <span className={s.openMatchPlacar}>{formatMatchPlacar(match.teamScores)}</span>
+      <span className={s.openMatchPlacar}>{formatMatchPlacarForListItem(match) || '—'}</span>
     </>
   );
 }
 
-function RankingCardPreview({
-  lances,
-  votes,
-  loading,
-}: {
-  lances: LanceRankings | null;
-  votes: VoteRanking | null;
-  loading: boolean;
-}) {
+function RankingCardPreview({ lances, loading }: { lances: LanceRankings | null; loading: boolean }) {
   if (loading) return <>Carregando…</>;
   const topGol = lances?.blocks?.find((b) => b.eventType === 'GOAL')?.entries?.[0];
-  const topCheia = votes?.bolaCheia?.[0];
   return (
     <>
       {topGol ? (
@@ -50,21 +36,12 @@ function RankingCardPreview({
       ) : (
         <>Sem gols registrados nos lances.</>
       )}
-      <br />
-      {topCheia ? (
-        <>
-          Bola cheia: <strong>{topCheia.playerName}</strong> · {topCheia.voteCount} voto(s)
-        </>
-      ) : (
-        <>Sem votos de bola cheia ainda.</>
-      )}
     </>
   );
 }
 
 export function DashboardPage() {
   const { isAuthenticated, roles } = useAuth();
-  const [voteRanking, setVoteRanking] = useState<VoteRanking | null>(null);
   const [lanceRankings, setLanceRankings] = useState<LanceRankings | null>(null);
   const [openMatch, setOpenMatch] = useState<Match | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -72,16 +49,10 @@ export function DashboardPage() {
   const loadPreview = useCallback(async () => {
     setPreviewLoading(true);
     try {
-      const [v, l, open] = await Promise.all([
-        getVoteRanking(5),
-        getLanceRankings(5),
-        getCurrentOpenMatch(),
-      ]);
-      setVoteRanking(v);
+      const [l, open] = await Promise.all([getLanceRankings(5), getCurrentOpenMatch()]);
       setLanceRankings(l);
       setOpenMatch(open);
     } catch {
-      setVoteRanking(null);
       setLanceRankings(null);
       setOpenMatch(null);
     } finally {
@@ -97,8 +68,7 @@ export function DashboardPage() {
     <div className={s.page}>
       <h1>Dashboard</h1>
       <p className={s.lead}>
-        Atalhos para as áreas do VARzea Stats. O ranking reúne <strong>gols e demais lances</strong> por tipo, além da{' '}
-        <strong>votação</strong> da galera.
+        Atalhos para as áreas do VARzea Stats. O ranking reúne <strong>gols e demais lances</strong> por tipo.
       </p>
       {!isAuthenticated && (
         <p className={s.lead}>
@@ -130,7 +100,7 @@ export function DashboardPage() {
           <div className={s.featureIcon}>📊</div>
           <h2>Estatísticas</h2>
           <p className={s.featureText}>
-            Consulte gols, cartões, assistências e votos — escolha o jogador na lista de quem já foi escalado.
+            Consulte gols, cartões e assistências — escolha o jogador na lista de quem já foi escalado.
           </p>
           <span className={s.featureCardCta}>Ir para estatísticas →</span>
         </Link>
@@ -161,10 +131,10 @@ export function DashboardPage() {
           <div className={s.featureIcon}>🏆</div>
           <h2>Ranking</h2>
           <p className={s.featureText}>
-            Gols, assistências, cartões e outros lances — cada tipo com sua tabela. Depois, bola cheia e bola murcha.
+            Gols, assistências, cartões e outros lances — cada tipo com sua tabela.
           </p>
           <p className={s.featureCardPreview}>
-            <RankingCardPreview lances={lanceRankings} votes={voteRanking} loading={previewLoading} />
+            <RankingCardPreview lances={lanceRankings} loading={previewLoading} />
           </p>
           <span className={s.featureCardCta}>Ver rankings completos →</span>
         </Link>
